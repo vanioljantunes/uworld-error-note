@@ -1,0 +1,6 @@
+crewai
+crewai-tools
+fastapi
+uvicorn[standard]
+pyyaml
+python-dotenv

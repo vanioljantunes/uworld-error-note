@@ -1,0 +1,198 @@
+generate_questions:
+  description: >
+    You received a UWorld question extraction JSON:
+    - question_id: {question_id}
+    - question: {question}
+    - choosed_alternative: {choosed_alternative}
+    - wrong_alternative: {wrong_alternative}
+    - educational_objective: {educational_objective}
+    - full_explanation (summary): {explanation_summary}
+
+    Analyze the mismatch between the chosen answer and the educational objective.
+    Generate 1-3 short, diagnostic questions to ask the user to pinpoint their exact
+    cognitive gap. Follow these rules:
+
+    1. Ask 1 question if the gap is obvious from the mismatch.
+    2. Ask 2-3 if multiple plausible gaps exist.
+    3. Questions must be specific to THIS question, not generic.
+    4. Prefer multiple-choice or "one sentence" answer formats.
+    5. Pick from these templates (adapt to content):
+       A) "What was your exact reasoning for picking <choosed_alternative>? (1-2 sentences)"
+       B) "Which step felt unclear: (1) formula/definition, (2) direction of change, (3) mechanism, (4) other?"
+       C) "Name the single concept you think you mis-tracked."
+       D) "What did you assume incorrectly? Choose: '<option1>', '<option2>', '<option3>', 'other'."
+       E) "Rewrite the core rule you *thought* was true (one line)."
+
+    Return ONLY the questions as a JSON object with a "questions" key containing a list of strings.
+  expected_output: >
+    A JSON object with a "questions" key containing a list of 1 to 3 diagnostic question strings.
+  agent: gap_identifier
+
+infer_error_pattern:
+  description: >
+    Using the original extraction and the user's answers to diagnostic questions, infer
+    the stable error pattern.
+
+    Original extraction:
+    - question_id: {question_id}
+    - choosed_alternative: {choosed_alternative}
+    - wrong_alternative: {wrong_alternative}
+    - educational_objective: {educational_objective}
+
+    Diagnostic questions asked: {questions_json}
+    User's answers: {answers_json}
+
+    Your tasks:
+    1. Use the vault_search_tags tool to get all existing tags in the vault.
+    2. Use the vault_list_files tool to see all existing notes.
+    3. Infer a stable error pattern slug (lowercase, kebab-case, ASCII).
+       Examples: afferent-vs-efferent-confusion, ff-formula-misuse
+    4. Check if a note with this pattern already exists (by filename or tag).
+    5. Determine ONE system tag from: renal, cardio, pulm, neuro, endo, heme-onc,
+       repro, gi, msk, derm, psych, biostats, ethics, micro, pharm, immuno, genetics.
+    6. Determine one short topic tag (kebab-case).
+    7. Determine 2-6 concept tags (kebab-case). REUSE existing vault tags when possible.
+    8. Return structured output with: error_slug, action (create/update),
+       existing_file (if updating), system_tag, topic_tag, concept_tags.
+  expected_output: >
+    A JSON object with keys: error_slug, action, existing_file, system_tag, topic_tag, concept_tags.
+  agent: error_pattern_analyst
+
+compose_note:
+  description: >
+    Compose the final Obsidian error note based on the inferred error pattern.
+
+    Original extraction:
+    - question_id: {question_id}
+    - choosed_alternative: {choosed_alternative}
+    - wrong_alternative: {wrong_alternative}
+    - educational_objective: {educational_objective}
+    - full_explanation (summary): {explanation_summary}
+
+    User's cognitive gap (from diagnostic Q&A):
+    Questions: {questions_json}
+    Answers: {answers_json}
+
+    Error pattern info from previous task: {error_pattern_json}
+
+    Existing tags in vault: Use the vault_search_tags tool to get the current list.
+
+    MANDATORY FORMAT:
+    ---
+    tags:
+      - <numeric_question_id>
+      - <system_tag>
+      - <topic_tag>
+      - <error_pattern_slug>
+      - <concept_tag_1>
+      - <concept_tag_2>
+      - ... (2-6 concept tags)
+    ---
+
+    ## What I misunderstood
+    (1-2 sentences, phrased as "I" misunderstanding)
+
+    ## The correction
+    (3-8 sentences with 2-6 natural [[Wiki Links]] embedded in text. No separate Links section.)
+
+    ## The rule I must remember
+    (1-3 compact, testable lines)
+
+    HARD RULES:
+    - question_id tag MUST be numeric only (e.g. "1017", NOT "uworld_1017" or "UW-1017")
+    - Filename = <error_pattern_slug>.md
+    - Do NOT paste the full question or full explanation
+    - Do NOT create a "Links" section — links go naturally in sentences
+    - Only YAML key allowed is "tags:"
+    - If updating: add missing tags and optionally append 1-2 sentence "New example" to "The correction"
+
+    If updating an existing note, use vault_read_note to read it first, then modify it.
+    Use vault_write_note to save the final note to: <error_pattern_slug>.md (directly in the vault root)
+
+    Return: action (created/updated), file_path, error_pattern, tags list, full note content.
+  expected_output: >
+    A JSON object with keys: action, file_path, error_pattern, tags, note_content.
+  agent: note_composer
+
+format_note:
+  description: >
+    You are a world-class instructional designer. Review and improve the structure
+    of the following Obsidian error note. Your job is STRUCTURAL improvement only.
+
+    NOTE TO FORMAT:
+    {note_content}
+
+    STRUCTURAL TEMPLATES (use as FORMAT GUIDE ONLY — do NOT copy their content):
+
+    {template_a}
+
+    ---
+
+    {template_b}
+
+    ---
+
+    {template_c}
+
+    RULES:
+    1. ONLY restructure and clarify — NEVER add facts or information not present in the original note.
+    2. Use the templates as structural inspiration: emoji section headers, anchor statements,
+       bold key terms, bullet-point rules, [[wikilinks]], and a connections section.
+    3. Preserve ALL original YAML frontmatter tags exactly as they are.
+    4. Preserve the filename (do not change it).
+    5. Keep the content concise — do not pad with filler text.
+    6. Standard sections to consider (adapt as needed):
+       - ## ❌ What I got wrong
+       - ## 🔍 Why I got it wrong
+       - ## ✅ The key concept (with a > **Anchor:** blockquote)
+       - ## 📌 The rule I must remember
+       - ## 🔗 Connections
+    7. Use [[wikilinks]] naturally in sentences for key medical terms.
+    8. If the note already follows good structure, make minimal changes.
+    9. Return the COMPLETE formatted note including YAML frontmatter.
+
+    Return ONLY the final formatted note content as a string (the full markdown with frontmatter).
+  expected_output: >
+    The complete formatted Obsidian note as a markdown string, including YAML frontmatter.
+  agent: note_formatter
+
+search_anki_cards:
+  description: >
+    Search the Anki collection for cards matching this query: {query}
+
+    Steps:
+    1. Call the anki_search_notes tool with the query string exactly as given.
+       The query supports full Anki search syntax (e.g. "tag:neurology", "deck:USMLE").
+    2. Return the tool output as-is. Do NOT rephrase, summarize, or alter the card content.
+    3. If the tool returns an error message (starts with "Error:"), return it as:
+       {{"cards": [], "total": 0, "error": "<the error message>"}}
+  expected_output: >
+    A JSON object with key "cards" (list of objects with note_id, front, back, deck, tags)
+    and key "total" (integer count). If an error occurs, include an "error" key.
+  agent: anki_search_agent
+
+format_anki_card:
+  description: >
+    You are reformatting an Anki card for medical study.
+    Your job is STRUCTURAL improvement only — never change facts.
+
+    FRONT (raw cloze text):
+    {front}
+
+    BACK (raw text or HTML):
+    {back}
+
+    STRUCTURAL TEMPLATE (use as FORMAT GUIDE ONLY — do NOT copy its content):
+    {template_content}
+
+    STRICT RULES:
+    1. ONLY restructure and clarify — NEVER add or remove information.
+    2. Preserve ALL cloze syntax EXACTLY: {{c1::text}}, {{c2::text::hint}}, etc.
+    3. Front must be a clear, concise question or fill-in-the-blank (≤ 2 lines).
+    4. Back must use <b>bold</b> for key terms and <br> for line breaks (not markdown).
+    5. Keep the back to ≤ 6 lines total.
+    6. Return a JSON object with exactly two keys: "front" and "back".
+  expected_output: >
+    A JSON object with keys "front" (formatted front field with cloze syntax preserved)
+    and "back" (formatted back field as HTML using <b> and <br>).
+  agent: anki_card_formatter

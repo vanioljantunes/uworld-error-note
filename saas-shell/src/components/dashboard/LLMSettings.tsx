@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { saveLLMSettings, type LLMProvider, type LLMSettings } from '@/actions/integrations'
+import { useSettingsDirty } from './SettingsDirtyProvider'
+
+const PROVIDERS: LLMProvider[] = ['openai', 'anthropic', 'google']
 
 const PROVIDER_META: Record<LLMProvider, { label: string; placeholder: string }> = {
   openai: { label: 'OpenAI', placeholder: 'sk-proj-abc123...' },
@@ -10,18 +13,9 @@ const PROVIDER_META: Record<LLMProvider, { label: string; placeholder: string }>
 }
 
 const MODEL_OPTIONS: Record<LLMProvider, { primary: string[]; economy: string[] }> = {
-  openai: {
-    primary: ['gpt-4o', 'o3-mini'],
-    economy: ['gpt-4o-mini', 'gpt-4o'],
-  },
-  anthropic: {
-    primary: ['claude-sonnet-4-20250514'],
-    economy: ['claude-sonnet-4-20250514'],
-  },
-  google: {
-    primary: ['gemini-2.0-flash'],
-    economy: ['gemini-2.0-flash'],
-  },
+  openai: { primary: ['gpt-4o', 'o3-mini'], economy: ['gpt-4o-mini', 'gpt-4o'] },
+  anthropic: { primary: ['claude-sonnet-4-20250514'], economy: ['claude-sonnet-4-20250514'] },
+  google: { primary: ['gemini-2.0-flash'], economy: ['gemini-2.0-flash'] },
 }
 
 interface Props {
@@ -29,6 +23,7 @@ interface Props {
 }
 
 export function LLMSettings({ initial }: Props) {
+  const { llmFormRef, setLlmDirty } = useSettingsDirty()
   const [provider, setProvider] = useState<LLMProvider>(initial.provider)
   const [primaryModel, setPrimaryModel] = useState(initial.primaryModel)
   const [economyModel, setEconomyModel] = useState(initial.economyModel)
@@ -36,14 +31,16 @@ export function LLMSettings({ initial }: Props) {
   const [anthropicKey, setAnthropicKey] = useState(initial.maskedAnthropicKey ?? '')
   const [googleKey, setGoogleKey] = useState(initial.maskedGoogleKey ?? '')
   const [saveMessage, setSaveMessage] = useState<{ text: string; ok: boolean } | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
-  // When provider changes, auto-set default models if empty
+  // Track dirty state
+  const markDirty = () => setLlmDirty(true)
+
   function handleProviderChange(p: LLMProvider) {
     setProvider(p)
-    const opts = MODEL_OPTIONS[p]
-    setPrimaryModel(opts.primary[0])
-    setEconomyModel(opts.economy[0])
+    setPrimaryModel(MODEL_OPTIONS[p].primary[0])
+    setEconomyModel(MODEL_OPTIONS[p].economy[0])
+    markDirty()
   }
 
   function handleSave(formData: FormData) {
@@ -53,7 +50,8 @@ export function LLMSettings({ initial }: Props) {
       if (result?.error) {
         setSaveMessage({ text: result.error, ok: false })
       } else {
-        setSaveMessage({ text: 'LLM settings saved.', ok: true })
+        setSaveMessage({ text: 'Saved', ok: true })
+        setLlmDirty(false)
         setTimeout(() => setSaveMessage(null), 3000)
       }
     })
@@ -69,40 +67,58 @@ export function LLMSettings({ initial }: Props) {
     if (p === 'openai') setOpenaiKey(v)
     else if (p === 'anthropic') setAnthropicKey(v)
     else setGoogleKey(v)
+    markDirty()
   }
+
+  function maskedKeyForProvider(p: LLMProvider): string | null {
+    if (p === 'openai') return initial.maskedOpenaiKey
+    if (p === 'anthropic') return initial.maskedAnthropicKey
+    return initial.maskedGoogleKey
+  }
+
+  // Build other-providers summary
+  const otherProviders = PROVIDERS.filter(p => p !== provider)
 
   const inputClass =
     'w-full rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-colors'
-
   const selectClass =
     'w-full rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-colors appearance-none cursor-pointer'
 
   return (
-    <form action={handleSave} className="space-y-3">
-      {/* Provider selector */}
+    <form ref={llmFormRef} action={handleSave}>
       <div className="bg-[#111111] rounded-xl border border-[#2a2a2a] p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-violet-600/10 border border-violet-600/20 flex items-center justify-center shrink-0">
-            <LLMIcon />
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-violet-600/10 border border-violet-600/20 flex items-center justify-center shrink-0">
+              <LLMIcon />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#e2e2e2]">LLM Configuration</p>
+              <p className="text-xs text-neutral-500">Provider, API key, and model selection</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-[#e2e2e2]">LLM Provider</p>
-            <p className="text-xs text-neutral-500">Select your AI provider and enter your API key</p>
-          </div>
+          {saveMessage && (
+            <span className={`text-xs font-medium ${saveMessage.ok ? 'text-green-400' : 'text-red-400'}`}>
+              {saveMessage.text}
+            </span>
+          )}
         </div>
 
-        {/* Provider radio cards */}
+        {/* Provider tab bar */}
         <input type="hidden" name="llm_provider" value={provider} />
-        <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(PROVIDER_META) as LLMProvider[]).map((p) => (
+        <div className="flex rounded-lg border border-[#2a2a2a] overflow-hidden" role="tablist">
+          {PROVIDERS.map((p) => (
             <button
               key={p}
               type="button"
+              role="tab"
+              aria-selected={provider === p}
               onClick={() => handleProviderChange(p)}
-              className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+              className={`flex-1 px-3 py-2 text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
                 provider === p
-                  ? 'border-violet-500/50 bg-violet-600/10 text-violet-400'
-                  : 'border-[#2a2a2a] bg-[#1a1a1a] text-neutral-400 hover:border-[#3a3a3a] hover:text-neutral-300'
+                  ? 'bg-violet-600/10 text-violet-400 border-b-2 border-violet-500'
+                  : 'bg-[#1a1a1a] text-neutral-400 hover:text-neutral-300 hover:bg-[#212121]'
               }`}
             >
               {PROVIDER_META[p].label}
@@ -110,8 +126,8 @@ export function LLMSettings({ initial }: Props) {
           ))}
         </div>
 
-        {/* API key for each provider */}
-        {(Object.keys(PROVIDER_META) as LLMProvider[]).map((p) => (
+        {/* API key for active provider */}
+        {PROVIDERS.map((p) => (
           <div key={p} className={p === provider ? '' : 'hidden'}>
             <label htmlFor={`${p}_key`} className="text-xs font-medium text-neutral-500 block mb-1.5">
               {PROVIDER_META[p].label} API Key
@@ -135,34 +151,17 @@ export function LLMSettings({ initial }: Props) {
           </div>
         ))}
 
-        <p className="text-xs text-neutral-600">
-          Your key is encrypted with AES-256-GCM before storage. Only the last 4 characters are visible after saving.
-        </p>
-      </div>
-
-      {/* Model selection */}
-      <div className="bg-[#111111] rounded-xl border border-[#2a2a2a] p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-violet-600/10 border border-violet-600/20 flex items-center justify-center shrink-0">
-            <ModelIcon />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[#e2e2e2]">Model Selection</p>
-            <p className="text-xs text-neutral-500">Choose models for primary and economy tasks</p>
-          </div>
-        </div>
-
+        {/* Model selection — inline */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label htmlFor="primary_model" className="text-xs font-medium text-neutral-500 block mb-1.5">
-              Primary Model
-              <span className="text-neutral-600 font-normal ml-1">(complex tasks)</span>
+              Primary Model <span className="text-neutral-600 font-normal">(complex)</span>
             </label>
             <select
               id="primary_model"
               name="primary_model"
               value={primaryModel}
-              onChange={(e) => setPrimaryModel(e.target.value)}
+              onChange={(e) => { setPrimaryModel(e.target.value); markDirty() }}
               className={selectClass}
             >
               <option value="">Select a model</option>
@@ -173,14 +172,13 @@ export function LLMSettings({ initial }: Props) {
           </div>
           <div>
             <label htmlFor="economy_model" className="text-xs font-medium text-neutral-500 block mb-1.5">
-              Economy Model
-              <span className="text-neutral-600 font-normal ml-1">(routine tasks)</span>
+              Economy Model <span className="text-neutral-600 font-normal">(routine)</span>
             </label>
             <select
               id="economy_model"
               name="economy_model"
               value={economyModel}
-              onChange={(e) => setEconomyModel(e.target.value)}
+              onChange={(e) => { setEconomyModel(e.target.value); markDirty() }}
               className={selectClass}
             >
               <option value="">Select a model</option>
@@ -191,28 +189,21 @@ export function LLMSettings({ initial }: Props) {
           </div>
         </div>
 
-        <p className="text-xs text-neutral-600">
-          <span className="text-neutral-400 font-medium">Primary</span> is used for note composition and synthesis.{' '}
-          <span className="text-neutral-400 font-medium">Economy</span> handles extraction and question generation.
-        </p>
-      </div>
-
-      {/* Save row */}
-      <div className="flex items-center justify-between pt-1">
-        {saveMessage ? (
-          <p className={`text-xs ${saveMessage.ok ? 'text-green-400' : 'text-red-400'}`}>
-            {saveMessage.text}
-          </p>
-        ) : (
-          <span />
-        )}
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          {isPending ? 'Saving...' : 'Save Changes'}
-        </button>
+        {/* Other providers summary */}
+        <div className="flex items-center gap-4 pt-1">
+          {otherProviders.map((p) => {
+            const masked = maskedKeyForProvider(p)
+            return (
+              <span key={p} className="text-xs text-neutral-600">
+                {PROVIDER_META[p].label}:{' '}
+                <span className={masked ? 'text-neutral-400' : 'text-neutral-600'}>
+                  {masked ?? 'not set'}
+                </span>
+              </span>
+            )
+          })}
+          <span className="text-xs text-neutral-700 ml-auto">AES-256-GCM encrypted</span>
+        </div>
       </div>
     </form>
   )
@@ -224,15 +215,6 @@ function LLMIcon() {
       <path d="M12 2L2 7l10 5 10-5-10-5z" />
       <path d="M2 17l10 5 10-5" />
       <path d="M2 12l10 5 10-5" />
-    </svg>
-  )
-}
-
-function ModelIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   )
 }

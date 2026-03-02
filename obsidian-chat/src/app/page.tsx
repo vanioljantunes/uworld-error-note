@@ -1227,6 +1227,7 @@ export default function Home() {
             Anki
           </button>
         </div>
+        <div className={styles.viewToggleDivider} />
 
         {/* Vault Path */}
         <div className={styles.pathSection}>

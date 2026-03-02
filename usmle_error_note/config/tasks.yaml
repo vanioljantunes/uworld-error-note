@@ -1,37 +1,51 @@
 generate_questions:
   description: >
-    You received a UWorld question extraction JSON:
+    You received a UWorld question extraction:
     - question_id: {question_id}
-    - question: {question}
-    - choosed_alternative: {choosed_alternative}
-    - wrong_alternative: {wrong_alternative}
+    - question_stem: {question}
+    - user_chose (WRONG): {choosed_alternative}
+    - correct_answer: {wrong_alternative}
     - educational_objective: {educational_objective}
-    - full_explanation (summary): {explanation_summary}
+    - explanation (summary): {explanation_summary}
 
-    Analyze the mismatch between the chosen answer and the educational objective.
-    Generate 1-3 short, diagnostic questions to ask the user to pinpoint their exact
-    cognitive gap. Follow these rules:
+    Target difficulty for this question: {difficulty_target}
 
-    1. Ask 1 question if the gap is obvious from the mismatch.
-    2. Ask 2-3 if multiple plausible gaps exist.
-    3. Questions must be specific to THIS question, not generic.
-    4. Prefer multiple-choice or "one sentence" answer formats.
-    5. Pick from these templates (adapt to content):
-       A) "What was your exact reasoning for picking <choosed_alternative>? (1-2 sentences)"
-       B) "Which step felt unclear: (1) formula/definition, (2) direction of change, (3) mechanism, (4) other?"
-       C) "Name the single concept you think you mis-tracked."
-       D) "What did you assume incorrectly? Choose: '<option1>', '<option2>', '<option3>', 'other'."
-       E) "Rewrite the core rule you *thought* was true (one line)."
+    Previously asked questions (DO NOT repeat these):
+    {previous_questions_json}
 
-    Return ONLY the questions as a JSON object with a "questions" key containing a list of strings.
+    YOUR TASK: Generate exactly 1 multiple-choice diagnostic question at the
+    specified difficulty level. The question must test a specific hypothesis
+    about why the user got the original UWorld question wrong.
+
+    Difficulty guidelines:
+    - hard: Tests complex reasoning — integrating multiple concepts. Uses specific
+      terms from the stem. Cannot be answered without understanding the mechanism.
+    - medium: Tests one key concept — the core mechanism or fact from the
+      educational objective.
+    - easy: Tests a basic fact — a simple definition or identification that
+      should be trivially known if the concept is understood.
+
+    STRICT RULES:
+    1. Generate EXACTLY 1 question at the "{difficulty_target}" level.
+    2. NEVER repeat any question from the "Previously asked questions" list.
+    3. NEVER ask broad questions like "What was your reasoning?" or open-ended prompts.
+    4. The question MUST name specific medical terms from the extraction.
+    5. The question MUST have exactly 3 or 4 options.
+    6. Exactly ONE option is correct. Wrong options must be plausible distractors.
+    7. The "correct" field is the 0-based index of the right option.
+
+    Return a JSON object with a "questions" key containing a list of exactly 1 object:
+    [{{"question": "...", "options": ["A", "B", "C"], "correct": 0, "difficulty": "{difficulty_target}"}}]
   expected_output: >
-    A JSON object with a "questions" key containing a list of 1 to 3 diagnostic question strings.
+    A JSON object with key "questions" containing a list of exactly 1 MC question object
+    with: question (string), options (list of 3-4 strings), correct (int 0-based index),
+    difficulty (string matching the target difficulty).
   agent: gap_identifier
 
 infer_error_pattern:
   description: >
-    Using the original extraction and the user's answers to diagnostic questions, infer
-    the stable error pattern.
+    Using the original extraction and the user's answers to diagnostic questions,
+    identify exactly 1 primary knowledge gap and prepare its metadata.
 
     Original extraction:
     - question_id: {question_id}
@@ -45,22 +59,30 @@ infer_error_pattern:
     Your tasks:
     1. Use the vault_search_tags tool to get all existing tags in the vault.
     2. Use the vault_list_files tool to see all existing notes.
-    3. Infer a stable error pattern slug (lowercase, kebab-case, ASCII).
-       Examples: afferent-vs-efferent-confusion, ff-formula-misuse
-    4. Check if a note with this pattern already exists (by filename or tag).
-    5. Determine ONE system tag from: renal, cardio, pulm, neuro, endo, heme-onc,
-       repro, gi, msk, derm, psych, biostats, ethics, micro, pharm, immuno, genetics.
-    6. Determine one short topic tag (kebab-case).
-    7. Determine 2-6 concept tags (kebab-case). REUSE existing vault tags when possible.
-    8. Return structured output with: error_slug, action (create/update),
-       existing_file (if updating), system_tag, topic_tag, concept_tags.
+    3. Identify exactly 1 PRIMARY knowledge gap — the single most important
+       concept the user needs to learn to avoid this error in the future.
+    4. For that gap:
+       a. Infer a concise, clear note title for this error pattern (Title Case, no special chars).
+          Examples: Snare Vesicle Exocytosis, Presynaptic vs Postsynaptic Confusion
+          (This title will be used as the filename: "Title String.md")
+       b. Check if a note with this title already exists (by filename or tag).
+       c. Determine action: "create" or "update".
+       d. If "update", set existing_file to the relative path.
+       e. Determine ONE system tag from: renal, cardio, pulm, neuro, endo, heme-onc,
+          repro, gi, msk, derm, psych, biostats, ethics, micro, pharm, immuno, genetics.
+       f. Determine one short topic tag (kebab-case).
+       g. Determine 2-6 concept tags (kebab-case). REUSE existing vault tags when possible.
+
+    Return: a JSON object with key "gaps" containing a list of exactly 1 gap object.
   expected_output: >
-    A JSON object with keys: error_slug, action, existing_file, system_tag, topic_tag, concept_tags.
+    A JSON object with key "gaps" containing a list of exactly 1 object
+    with: slug, action, existing_file, system_tag, topic_tag, concept_tags.
   agent: error_pattern_analyst
 
 compose_note:
   description: >
-    Compose the final Obsidian error note based on the inferred error pattern.
+    Compose exactly one micro-note for the single knowledge gap identified in
+    the previous task.
 
     Original extraction:
     - question_id: {question_id}
@@ -73,45 +95,34 @@ compose_note:
     Questions: {questions_json}
     Answers: {answers_json}
 
-    Error pattern info from previous task: {error_pattern_json}
+    Gap list: provided in context from the previous task.
 
-    Existing tags in vault: Use the vault_search_tags tool to get the current list.
+    TEMPLATE TO USE — follow this structure exactly for EVERY note:
+    {template_a}
 
-    MANDATORY FORMAT:
-    ---
-    tags:
-      - <numeric_question_id>
-      - <system_tag>
-      - <topic_tag>
-      - <error_pattern_slug>
-      - <concept_tag_1>
-      - <concept_tag_2>
-      - ... (2-6 concept tags)
-    ---
-
-    ## What I misunderstood
-    (1-2 sentences, phrased as "I" misunderstanding)
-
-    ## The correction
-    (3-8 sentences with 2-6 natural [[Wiki Links]] embedded in text. No separate Links section.)
-
-    ## The rule I must remember
-    (1-3 compact, testable lines)
+    FOR THE SINGLE GAP from the previous task:
+    1. Use vault_search_tags to get existing vault tags.
+    2. Use vault_list_files to see all existing notes.
+    3. If action is "update", use vault_read_note to read the existing note first.
+    4. Write one micro-note following the TEMPLATE structure above.
+    5. Embed [[wikilinks]] inside prose sentences for:
+       - Other notes being created in this session (use their title)
+       - Relevant existing vault notes discovered via vault_list_files
+    6. Save the note using vault_write_note to: <Title Case File Name>.md (vault root)
 
     HARD RULES:
-    - question_id tag MUST be numeric only (e.g. "1017", NOT "uworld_1017" or "UW-1017")
-    - Filename = <error_pattern_slug>.md
-    - Do NOT paste the full question or full explanation
-    - Do NOT create a "Links" section — links go naturally in sentences
-    - Only YAML key allowed is "tags:"
-    - If updating: add missing tags and optionally append 1-2 sentence "New example" to "The correction"
+    - question_id tag MUST be numeric only (e.g. "1017", NOT "uworld_1017")
+    - YAML frontmatter keys: type (micro_mechanism), created (today YYYY-MM-DD), tags only
+    - Tags list: [<question_id>, <system_tag>, <topic_tag>, <slug>, <concept_tags...>]
+    - Wikilinks INSIDE prose sentences only, never as a separate links section
+    - Each note focuses on ONE gap only — do not merge gaps
+    - If updating: append one "New example:" line and add any missing tags
+    - Do NOT paste the full question text or full explanation
 
-    If updating an existing note, use vault_read_note to read it first, then modify it.
-    Use vault_write_note to save the final note to: <error_pattern_slug>.md (directly in the vault root)
-
-    Return: action (created/updated), file_path, error_pattern, tags list, full note content.
+    Return: {{"notes": [{{"action": "created", "file_path": "Title String.md", "error_pattern": "Title String", "tags": ["tag1"], "note_content": "# Note content..."}}]}}
   expected_output: >
-    A JSON object with keys: action, file_path, error_pattern, tags, note_content.
+    A JSON object with key "notes" containing a list of exactly 1 note object
+    with: action, file_path, error_pattern, tags, note_content.
   agent: note_composer
 
 format_note:
@@ -134,26 +145,138 @@ format_note:
 
     {template_c}
 
-    RULES:
-    1. ONLY restructure and clarify — NEVER add facts or information not present in the original note.
-    2. Use the templates as structural inspiration: emoji section headers, anchor statements,
-       bold key terms, bullet-point rules, [[wikilinks]], and a connections section.
-    3. Preserve ALL original YAML frontmatter tags exactly as they are.
-    4. Preserve the filename (do not change it).
-    5. Keep the content concise — do not pad with filler text.
-    6. Standard sections to consider (adapt as needed):
-       - ## ❌ What I got wrong
-       - ## 🔍 Why I got it wrong
-       - ## ✅ The key concept (with a > **Anchor:** blockquote)
-       - ## 📌 The rule I must remember
-       - ## 🔗 Connections
-    7. Use [[wikilinks]] naturally in sentences for key medical terms.
-    8. If the note already follows good structure, make minimal changes.
-    9. Return the COMPLETE formatted note including YAML frontmatter.
+    STRICT CONTENT RESTRICTION:
+    1. YOU ARE STRICTLY FORBIDDEN from creating, inventing, or adding ANY factual content outside of what was given to you.
+    2. You may ONLY perform structural changes (formatting, layout, phrasing) on the EXACT information provided in the note or text selection.
+    3. Use the template as structural inspiration: prose-based narrative, [[wikilinks]]
+       embedded organically inside sentences, and a "Why I missed this before:" closing.
+    4. Preserve ALL original YAML frontmatter tags exactly as they are.
+    5. Preserve the filename (do not change it).
+    6. Keep the content concise — do not pad with filler text.
+    7. PROSE STYLE: Do NOT add section headers or emoji labels. Keep the note as
+       continuous, adaptive prose. Do not add sections named Connections, Related
+       topics, See also, or any separate link list. Embed [[wikilinks]] naturally
+       inside sentences (3–6 links total, only on conceptually significant terms).
+    8. Use [[wikilinks]] naturally in sentences for key medical terms.
+    9. If the note already follows good structure, make minimal changes.
+    10. Return the COMPLETE formatted note including YAML frontmatter.
 
     Return ONLY the final formatted note content as a string (the full markdown with frontmatter).
   expected_output: >
     The complete formatted Obsidian note as a markdown string, including YAML frontmatter.
+  agent: note_formatter
+
+format_selection:
+  description: >
+    You are a world-class instructional designer. Your job is to improve the structure
+    and clarity of a SPECIFIC SELECTED BLOCK OF TEXT from a larger Obsidian note.
+
+    SELECTED TEXT TO FORMAT:
+    {selected_text}
+
+    FULL NOTE CONTEXT (For reference ONLY. DO NOT output this):
+    {note_content}
+
+    RULES:
+    1. YOU ARE STRICTLY FORBIDDEN from creating, inventing, or adding ANY factual content outside of what was given to you.
+    2. However, YOU HAVE FULL STRUCTURAL AUTONOMY. If asked to "make it more readable" or similar subjective instructions, you should aggressively remake the Structural Presentation. Break down dense paragraphs into Markdown Tables, Bulleted Lists, or bolded chunks.
+    3. You may ONLY perform these structural changes (formatting, layout, phrasing) on the EXACT information provided in the SELECTED TEXT.
+    4. DO NOT return the full note. DO NOT return any YAML frontmatter or tags. DO NOT output ```markdown code blocks.
+    5. Keep the content concise — do not pad with filler text.
+    6. Embed [[wikilinks]] naturally inside sentences for key medical terms (e.g., [[kidney]], [[ureteric bud]]).
+    
+    Return ONLY the final rewritten version of the SELECTED TEXT block.
+  expected_output: >
+    The final rewritten text block only, with absolutely NO surrounding YAML, frontmatter, tags, or markdown code blocks.
+  agent: note_formatter
+
+feynman_selection:
+  description: >
+    You are a medical educator using the Feynman Technique.
+    Rewrite the SELECTED TEXT below so a first-year medical student
+    with zero prior knowledge can understand it instantly.
+
+    SELECTED TEXT TO REWRITE:
+    {selected_text}
+
+    FULL NOTE CONTEXT (reference only — do NOT output):
+    {note_content}
+
+    RULES:
+    1. Replace ALL jargon with plain language. If a term is unavoidable, define it in one clause.
+    2. Use active voice, short sentences, and concrete analogies (everyday objects, stories, cause-and-effect chains).
+    3. Preserve ALL factual content — never omit or add facts.
+    4. Do NOT output YAML frontmatter, code blocks, or the full note.
+    5. Return ONLY the rewritten version of the selected text.
+  expected_output: >
+    The selected text rewritten in plain, student-friendly language. No YAML, no code fences.
+  agent: note_formatter
+
+flowchart_selection:
+  description: >
+    You are a medical educator who visualizes reasoning with Mermaid diagrams.
+    Your job is to KEEP the original selected text intact and APPEND a Mermaid
+    flowchart that maps the causal or logical chain described in it.
+
+    SELECTED TEXT:
+    {selected_text}
+
+    FULL NOTE CONTEXT (reference only — do NOT output):
+    {note_content}
+
+    RULES:
+    1. Output the ORIGINAL selected text EXACTLY as-is first (do not change a single word).
+    2. Then append one blank line followed by a ```mermaid block.
+    3. Use `flowchart TD` direction. Nodes represent steps/concepts. Arrows show causation or sequence.
+    4. Label each arrow with the relationship (e.g., "causes", "leads to", "prevents").
+    5. Keep the diagram to 4-8 nodes — concise enough to read at a glance.
+    6. Do NOT output YAML frontmatter or the full note.
+  expected_output: >
+    The original selected text unchanged, then a blank line, then a ```mermaid flowchart TD block.
+    No YAML, no code fences around the whole response.
+  agent: note_formatter
+
+expand_selection:
+  description: >
+    You are a medical educator adding depth to a student's note.
+    Expand the SELECTED TEXT by adding mechanism steps, clinical context,
+    or clarifying detail that deepens understanding.
+
+    SELECTED TEXT TO EXPAND:
+    {selected_text}
+
+    FULL NOTE CONTEXT (reference only — do NOT output):
+    {note_content}
+
+    RULES:
+    1. ONLY add information that is logically entailed by or directly relevant to the selected text.
+    2. Never invent facts, statistics, or drug names not present in the original note.
+    3. Preserve ALL original content — expansion goes around and between existing sentences.
+    4. Do NOT output YAML frontmatter, code blocks, or the full note.
+    5. Return ONLY the expanded version of the selected text.
+  expected_output: >
+    The expanded selected text with added depth. No YAML, no code fences.
+  agent: note_formatter
+
+concise_selection:
+  description: >
+    You are a medical editor cutting a student's note to its core.
+    Distill the SELECTED TEXT to its single essential point.
+
+    SELECTED TEXT TO CONDENSE:
+    {selected_text}
+
+    FULL NOTE CONTEXT (reference only — do NOT output):
+    {note_content}
+
+    RULES:
+    1. Remove filler, repetition, hedging language, and padding.
+    2. Preserve every distinct fact — only remove redundancy, not content.
+    3. Target 30-50% of the original length.
+    4. Do NOT output YAML frontmatter, code blocks, or the full note.
+    5. Return ONLY the condensed version of the selected text.
+  expected_output: >
+    The condensed selected text. No YAML, no code fences.
   agent: note_formatter
 
 search_anki_cards:
@@ -196,3 +319,66 @@ format_anki_card:
     A JSON object with keys "front" (formatted front field with cloze syntax preserved)
     and "back" (formatted back field as HTML using <b> and <br>).
   agent: anki_card_formatter
+
+create_anki_card:
+  description: >
+    Create a new Anki card from the following Obsidian note.
+
+    OBSIDIAN NOTE CONTENT:
+    {note_content}
+
+    STRUCTURAL TEMPLATE (use as FORMAT GUIDE ONLY — do NOT copy its content):
+    {template_content}
+
+    TASK: Generate ONE Anki card that captures the single most testable concept from this note.
+
+    STRICT RULES:
+    1. ONE card only — pick the most important, testable concept.
+    2. Front: a cloze deletion fill-in-the-blank using {{c1::answer}} syntax, or a concise
+       question (≤ 2 lines). Prefer cloze format.
+    3. Back: a clear explanation using <b>bold</b> for key terms and <br> for line breaks (≤ 6 lines).
+    4. Derive ALL content from the Obsidian note above — NEVER copy from the template.
+    5. Return a JSON object with exactly two keys: "front" and "back".
+  expected_output: >
+    A JSON object with keys "front" (string with cloze syntax where applicable)
+    and "back" (string as HTML using <b> and <br>).
+  agent: anki_card_formatter
+
+synthesize_keynote:
+  description: >
+    Synthesize a Key Note that integrates multiple micro-notes about the same topic.
+
+    CURRENT NOTE (the note being synthesized into a Key Note):
+    {current_note}
+
+    REFERENCING NOTES (notes in the vault that wikilink to the current note):
+    {referencing_notes}
+
+    TEMPLATE (follow this prose structure):
+    {template_a}
+
+    Your task:
+    Create a single integrated Key Note that synthesizes ALL the content above
+    into one coherent explanation. This is NOT a summary — it is a unified note
+    that makes the full picture clear.
+
+    RULES:
+    1. Use template_a.md prose structure (paragraphs, not bullet points).
+    2. YAML frontmatter: type: key_note, created: <today YYYY-MM-DD>,
+       tags: [merged unique tags from all source notes]
+    3. Title: # <Integrated Mechanism/Concept Title>
+    4. Three prose paragraphs:
+       - What the concept is and how it works (with [[wikilinks]])
+       - Clinical context, disease connections (with [[wikilinks]])
+       - "In questions, [pattern] should make me think of [concept]"
+    5. Replace "Why I missed this before:" with:
+       **Why this is a Key Note:**
+       1-2 lines on what makes this a recurring high-yield concept.
+    6. Suggest a filename: key-<most-common-slug>.md
+    7. Do NOT copy entire paragraphs from source notes — synthesize and integrate.
+
+    Return: {{"suggested_filename": "key-<slug>.md", "content": "<full markdown>"}}
+  expected_output: >
+    A JSON object with "suggested_filename" (string) and "content" (full markdown string
+    including YAML frontmatter).
+  agent: keynote_synthesizer

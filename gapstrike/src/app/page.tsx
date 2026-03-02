@@ -70,6 +70,26 @@ interface ActivityItem {
   savedAt: number;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
 // ── Activity history logo icons ───────────────────────────────────────────
 
 function ObsidianIcon() {
@@ -104,7 +124,7 @@ const CREWAI_URL = "http://localhost:8000";
 // ── AnkiConnect direct helper ─────────────────────────────────────────────
 
 async function ankiConnect(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
-  const resp = await fetch("http://localhost:8765", {
+  const resp = await fetch("/api/anki-connect", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, version: 6, params }),
@@ -180,12 +200,15 @@ export default function Home() {
   const [formatInstructions, setFormatInstructions] = useState("");
   const [selectedFormatText, setSelectedFormatText] = useState("");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [pendingFormatMode, setPendingFormatMode] = useState<string | null>(null);
+  const [selectionConfirmText, setSelectionConfirmText] = useState("");
   const [noteHistory, setNoteHistory] = useState<string[]>([]);
   const [streamingChip, setStreamingChip] = useState<string | null>(null);
   const editorTextAreaRef = useRef<HTMLTextAreaElement>(null);
 
   // Editor: saving & keynote
   const [savingNote, setSavingNote] = useState(false);
+  const [deletingNote, setDeletingNote] = useState(false);
   const [keyNoteLoading, setKeyNoteLoading] = useState(false);
   const [expandedNoteCards, setExpandedNoteCards] = useState<Set<number>>(new Set());
 
@@ -205,6 +228,11 @@ export default function Home() {
   const [expandedTagCards, setExpandedTagCards] = useState<Set<number>>(new Set());
   const [activityHistory, setActivityHistory] = useState<ActivityItem[]>([]);
   const [noteCardCounts, setNoteCardCounts] = useState<Record<string, number | null>>({});
+
+  // Chat history sessions
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
   // null = loading, -1 = Anki unavailable, 0 = no cards, N = card count
 
   const ankiFrontRef = useRef<HTMLDivElement>(null);
@@ -296,6 +324,40 @@ export default function Home() {
     };
     loadNotes();
   }, [vaultPath]);
+
+  // Load chat sessions from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("chatSessions");
+      if (stored) setChatSessions(JSON.parse(stored));
+    } catch { }
+  }, []);
+
+  // Auto-save messages to current session whenever they change
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (!currentSessionIdRef.current) {
+      currentSessionIdRef.current = Date.now().toString();
+      setCurrentSessionId(currentSessionIdRef.current);
+    }
+    const sessionId = currentSessionIdRef.current;
+    const firstUserMsg = messages.find((m) => m.role === "user");
+    const raw = firstUserMsg?.content ?? "New chat";
+    const title = raw.replace(/\s+/g, " ").slice(0, 50) + (raw.length > 50 ? "…" : "");
+    setChatSessions((prev) => {
+      const existing = prev.find((s) => s.id === sessionId);
+      const updated: ChatSession = {
+        id: sessionId,
+        title,
+        messages,
+        createdAt: existing?.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+      };
+      const newSessions = [updated, ...prev.filter((s) => s.id !== sessionId)];
+      localStorage.setItem("chatSessions", JSON.stringify(newSessions));
+      return newSessions;
+    });
+  }, [messages]);
 
   // Load activity history from localStorage on mount, deduplicating legacy data
   useEffect(() => {
@@ -754,6 +816,35 @@ export default function Home() {
     setShowCreateNoteChoice(false);
   };
 
+  const startNewChat = () => {
+    setMessages([]);
+    setCurrentSessionId(null);
+    currentSessionIdRef.current = null;
+    resetWorkflow();
+  };
+
+  const loadSession = (session: ChatSession) => {
+    setMessages(session.messages);
+    setCurrentSessionId(session.id);
+    currentSessionIdRef.current = session.id;
+    resetWorkflow();
+  };
+
+  const deleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setChatSessions((prev) => {
+      const newSessions = prev.filter((s) => s.id !== sessionId);
+      localStorage.setItem("chatSessions", JSON.stringify(newSessions));
+      return newSessions;
+    });
+    if (currentSessionIdRef.current === sessionId) {
+      setMessages([]);
+      setCurrentSessionId(null);
+      currentSessionIdRef.current = null;
+      resetWorkflow();
+    }
+  };
+
   // ── Editor: read note ──────────────────────────────────────────────────
 
   const openNote = async (note: Note) => {
@@ -871,22 +962,36 @@ export default function Home() {
     }
   };
 
-  const handleGrabSelection = () => {
-    let text = "";
-    if (editorTextAreaRef.current) {
-      const start = editorTextAreaRef.current.selectionStart;
-      const end = editorTextAreaRef.current.selectionEnd;
-      if (start !== end && start !== undefined && end !== undefined) {
-        text = noteContent.substring(start, end);
+  const startSelectionFor = (mode: string) => {
+    setPendingFormatMode(mode);
+    setSelectionConfirmText("");
+    setIsSelectionMode(true);
+  };
+
+  // ── Editor: delete note ─────────────────────────────────────────────────
+
+  const deleteNote = async () => {
+    if (!selectedNote || deletingNote) return;
+    if (!window.confirm(`Permanently delete "${selectedNote.title}"?`)) return;
+    setDeletingNote(true);
+    try {
+      const resp = await fetch("/api/delete-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vaultPath, notePath: selectedNote.path }),
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        alert(`Delete failed: ${data.error}`);
+      } else {
+        setSelectedNote(null);
+        setNoteContent("");
+        setAllNotes((prev) => prev.filter((n) => n.path !== selectedNote.path));
       }
-    }
-    if (!text) {
-      text = window.getSelection()?.toString() || "";
-    }
-    if (text.trim()) {
-      setSelectedFormatText(text.trim());
-    } else {
-      alert("Please highlight/select some text first!");
+    } catch (error) {
+      alert("Failed to delete note.");
+    } finally {
+      setDeletingNote(false);
     }
   };
 
@@ -1020,7 +1125,7 @@ export default function Home() {
         setAnkiCards(cards);
       } catch (err: any) {
         const msg = err?.message || "";
-        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("ERR_CONNECTION_REFUSED")) {
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("ERR_CONNECTION_REFUSED") || msg.includes("AnkiConnect HTTP 502") || msg.includes("unreachable")) {
           setAnkiError("Anki is not running. Open Anki with the AnkiConnect plugin installed.");
         } else {
           setAnkiError(msg || "AnkiConnect error.");
@@ -1251,7 +1356,23 @@ export default function Home() {
     <div className={styles.container}>
       {/* Left Sidebar */}
       <div className={styles.sidebar}>
-        <h1>USMLE Error Agent</h1>
+        <div className={styles.sidebarHeader}>
+          {/* GapStrike inline bolt icon */}
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect width="32" height="32" rx="7" fill="#0d0618"/>
+            <defs>
+              <linearGradient id="hdrBolt" x1="0.4" y1="0" x2="0.6" y2="1">
+                <stop offset="0%" stopColor="#d8b4fe"/>
+                <stop offset="50%" stopColor="#a855f7"/>
+                <stop offset="100%" stopColor="#6d28d9"/>
+              </linearGradient>
+            </defs>
+            <line x1="2" y1="17" x2="6" y2="17" stroke="#4c1d95" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="25" y1="17" x2="30" y2="17" stroke="#4c1d95" strokeWidth="2" strokeLinecap="round"/>
+            <polygon points="18,2 7,17 14,17 12,30 23,17 16,17" fill="url(#hdrBolt)"/>
+          </svg>
+          <span className={styles.sidebarAppName}>GapStrike</span>
+        </div>
 
         {/* View Toggle */}
         <div className={styles.viewToggle}>
@@ -1314,34 +1435,44 @@ export default function Home() {
         {/* Chat sidebar content */}
         {viewMode === "chat" && (
           <>
-            <div className={styles.searchBox}>
-              <input type="text" placeholder="Filter by tag..." value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} className={styles.tagInput} />
-              <button onClick={handleReindex} disabled={loading} className={styles.reindexBtn}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                Re-index
+            {/* Chat history */}
+            <div className={styles.chatHistorySection}>
+              <div className={styles.chatHistoryHeader}>
+                <span className={styles.chatHistoryTitle}>Chats</span>
+              </div>
+              <button className={styles.newChatBtn} onClick={startNewChat}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New chat
               </button>
-              {vaultTags.length > 0 && (
-                <div className={styles.vaultTagsSection}>
-                  <div className={styles.vaultTagsLabel}>Tags ({vaultTags.length}):</div>
-                  <div className={styles.vaultTagsList}>
-                    {vaultTags.map((tag, i) => (
-                      <button key={i} className={`${styles.vaultTagChip} ${tagFilter === tag ? styles.vaultTagActive : ""}`} onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}>{tag}</button>
-                    ))}
+              <div className={styles.chatHistoryList}>
+                {chatSessions.length === 0 && (
+                  <div className={styles.chatHistoryEmpty}>No past chats yet</div>
+                )}
+                {chatSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className={`${styles.chatHistoryItem} ${currentSessionId === session.id ? styles.chatHistoryItemActive : ""}`}
+                    onClick={() => loadSession(session)}
+                  >
+                    <div className={styles.chatHistoryItemTitle}>{session.title}</div>
+                    <div className={styles.chatHistoryItemMeta}>{formatRelativeTime(session.updatedAt)}</div>
+                    <button
+                      className={styles.chatHistoryDeleteBtn}
+                      onClick={(e) => deleteSession(session.id, e)}
+                      title="Delete"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
-            <div className={styles.extractorInfo}>
-              <p className={styles.extractorDesc}>
-                💬 Type to chat • 📸 Paste screenshots for error notes
-              </p>
-              {isInWorkflow && (
-                <button onClick={resetWorkflow} className={styles.resetBtn}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "inline", marginRight: "5px", verticalAlign: "middle" }}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                  Start Over
-                </button>
-              )}
-            </div>
+            {isInWorkflow && (
+              <button onClick={resetWorkflow} className={styles.resetBtn}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "inline", marginRight: "5px", verticalAlign: "middle" }}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                Start Over
+              </button>
+            )}
           </>
         )}
 
@@ -1417,7 +1548,7 @@ export default function Home() {
           <div className={styles.messages}>
             {messages.length === 0 ? (
               <div className={styles.emptyState}>
-                <h2>USMLE Error Agent</h2>
+                <h2>GapStrike</h2>
                 <p>Type to chat • Paste screenshots to create error notes</p>
               </div>
             ) : (
@@ -1485,7 +1616,7 @@ export default function Home() {
                         setCurrentQuestion(nextQ);
                         setQuestionCount(newCount);
                         setPreviousQuestions((prev) => [...prev, nextQ.question]);
-                        setDiagnosticQuestions((prev) => [...prev, nextQ.question]);
+                        setDiagnosticQuestions([nextQ.question]);
                         setMcFeedback(null);
                         setQuestionAnswers([]);
                         const optionsText = nextQ.options.map((o: string, i: number) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
@@ -1648,6 +1779,14 @@ export default function Home() {
                       </>
                     )}
                   </button>
+                  <button className={styles.deleteNoteBtn} onClick={deleteNote} disabled={deletingNote || savingNote || formatting}>
+                    {deletingNote ? "Deleting…" : (
+                      <>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                        Delete
+                      </>
+                    )}
+                  </button>
                   <button className={styles.keyNoteBtn} onClick={handleKeyNote} disabled={keyNoteLoading || formatting}>
                     {keyNoteLoading ? (
                       <>
@@ -1691,8 +1830,7 @@ export default function Home() {
                         }
                       }
                       if (text.trim()) {
-                        setSelectedFormatText(text.trim());
-                        setIsSelectionMode(false);
+                        setSelectionConfirmText(text.trim());
                       }
                     }
                   }}
@@ -1707,41 +1845,56 @@ export default function Home() {
                   <div className={styles.editorPreview} dangerouslySetInnerHTML={{ __html: renderMarkdown(noteContent) }} />
                 </div>
               )}
-              {/* Selected Text Pill */}
-              {selectedFormatText && (
-                <div style={{ margin: "0 20px 10px 20px", padding: "10px", background: "rgba(147, 51, 234, 0.15)", border: "1px solid rgba(147, 51, 234, 0.4)", borderRadius: "8px", position: "relative" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", fontSize: "12px", color: "#d8b4fe", fontWeight: 600 }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" /></svg>
-                      Targeting Selection:
-                    </span>
-                    <button type="button" onClick={() => setSelectedFormatText("")} style={{ background: "transparent", border: "none", color: "#d8b4fe", cursor: "pointer", padding: 0 }}>✕</button>
-                  </div>
-                  <div style={{ fontSize: "13px", color: "#e2e8f0", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", display: "-webkit-box", overflow: "hidden", fontStyle: "italic", opacity: 0.9 }}>
-                    "{selectedFormatText}"
-                  </div>
-                  <div className={styles.selectionQuickActions}>
-                    <button
-                      type="button"
-                      className={styles.selectionQuickBtn}
-                      onClick={() => formatNote("expand")}
-                      disabled={formatting}
-                      aria-label="Expand selected text"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-                      Expand
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.selectionQuickBtn}
-                      onClick={() => formatNote("concise")}
-                      disabled={formatting}
-                      aria-label="Make selected text concise"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="21" y2="3"/><line x1="3" y1="21" x2="14" y2="10"/></svg>
-                      Concise
-                    </button>
-                  </div>
+              {/* Selection guidance banner */}
+              {pendingFormatMode && (
+                <div className={styles.selectionBanner}>
+                  {selectionConfirmText ? (
+                    <>
+                      <div className={styles.selectionBannerLabel}>
+                        Is this the right selection for <strong>{pendingFormatMode}</strong>?
+                      </div>
+                      <div className={styles.selectionBannerPreview}>"{selectionConfirmText}"</div>
+                      <div className={styles.selectionBannerActions}>
+                        <button
+                          className={styles.selectionConfirmBtn}
+                          onClick={() => {
+                            const mode = pendingFormatMode;
+                            const text = selectionConfirmText;
+                            setIsSelectionMode(false);
+                            setSelectionConfirmText("");
+                            setPendingFormatMode(null);
+                            formatNote(mode, text);
+                          }}
+                        >
+                          Yes, format
+                        </button>
+                        <button
+                          className={styles.selectionRetryBtn}
+                          onClick={() => setSelectionConfirmText("")}
+                        >
+                          Try again
+                        </button>
+                        <button
+                          className={styles.selectionCancelBtn}
+                          onClick={() => { setIsSelectionMode(false); setSelectionConfirmText(""); setPendingFormatMode(null); }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.selectionBannerLabel}>
+                        Highlight the text to <strong>{pendingFormatMode}</strong>...
+                      </div>
+                      <button
+                        className={styles.selectionCancelBtn}
+                        onClick={() => { setIsSelectionMode(false); setPendingFormatMode(null); }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               {/* Format Chip Toolbar */}
@@ -1750,9 +1903,9 @@ export default function Home() {
                 <button
                   type="button"
                   className={`${styles.formatChip} ${styles.formatChipFeynman} ${streamingChip === "feynman" ? styles.formatChipStreaming : ""}`}
-                  onClick={() => formatNote("feynman")}
-                  disabled={formatting || !selectedFormatText}
-                  title="Rewrite in plain student-friendly language (requires selection)"
+                  onClick={() => startSelectionFor("feynman")}
+                  disabled={formatting}
+                  title="Rewrite selected text in plain student-friendly language"
                   aria-label="Feynman: rewrite as simple explanation"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-1 3H10l-1-3C7 14.5 5 12 5 9a7 7 0 0 1 7-7z"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
@@ -1763,13 +1916,37 @@ export default function Home() {
                 <button
                   type="button"
                   className={`${styles.formatChip} ${styles.formatChipFlowchart} ${streamingChip === "flowchart" ? styles.formatChipStreaming : ""}`}
-                  onClick={() => formatNote("flowchart")}
-                  disabled={formatting || !selectedFormatText}
-                  title="Append a Mermaid flowchart (requires selection)"
+                  onClick={() => startSelectionFor("flowchart")}
+                  disabled={formatting}
+                  title="Append a Mermaid flowchart to selected text"
                   aria-label="Flowchart: append Mermaid diagram"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="6" height="4" rx="1"/><rect x="15" y="3" width="6" height="4" rx="1"/><rect x="9" y="17" width="6" height="4" rx="1"/><line x1="6" y1="7" x2="6" y2="19"/><line x1="18" y1="7" x2="18" y2="12"/><line x1="6" y1="19" x2="9" y2="19"/><line x1="15" y1="19" x2="18" y2="19"/><line x1="18" y1="12" x2="15" y2="19"/></svg>
                   Flowchart
+                </button>
+
+                {/* Expand */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${streamingChip === "expand" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => startSelectionFor("expand")}
+                  disabled={formatting}
+                  aria-label="Expand selected text with more detail"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                  Expand
+                </button>
+
+                {/* Concise */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${streamingChip === "concise" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => startSelectionFor("concise")}
+                  disabled={formatting}
+                  aria-label="Condense selected text"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="21" y2="3"/><line x1="3" y1="21" x2="14" y2="10"/></svg>
+                  Concise
                 </button>
 
                 {/* List */}
@@ -2072,7 +2249,7 @@ export default function Home() {
                         <div className={styles.ankiCardHeader}>
                           <div className={styles.ankiCardFront}>
                             {frontText ? (
-                              <span dangerouslySetInnerHTML={{ __html: card.front }} />
+                              <span>{frontText}</span>
                             ) : (
                               <span className={styles.ankiCardFrontFallback}>{card.deck}</span>
                             )}
@@ -2105,7 +2282,16 @@ export default function Home() {
                       {/* Edit panel — shown immediately on click */}
                       {isEditing && (
                         <div className={styles.ankiEditPanel} onClick={(e) => e.stopPropagation()}>
-                          <div className={styles.ankiDeckBadge} style={{ marginBottom: "8px" }}>{card.deck}</div>
+                          <div className={styles.ankiEditPanelHeader}>
+                            <div className={styles.ankiDeckBadge}>{card.deck}</div>
+                            <button
+                              className={styles.ankiCollapseBtn}
+                              onClick={() => { setEditingCard(null); setAnkiEditError(""); }}
+                              title="Collapse"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
+                            </button>
+                          </div>
                           <div className={styles.ankiEditLabelRow}>
                             <label className={styles.ankiEditLabel}>Front</label>
                             {ankiCardTemplates.length > 0 && (
@@ -2168,8 +2354,8 @@ export default function Home() {
                         </div>
                       )}
 
-                      {/* Tags at bottom with collapse toggle */}
-                      {displayTags.length > 0 && (
+                      {/* Tags at bottom — only visible in edit mode */}
+                      {isEditing && displayTags.length > 0 && (
                         <div className={styles.ankiCardTagsFooter} onClick={(e) => e.stopPropagation()}>
                           <div className={`${styles.ankiCardTagsRow} ${displayTags.length > 4 && !tagsExpanded ? styles.ankiCardTagsCollapsed : ""}`}>
                             {displayTags.map((tag, i) => (
@@ -2282,7 +2468,20 @@ export default function Home() {
 
         {/* Activity history feed */}
         <div className={styles.activitySection}>
-          <div className={styles.sourcesHeading}>History</div>
+          <div className={styles.sourcesHeadingRow}>
+            <div className={styles.sourcesHeading}>History</div>
+            {activityHistory.length > 0 && (
+              <button
+                className={styles.clearHistoryBtn}
+                onClick={() => {
+                  setActivityHistory([]);
+                  try { localStorage.removeItem("obsidianChatActivity"); } catch { }
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
           {activityHistory.length === 0 ? (
             <div className={styles.activityEmpty}>No activity recorded yet</div>
           ) : (

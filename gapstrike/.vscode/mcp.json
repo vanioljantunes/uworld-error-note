@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "npx",
+      "args": [
+        "mcp-obsidian",
+        "C:\\Users\\vanio\\OneDrive\\Área de Trabalho\\teste_crew\\teste"
+      ]
+    }
+  }
+}

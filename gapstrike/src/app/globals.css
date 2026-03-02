@@ -5,25 +5,25 @@
 }
 
 :root {
-  --bg:          #0c0c0c;
-  --bg-surface:  #111111;
+  --bg: #0c0c0c;
+  --bg-surface: #111111;
   --bg-elevated: #1a1a1a;
-  --bg-hover:    #212121;
-  --border:      #2a2a2a;
-  --border-hover:#3a3a3a;
-  --accent:      #7c3aed;
-  --accent-hover:#6d28d9;
-  --accent-light:#a78bfa;
+  --bg-hover: #212121;
+  --border: #2a2a2a;
+  --border-hover: #3a3a3a;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-light: #a78bfa;
   --accent-glow: rgba(124, 58, 237, 0.2);
-  --text:        #e2e2e2;
-  --text-muted:  #777777;
+  --text: #e2e2e2;
+  --text-muted: #777777;
   --text-subtle: #444444;
-  --green:       #22c55e;
-  --green-dim:   #16a34a;
-  --red:         #ef4444;
-  --red-dim:     #dc2626;
-  --amber:       #f59e0b;
-  --amber-dim:   #d97706;
+  --green: #22c55e;
+  --green-dim: #16a34a;
+  --red: #ef4444;
+  --red-dim: #dc2626;
+  --amber: #f59e0b;
+  --amber-dim: #d97706;
 }
 
 body {
@@ -68,6 +68,7 @@ body {
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -75,4 +76,19 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Obsidian-style Wiki Links in Editor Preview */
+.wikilink {
+  color: var(--accent-light);
+  background: var(--accent-glow);
+  border-radius: 4px;
+  padding: 0 4px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.wikilink:hover {
+  background: rgba(124, 58, 237, 0.4);
+  text-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
 }

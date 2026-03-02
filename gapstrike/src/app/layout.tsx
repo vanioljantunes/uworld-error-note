@@ -15,7 +15,7 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: "USMLE Error Agent",
+  title: "GapStrike",
   description: "Diagnose USMLE errors and create Obsidian micro-notes",
 };
 

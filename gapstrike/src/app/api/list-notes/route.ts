@@ -5,6 +5,24 @@ import path from "path";
 interface Note {
   title: string;
   path: string;
+  tags: string[];
+}
+
+function parseFrontmatterTags(content: string): string[] {
+  const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!match) return [];
+  const lines = match[1].split("\n");
+  const tags: string[] = [];
+  let inTags = false;
+  for (const line of lines) {
+    if (line.trim() === "tags:") { inTags = true; continue; }
+    if (inTags && line.trim().startsWith("- ")) {
+      tags.push(line.trim().replace(/^- /, "").replace(/^['"]|['"]$/g, ""));
+    } else if (inTags && !line.trim().startsWith("- ")) {
+      inTags = false;
+    }
+  }
+  return tags;
 }
 
 async function listNotesFromDirectory(vaultPath: string): Promise<Note[]> {
@@ -13,25 +31,26 @@ async function listNotesFromDirectory(vaultPath: string): Promise<Note[]> {
 
     async function walkDir(dir: string, baseDir: string) {
       const files = await fs.readdir(dir);
-      
+
       for (const file of files) {
-        // Skip hidden directories and node_modules
         if (file.startsWith(".")) continue;
-        
+
         const fullPath = path.join(dir, file);
         const stat = await fs.stat(fullPath);
 
         if (stat.isDirectory()) {
-          // Recursively walk subdirectories
           await walkDir(fullPath, baseDir);
         } else if (file.endsWith(".md")) {
-          // Add markdown files
           const relativePath = path.relative(baseDir, fullPath);
           const title = file.replace(".md", "");
-          notes.push({
-            title,
-            path: relativePath,
-          });
+          let tags: string[] = [];
+          try {
+            const content = await fs.readFile(fullPath, "utf-8");
+            tags = parseFrontmatterTags(content);
+          } catch {
+            // ignore read errors, leave tags empty
+          }
+          notes.push({ title, path: relativePath, tags });
         }
       }
     }
@@ -50,19 +69,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ notes: 
     const { vaultPath } = body;
 
     if (!vaultPath) {
-      return NextResponse.json(
-        { notes: [] },
-        { status: 400 }
-      );
+      return NextResponse.json({ notes: [] }, { status: 400 });
     }
 
     const notes = await listNotesFromDirectory(vaultPath);
     return NextResponse.json({ notes }, { status: 200 });
   } catch (error) {
     console.error("List notes API error:", error);
-    return NextResponse.json(
-      { notes: [] },
-      { status: 200 }
-    );
+    return NextResponse.json({ notes: [] }, { status: 200 });
   }
 }

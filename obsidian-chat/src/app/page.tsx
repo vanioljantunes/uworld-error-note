@@ -1783,10 +1783,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* Right Sidebar */}
+      {/* Right Sidebar — always Activity */}
       <div className={styles.sourcesPanel}>
-        <h3>{isInWorkflow ? "Workflow" : viewMode === "editor" ? "Note Info" : viewMode === "anki" ? "Anki" : "Notes"}</h3>
+        <h3>Activity</h3>
 
+        {/* Workflow stepper — only during active workflow */}
         {isInWorkflow && (
           <div className={styles.workflowStepper}>
             {workflowSteps.map((step) => {
@@ -1821,59 +1822,117 @@ export default function Home() {
           </div>
         )}
 
-        {!isInWorkflow && viewMode === "chat" && (
-          <>
-            {sources.length > 0 ? (
-              <div>
-                <div className={styles.sourcesHeading}>Search Results:</div>
-                <div className={styles.sourcesList}>
-                  {sources.map((source, idx) => (
-                    <div key={idx} className={styles.sourceItem}>
-                      <div className={styles.sourceTitle}>{source.title}</div>
-                      <div className={styles.sourcePath}>{source.path}</div>
-                      <div className={styles.sourceSnippet}>{source.snippet}</div>
-                    </div>
-                  ))}
-                </div>
+        {/* Context zone — card detection for currently open note */}
+        {viewMode === "editor" && selectedNote && Object.keys(noteCardCounts).length > 0 && (
+          <div className={styles.activityContext}>
+            <div className={styles.activityContextLabel}>Question IDs in this note</div>
+            {Object.entries(noteCardCounts).map(([qId, count]) => (
+              <div key={qId} className={styles.activityContextRow}>
+                <span className={styles.activityQId}>{qId}</span>
+                {count === null ? (
+                  <span className={styles.activityStatus}>⏳</span>
+                ) : count === -1 ? (
+                  <span className={styles.activityStatus} style={{ color: "var(--text-muted)" }}>? unavailable</span>
+                ) : count === 0 ? (
+                  <button
+                    className={styles.activityLink}
+                    onClick={() => {
+                      setViewMode("anki");
+                      setAnkiCreateNote(selectedNote.path);
+                      setAnkiCreateTagFilter(qId);
+                    }}
+                  >
+                    ⬜ No cards → create
+                  </button>
+                ) : (
+                  <button
+                    className={styles.activityLink}
+                    onClick={() => {
+                      setViewMode("anki");
+                      setAnkiQuery(qId);
+                      fetch(`${CREWAI_URL}/anki/direct-search`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ query: qId }),
+                      }).then((r) => r.json()).then((data) => {
+                        if (!data.error) {
+                          const seen = new Set<number>();
+                          const unique = (data.cards || []).filter((c: AnkiCard) => {
+                            if (seen.has(c.note_id)) return false;
+                            seen.add(c.note_id);
+                            return true;
+                          });
+                          setAnkiCards(unique);
+                        }
+                      }).catch(() => {});
+                    }}
+                  >
+                    ✅ {count} card{count !== 1 ? "s" : ""} → view
+                  </button>
+                )}
               </div>
-            ) : (
-              <div>
-                <div className={styles.sourcesHeading}>All Notes ({allNotes.length}):</div>
-                <div className={styles.sourcesList}>
-                  {allNotes.map((note, idx) => (
-                    <div key={idx} className={styles.sourceItem}>
-                      <div className={styles.sourceTitle}>{note.title}</div>
-                      <div className={styles.sourcePath}>{note.path}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {viewMode === "editor" && selectedNote && noteContent && (
-          <div>
-            <div className={styles.sourcesHeading}>Tags:</div>
-            <div className={styles.resultTagList}>
-              {getNoteTags(noteContent).map((tag, i) => (
-                <span key={i} className={styles.resultTag}>{tag}</span>
-              ))}
-            </div>
+            ))}
           </div>
         )}
 
-        {viewMode === "anki" && (
-          <div>
-            <div className={styles.sourcesHeading}>Query syntax:</div>
-            <div className={styles.ankiSyntaxPanel}>
-              <div className={styles.ankiSyntaxRow}><code>2513</code><span>→ tag::2513</span></div>
-              <div className={styles.ankiSyntaxRow}><code>uworld</code><span>→ tag::uworld</span></div>
-              <div className={styles.ankiSyntaxRow}><code>deck:USMLE</code><span>by deck</span></div>
-              <div className={styles.ankiSyntaxRow}><code>is:due</code><span>due cards</span></div>
+        {/* Activity history feed */}
+        <div className={styles.activitySection}>
+          <div className={styles.sourcesHeading}>History</div>
+          {activityHistory.length === 0 ? (
+            <div className={styles.activityEmpty}>No edits yet this session</div>
+          ) : (
+            <div className={styles.activityList}>
+              {activityHistory.map((item, i) => {
+                const ago = (() => {
+                  const diff = Date.now() - item.savedAt;
+                  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+                  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                  return `${Math.floor(diff / 3600000)}h ago`;
+                })();
+                return (
+                  <button
+                    key={i}
+                    className={styles.activityItem}
+                    onClick={() => {
+                      if (item.type === "note" && item.notePath) {
+                        setViewMode("editor");
+                        const note = allNotes.find((n) => n.path === item.notePath);
+                        if (note) openNote(note);
+                      } else if (item.type === "card" && item.questionId) {
+                        setViewMode("anki");
+                        setAnkiQuery(item.questionId);
+                        fetch(`${CREWAI_URL}/anki/direct-search`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ query: item.questionId }),
+                        }).then((r) => r.json()).then((data) => {
+                          if (!data.error) {
+                            const seen = new Set<number>();
+                            const unique = (data.cards || []).filter((c: AnkiCard) => {
+                              if (seen.has(c.note_id)) return false;
+                              seen.add(c.note_id);
+                              return true;
+                            });
+                            setAnkiCards(unique);
+                          }
+                        }).catch(() => {});
+                      }
+                    }}
+                  >
+                    <span className={styles.activityIcon}>{item.type === "note" ? "📝" : "🃏"}</span>
+                    <div className={styles.activityItemBody}>
+                      <div className={styles.activityTitle}>{item.title}</div>
+                      <div className={styles.activityMeta}>
+                        {item.questionId && <span className={styles.activityQIdSmall}>{item.questionId}</span>}
+                        <span>{ago}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

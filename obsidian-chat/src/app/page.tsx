@@ -143,14 +143,13 @@ export default function Home() {
   // Error-Note workflow
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>("idle");
   const [extractedJson, setExtractedJson] = useState<any>(null);
-  const [mcQuestions, setMcQuestions] = useState<MCQuestionItem[]>([]);
-  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState<MCQuestionItem | null>(null);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [previousQuestions, setPreviousQuestions] = useState<string[]>([]);
   const [questionAnswers, setQuestionAnswers] = useState<string[]>([]);
   const [diagnosticQuestions, setDiagnosticQuestions] = useState<string[]>([]);
   const [mcFeedback, setMcFeedback] = useState<{ selected: number; correct: boolean } | null>(null);
   const [errorNoteResult, setErrorNoteResult] = useState<ErrorNoteResult | null>(null);
-  const [showContinueChoice, setShowContinueChoice] = useState(false);
-  const [pendingAnswersForNote, setPendingAnswersForNote] = useState<string[]>([]);
   const [showPostGenChoice, setShowPostGenChoice] = useState(false);
   const [showCreateNoteChoice, setShowCreateNoteChoice] = useState(false);
 
@@ -567,6 +566,36 @@ export default function Home() {
 
   // ── Error-Note Workflow ────────────────────────────────────────────────
 
+  // ── Fetch one question on demand ───────────────────────────────────────
+
+  const fetchNextQuestion = async (
+    extraction: any,
+    prevQuestions: string[],
+    count: number
+  ): Promise<MCQuestionItem | null> => {
+    const difficulties = ["hard", "medium", "easy"];
+    const difficulty = difficulties[count % 3];
+    try {
+      const resp = await fetch(`${CREWAI_URL}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          extraction,
+          previous_questions: prevQuestions,
+          difficulty_target: difficulty,
+          vault_path: vaultPath,
+        }),
+      });
+      if (!resp.ok) throw new Error(`Questions error: ${resp.status}`);
+      const data = await resp.json();
+      const q = (data.questions || [])[0];
+      if (!q || !q.question || !Array.isArray(q.options) || q.options.length === 0) return null;
+      return q as MCQuestionItem;
+    } catch {
+      return null;
+    }
+  };
+
   const runFullWorkflow = async () => {
     if (uploadedImages.length === 0 || loading) return;
     setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: `📸 Sent ${uploadedImages.length} screenshot${uploadedImages.length > 1 ? "s" : ""} for error note` }]);
@@ -585,23 +614,18 @@ export default function Home() {
       setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: JSON.stringify(extracted, null, 2), isJson: true }]);
 
       setWorkflowStep("questioning");
-      const questionsResp = await fetch(`${CREWAI_URL}/questions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ extraction: extracted }) });
-      if (!questionsResp.ok) throw new Error(`Questions error: ${questionsResp.status}`);
-      const questionsData = await questionsResp.json();
-      const mcQs: MCQuestionItem[] = (questionsData.questions || []).filter((q: any) => q && q.question && Array.isArray(q.options) && q.options.length > 0);
-      if (mcQs.length === 0) throw new Error("No valid MC questions returned");
-      setMcQuestions(mcQs);
-      setCurrentQuestionIdx(0);
+      const firstQuestion = await fetchNextQuestion(extracted, [], 0);
+      if (!firstQuestion) throw new Error("No valid MC question returned");
+
+      setCurrentQuestion(firstQuestion);
+      setQuestionCount(1);
+      setPreviousQuestions([firstQuestion.question]);
       setQuestionAnswers([]);
-      setDiagnosticQuestions(mcQs.map((q: MCQuestionItem) => q.question));
+      setDiagnosticQuestions([firstQuestion.question]);
       setMcFeedback(null);
 
-      // Show first question in chat
-      if (mcQs.length > 0) {
-        const q = mcQs[0];
-        const optionsText = q.options.map((o, i) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
-        setMessages((prev) => [...prev, { id: (Date.now() + 2).toString(), role: "assistant", content: `🧠 **Question 1** *(${q.difficulty})*\n\n${q.question}\n\n${optionsText}` }]);
-      }
+      const optionsText = firstQuestion.options.map((o: string, i: number) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
+      setMessages((prev) => [...prev, { id: (Date.now() + 2).toString(), role: "assistant", content: `🧠 **Question 1** *(${firstQuestion.difficulty})*\n\n${firstQuestion.question}\n\n${optionsText}` }]);
       setWorkflowStep("answering");
     } catch (error) {
       console.error("Workflow error:", error);
@@ -613,18 +637,16 @@ export default function Home() {
   };
 
   const handleMCAnswer = (optionIdx: number) => {
-    if (mcFeedback || loading) return; // already answered this one
-    const q = mcQuestions[currentQuestionIdx];
+    if (mcFeedback || loading || !currentQuestion) return;
+    const q = currentQuestion;
     const isCorrect = optionIdx === q.correct;
     const chosenLetter = String.fromCharCode(65 + optionIdx);
     const correctLetter = String.fromCharCode(65 + q.correct);
     setMcFeedback({ selected: optionIdx, correct: isCorrect });
 
-    // Record answer
     const updatedAnswers = [...questionAnswers, `${chosenLetter}) ${q.options[optionIdx]} [${isCorrect ? "CORRECT" : "WRONG - correct: " + correctLetter + ") " + q.options[q.correct]}]`];
     setQuestionAnswers(updatedAnswers);
 
-    // Show feedback in chat
     setMessages((prev) => [...prev, {
       id: Date.now().toString(), role: "user",
       content: `${chosenLetter}) ${q.options[optionIdx]}`
@@ -632,16 +654,12 @@ export default function Home() {
 
     setTimeout(() => {
       if (!isCorrect) {
-        // Wrong — generate note, then ask if user wants more questions
         const msg = `❌ That was **${correctLetter}) ${q.options[q.correct]}**. Generating your note now...`;
         setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: msg }]);
-        setPendingAnswersForNote(updatedAnswers);
         handleSubmitAnswers(updatedAnswers);
       } else {
-        // Correct — ask if user wants to create a note anyway
         const msg = `✅ Correct! **${chosenLetter}) ${q.options[optionIdx]}**`;
         setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: msg }]);
-        setPendingAnswersForNote(updatedAnswers);
         setShowCreateNoteChoice(true);
       }
     }, 1200);
@@ -684,13 +702,9 @@ export default function Home() {
         });
       });
 
-      // If more questions are available, ask user; otherwise mark done
-      if (currentQuestionIdx < mcQuestions.length - 1) {
-        setShowPostGenChoice(true);
-        setWorkflowStep("answering");
-      } else {
-        setWorkflowStep("done");
-      }
+      // Always offer more questions
+      setShowPostGenChoice(true);
+      setWorkflowStep("answering");
 
       // Refresh tags & notes
       try {
@@ -713,14 +727,13 @@ export default function Home() {
   const resetWorkflow = () => {
     setWorkflowStep("idle");
     setExtractedJson(null);
+    setCurrentQuestion(null);
+    setQuestionCount(0);
+    setPreviousQuestions([]);
     setDiagnosticQuestions([]);
     setQuestionAnswers([]);
-    setMcQuestions([]);
-    setCurrentQuestionIdx(0);
     setMcFeedback(null);
     setErrorNoteResult(null);
-    setShowContinueChoice(false);
-    setPendingAnswersForNote([]);
     setShowPostGenChoice(false);
     setShowCreateNoteChoice(false);
   };
@@ -1410,7 +1423,7 @@ export default function Home() {
             )}
           </div>
 
-          {workflowStep === "answering" && mcQuestions.length > 0 && (
+          {workflowStep === "answering" && (showPostGenChoice || showCreateNoteChoice || currentQuestion !== null) && (
             showPostGenChoice ? (
               /* ── Post-generation: want more questions? ──────────────── */
               <div className={styles.questionCards}>
@@ -1421,16 +1434,27 @@ export default function Home() {
                   <div style={{ display: "flex", gap: "12px" }}>
                     <button
                       style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
-                      onClick={() => {
+                      onClick={async () => {
                         setShowPostGenChoice(false);
-                        const nextIdx = currentQuestionIdx + 1;
-                        setCurrentQuestionIdx(nextIdx);
+                        setLoading(true);
+                        const nextQ = await fetchNextQuestion(extractedJson, previousQuestions, questionCount);
+                        setLoading(false);
+                        if (!nextQ) {
+                          setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "No more unique questions could be generated. You're done!" }]);
+                          setWorkflowStep("done");
+                          return;
+                        }
+                        const newCount = questionCount + 1;
+                        setCurrentQuestion(nextQ);
+                        setQuestionCount(newCount);
+                        setPreviousQuestions((prev) => [...prev, nextQ.question]);
+                        setDiagnosticQuestions((prev) => [...prev, nextQ.question]);
                         setMcFeedback(null);
-                        const nextQ = mcQuestions[nextIdx];
-                        const optionsText = nextQ.options.map((o, i) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
+                        setQuestionAnswers([]);
+                        const optionsText = nextQ.options.map((o: string, i: number) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
                         setMessages((prev) => [...prev, {
                           id: Date.now().toString(), role: "assistant",
-                          content: `➡️ Next question *(${nextQ.difficulty})*:\n\n${nextQ.question}\n\n${optionsText}`
+                          content: `➡️ **Question ${newCount}** *(${nextQ.difficulty})*:\n\n${nextQ.question}\n\n${optionsText}`
                         }]);
                       }}
                     >
@@ -1461,7 +1485,7 @@ export default function Home() {
                       onClick={() => {
                         setShowCreateNoteChoice(false);
                         setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "📝 Generating your note..." }]);
-                        handleSubmitAnswers(pendingAnswersForNote);
+                        handleSubmitAnswers(questionAnswers);
                       }}
                     >
                       Yes, Create Note
@@ -1470,14 +1494,7 @@ export default function Home() {
                       style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #888", background: "#2a2a2a", color: "#dcddde", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
                       onClick={() => {
                         setShowCreateNoteChoice(false);
-                        if (currentQuestionIdx < mcQuestions.length - 1) {
-                          // More questions available — ask if user wants to continue
-                          setShowContinueChoice(true);
-                        } else {
-                          // No more questions
-                          resetWorkflow();
-                          setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "✅ Done! Paste more screenshots whenever you're ready." }]);
-                        }
+                        setShowPostGenChoice(true);
                       }}
                     >
                       No, Skip
@@ -1485,52 +1502,15 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            ) : showContinueChoice ? (
-              /* ── After skipping note: want more questions? ──────────── */
-              <div className={styles.questionCards}>
-                <div className={styles.questionCard}>
-                  <div style={{ fontSize: "14px", color: "#dcddde", marginBottom: "16px" }}>
-                    Want more questions?
-                  </div>
-                  <div style={{ display: "flex", gap: "12px" }}>
-                    <button
-                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
-                      onClick={() => {
-                        setShowContinueChoice(false);
-                        const nextIdx = currentQuestionIdx + 1;
-                        setCurrentQuestionIdx(nextIdx);
-                        setMcFeedback(null);
-                        const nextQ = mcQuestions[nextIdx];
-                        const optionsText = nextQ.options.map((o, i) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
-                        setMessages((prev) => [...prev, {
-                          id: Date.now().toString(), role: "assistant",
-                          content: `➡️ Next question *(${nextQ.difficulty})*:\n\n${nextQ.question}\n\n${optionsText}`
-                        }]);
-                      }}
-                    >
-                      More Questions
-                    </button>
-                    <button
-                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #888", background: "#2a2a2a", color: "#dcddde", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
-                      onClick={() => {
-                        resetWorkflow();
-                        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "✅ Done! Paste more screenshots whenever you're ready." }]);
-                      }}
-                    >
-                      I'm Done
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : currentQuestionIdx < mcQuestions.length ? (
+            ) : currentQuestion ? (
               <div className={styles.questionCards}>
                 <div className={styles.questionCard}>
                   <label className={styles.questionLabel}>
-                    <span className={styles.questionNumber}>{currentQuestionIdx + 1}</span>
-                    <span>{mcQuestions[currentQuestionIdx].question}</span>
+                    <span className={styles.questionNumber}>{questionCount}</span>
+                    <span>{currentQuestion.question}</span>
                   </label>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
-                    {mcQuestions[currentQuestionIdx].options.map((opt, i) => {
+                    {currentQuestion.options.map((opt: string, i: number) => {
                       let btnStyle: React.CSSProperties = {
                         padding: "12px 16px", border: "1px solid #444", borderRadius: "10px",
                         background: "#2a2a2a", color: "#dcddde", cursor: "pointer", textAlign: "left" as const,
@@ -1538,7 +1518,7 @@ export default function Home() {
                         display: "flex", alignItems: "center", gap: "10px",
                       };
                       if (mcFeedback) {
-                        if (i === mcQuestions[currentQuestionIdx].correct) {
+                        if (i === currentQuestion.correct) {
                           btnStyle = { ...btnStyle, border: "2px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e" };
                         } else if (i === mcFeedback.selected && !mcFeedback.correct) {
                           btnStyle = { ...btnStyle, border: "2px solid #ef4444", background: "rgba(239,68,68,0.15)", color: "#ef4444" };
@@ -1555,7 +1535,7 @@ export default function Home() {
                     })}
                   </div>
                   <div style={{ marginTop: "8px", fontSize: "11px", color: "#666", textTransform: "uppercase" as const, letterSpacing: "1px" }}>
-                    {mcQuestions[currentQuestionIdx].difficulty} • Question {currentQuestionIdx + 1} of {mcQuestions.length}
+                    {currentQuestion?.difficulty} • Question {questionCount}
                   </div>
                 </div>
               </div>

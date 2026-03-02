@@ -1112,15 +1112,19 @@ export default function Home() {
   const stripHtml = (html: string) =>
     html.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ").trim();
 
+  const isSameItem = (a: ActivityItem, b: Omit<ActivityItem, "savedAt">): boolean => {
+    if (a.type !== b.type) return false;
+    if (b.notePath) return a.notePath === b.notePath;
+    if (b.noteId !== undefined) return a.noteId === b.noteId;
+    if (b.questionId) return a.questionId === b.questionId;
+    return false;
+  };
+
   const addActivity = (item: Omit<ActivityItem, "savedAt">) => {
     setActivityHistory((prev) => {
-      // Dedup: skip if the most recent item matches same type + path/noteId
-      const top = prev[0];
-      if (top && top.type === item.type) {
-        if (item.notePath && top.notePath === item.notePath) return prev;
-        if (item.noteId && top.noteId === item.noteId) return prev;
-      }
-      const next = [{ ...item, savedAt: Date.now() }, ...prev].slice(0, 50);
+      // Remove any existing entry for this item, then prepend (most-recently-used order)
+      const deduped = prev.filter(existing => !isSameItem(existing, item));
+      const next = [{ ...item, savedAt: Date.now() }, ...deduped].slice(0, 50);
       try { localStorage.setItem("obsidianChatActivity", JSON.stringify(next)); } catch { }
       return next;
     });

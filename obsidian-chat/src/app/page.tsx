@@ -152,7 +152,7 @@ export default function Home() {
   const [selectedCardTemplate, setSelectedCardTemplate] = useState("");
   const [ankiEditError, setAnkiEditError] = useState("");
   const [expandedTagCards, setExpandedTagCards] = useState<Set<number>>(new Set());
-  const [ankiEditHistory, setAnkiEditHistory] = useState<Array<{ note_id: number; front: string; deck: string; savedAt: string }>>([]);
+  const [activityHistory, setActivityHistory] = useState<ActivityItem[]>([]);
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
 
@@ -242,6 +242,14 @@ export default function Home() {
     };
     loadNotes();
   }, [vaultPath]);
+
+  // Load activity history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("obsidianChatActivity");
+      if (stored) setActivityHistory(JSON.parse(stored));
+    } catch { }
+  }, []);
 
   // Load templates
   useEffect(() => {
@@ -706,6 +714,14 @@ export default function Home() {
       const data = await resp.json();
       if (!data.success) {
         alert(`Save failed: ${data.error}`);
+      } else {
+        const qId = (selectedNote.tags || []).find((t) => /^\d+$/.test(t)) || "";
+        addActivity({
+          type: "note",
+          questionId: qId,
+          title: selectedNote.title,
+          notePath: selectedNote.path,
+        });
       }
     } catch (error) {
       console.error("Save error:", error);
@@ -813,10 +829,13 @@ export default function Home() {
           )
         );
         setEditingCard(null);
-        setAnkiEditHistory((prev) => [
-          { note_id: card.note_id, front: stripHtml(editFront).slice(0, 60), deck: card.deck, savedAt: new Date().toLocaleTimeString() },
-          ...prev.slice(0, 9),
-        ]);
+        const qId = card.tags.find((t) => /^\d+$/.test(t)) || "";
+        addActivity({
+          type: "card",
+          questionId: qId,
+          title: stripHtml(editFront).slice(0, 50),
+          noteId: card.note_id,
+        });
       } else {
         setAnkiEditError(data.error || "Save failed.");
       }
@@ -908,6 +927,14 @@ export default function Home() {
   // Strip HTML tags to get plain text (used to detect empty card fronts)
   const stripHtml = (html: string) =>
     html.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ").trim();
+
+  const addActivity = (item: Omit<ActivityItem, "savedAt">) => {
+    setActivityHistory((prev) => {
+      const next = [{ ...item, savedAt: Date.now() }, ...prev].slice(0, 50);
+      try { localStorage.setItem("obsidianChatActivity", JSON.stringify(next)); } catch { }
+      return next;
+    });
+  };
 
   // Simple markdown renderer for note viewer
   const renderMarkdown = (md: string) => {
@@ -1811,19 +1838,6 @@ export default function Home() {
               <div className={styles.ankiSyntaxRow}><code>deck:USMLE</code><span>by deck</span></div>
               <div className={styles.ankiSyntaxRow}><code>is:due</code><span>due cards</span></div>
             </div>
-            {ankiEditHistory.length > 0 && (
-              <>
-                <div className={styles.sourcesHeading} style={{ marginTop: "16px" }}>Edit History:</div>
-                <div className={styles.ankiHistoryList}>
-                  {ankiEditHistory.map((item, i) => (
-                    <div key={i} className={styles.ankiHistoryItem}>
-                      <div className={styles.ankiHistoryFront}>{item.front}{item.front.length >= 60 ? "…" : ""}</div>
-                      <div className={styles.ankiHistoryMeta}>{item.deck} · {item.savedAt}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         )}
       </div>

@@ -17,6 +17,12 @@ export type Database = {
           anki_connect_url: string | null
           obsidian_vault_path: string | null
           obsidian_git_remote: string | null
+          encrypted_openai_key: string | null
+          encrypted_anthropic_key: string | null
+          encrypted_google_key: string | null
+          llm_provider: 'openai' | 'anthropic' | 'google' | null
+          primary_model: string | null
+          economy_model: string | null
           created_at: string
         }
         Insert: {
@@ -26,6 +32,12 @@ export type Database = {
           anki_connect_url?: string | null
           obsidian_vault_path?: string | null
           obsidian_git_remote?: string | null
+          encrypted_openai_key?: string | null
+          encrypted_anthropic_key?: string | null
+          encrypted_google_key?: string | null
+          llm_provider?: 'openai' | 'anthropic' | 'google' | null
+          primary_model?: string | null
+          economy_model?: string | null
           created_at?: string
         }
         Update: {
@@ -35,6 +47,12 @@ export type Database = {
           anki_connect_url?: string | null
           obsidian_vault_path?: string | null
           obsidian_git_remote?: string | null
+          encrypted_openai_key?: string | null
+          encrypted_anthropic_key?: string | null
+          encrypted_google_key?: string | null
+          llm_provider?: 'openai' | 'anthropic' | 'google' | null
+          primary_model?: string | null
+          economy_model?: string | null
           created_at?: string
         }
         Relationships: []

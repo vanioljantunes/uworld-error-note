@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/Button'
 import { IntegrationSettings } from '@/components/dashboard/IntegrationSettings'
+import { LLMSettings } from '@/components/dashboard/LLMSettings'
+import { getLLMSettings } from '@/actions/integrations'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -20,6 +22,8 @@ export default async function DashboardPage() {
     .select('*')
     .eq('user_id', user!.id)
     .single()
+
+  const llmSettings = await getLLMSettings()
 
   const planLabel = subscription?.plan ?? 'free'
   const rawStatus = subscription?.status ?? 'free'
@@ -59,6 +63,12 @@ export default async function DashboardPage() {
             <p className={`text-xl font-bold capitalize ${statusColor}`}>{statusLabel}</p>
           </div>
         </div>
+      </section>
+
+      {/* LLM Configuration */}
+      <section>
+        <p className="text-xs font-semibold text-neutral-600 uppercase tracking-widest mb-3">LLM Configuration</p>
+        <LLMSettings initial={llmSettings} />
       </section>
 
       {/* Integrations */}

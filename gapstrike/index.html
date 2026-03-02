@@ -229,7 +229,151 @@
     </main>
 
     <script>
-        // JS will be added in subsequent tasks
+        gsap.registerPlugin(ScrollTrigger);
+
+        document.addEventListener("DOMContentLoaded", () => {
+
+            // ── Neural Lattice ──────────────────────────────────────
+            const canvas = document.getElementById("neural-canvas");
+            const ctx = canvas.getContext("2d");
+            let nodes = [];
+            const NODE_COUNT = 35;
+            const CONNECTION_DIST = 180;
+            const questionLabels = [];
+
+            // Generate question IDs
+            for (let i = 0; i < NODE_COUNT; i++) {
+                questionLabels.push("Q" + String(Math.floor(Math.random() * 500) + 1).padStart(3, "0"));
+            }
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            function initNodes() {
+                nodes = [];
+                for (let i = 0; i < NODE_COUNT; i++) {
+                    nodes.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        vx: (Math.random() - 0.5) * 0.3,
+                        vy: (Math.random() - 0.5) * 0.3,
+                        radius: Math.random() * 2 + 1.5,
+                        label: questionLabels[i],
+                        pulse: 0,
+                        showLabel: Math.random() > 0.6,
+                    });
+                }
+            }
+
+            function drawLattice() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw connections
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const dx = nodes[i].x - nodes[j].x;
+                        const dy = nodes[i].y - nodes[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < CONNECTION_DIST) {
+                            const alpha = (1 - dist / CONNECTION_DIST) * 0.12;
+                            ctx.strokeStyle = `rgba(124, 58, 237, ${alpha})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.beginPath();
+                            ctx.moveTo(nodes[i].x, nodes[i].y);
+                            ctx.lineTo(nodes[j].x, nodes[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                // Draw nodes
+                for (const node of nodes) {
+                    // Glow
+                    if (node.pulse > 0) {
+                        const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, 20 * node.pulse);
+                        gradient.addColorStop(0, `rgba(124, 58, 237, ${0.3 * node.pulse})`);
+                        gradient.addColorStop(1, "rgba(124, 58, 237, 0)");
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, 20 * node.pulse, 0, Math.PI * 2);
+                        ctx.fill();
+                        node.pulse -= 0.005;
+                    }
+
+                    // Dot
+                    ctx.fillStyle = `rgba(124, 58, 237, 0.7)`;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Label
+                    if (node.showLabel) {
+                        ctx.fillStyle = "rgba(152, 152, 166, 0.3)";
+                        ctx.font = "9px 'JetBrains Mono', monospace";
+                        ctx.fillText(node.label, node.x + 6, node.y + 3);
+                    }
+                }
+
+                // Update positions
+                for (const node of nodes) {
+                    node.x += node.vx;
+                    node.y += node.vy;
+                    if (node.x < 0 || node.x > canvas.width) node.vx *= -1;
+                    if (node.y < 0 || node.y > canvas.height) node.vy *= -1;
+                }
+
+                // Random pulse
+                if (Math.random() < 0.02) {
+                    const idx = Math.floor(Math.random() * nodes.length);
+                    nodes[idx].pulse = 1;
+                }
+
+                requestAnimationFrame(drawLattice);
+            }
+
+            resizeCanvas();
+            initNodes();
+            drawLattice();
+            window.addEventListener("resize", () => { resizeCanvas(); initNodes(); });
+
+            // ── Hero Reveal Animations ──────────────────────────────
+            const heroReveals = document.querySelectorAll('.hero-scrub-container .reveal-up');
+            heroReveals.forEach((el, index) => {
+                setTimeout(() => { el.classList.add('active'); }, 150 * index);
+            });
+
+            // ── Hero Parallax Fade on Scroll ────────────────────────
+            gsap.to(".hero-scrub-container .reveal-up", {
+                y: -60,
+                opacity: 0,
+                filter: "blur(15px)",
+                stagger: 0.05,
+                scrollTrigger: {
+                    trigger: ".hero-scrub-container",
+                    start: "top top",
+                    end: "15% top",
+                    scrub: true,
+                }
+            });
+
+            // ── Section Reveal Animations ───────────────────────────
+            gsap.utils.toArray('section .reveal-up, section .reveal-zoom').forEach(function(elem) {
+                ScrollTrigger.create({
+                    trigger: elem,
+                    start: "top 85%",
+                    onEnter: function() { elem.classList.add('active'); }
+                });
+            });
+
+            // ── Flashlight Effect ───────────────────────────────────
+            window.updateFlashlight = function(e, card) {
+                const rect = card.getBoundingClientRect();
+                card.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+                card.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
+            }
+        });
     </script>
 </body>
 </html>

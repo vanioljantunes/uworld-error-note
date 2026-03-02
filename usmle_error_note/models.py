@@ -25,16 +25,16 @@ class MCQuestion(BaseModel):
 
 class QuestionsOutput(BaseModel):
     questions: List[MCQuestion] = Field(
-        description="1 to 3 MC questions ordered from hardest to easiest",
+        description="Exactly 1 multiple-choice diagnostic question",
         min_length=1,
-        max_length=3,
+        max_length=1,
     )
 
 
 # ── Phase 2 output ────────────────────────────────────────────────────────
 
 class GapItem(BaseModel):
-    slug: str = Field(description="Kebab-case ASCII error pattern slug")
+    slug: str = Field(description="Title Case string for the note filename (no extension)")
     action: str = Field(description="'create' or 'update'")
     existing_file: Optional[str] = Field(default=None, description="Relative path if updating")
     system_tag: str = Field(description="One system tag")
@@ -42,7 +42,7 @@ class GapItem(BaseModel):
     concept_tags: List[str] = Field(description="2-6 kebab-case concept tags")
 
 class ErrorPatternOutput(BaseModel):
-    gaps: List[GapItem] = Field(description="1-3 distinct knowledge gaps identified", min_length=1, max_length=3)
+    gaps: List[GapItem] = Field(description="Exactly 1 primary knowledge gap", min_length=1, max_length=1)
 
 
 # ── Phase 4 final result ──────────────────────────────────────────────────
@@ -50,7 +50,7 @@ class ErrorPatternOutput(BaseModel):
 class NoteResult(BaseModel):
     action: str = Field(description="'created' or 'updated'")
     file_path: str = Field(description="Relative path of the note in the vault")
-    error_pattern: str = Field(description="The inferred error pattern slug")
+    error_pattern: str = Field(description="The Title Case error pattern name")
     tags: List[str] = Field(description="Final list of all tags on the note")
     note_content: str = Field(description="The full markdown content of the note")
 
@@ -62,6 +62,9 @@ class MultiNoteResult(BaseModel):
 
 class QuestionsRequest(BaseModel):
     extraction: ExtractionInput
+    previous_questions: List[str] = []
+    difficulty_target: str = "hard"
+    vault_path: str = ""
 
 class QuestionsResponse(BaseModel):
     questions: List[dict]  # [{question, options, correct, difficulty}]

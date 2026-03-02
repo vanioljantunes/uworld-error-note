@@ -282,11 +282,22 @@ export default function Home() {
     loadNotes();
   }, [vaultPath]);
 
-  // Load activity history from localStorage on mount
+  // Load activity history from localStorage on mount, deduplicating legacy data
   useEffect(() => {
     try {
       const stored = localStorage.getItem("obsidianChatActivity");
-      if (stored) setActivityHistory(JSON.parse(stored));
+      if (stored) {
+        const items: ActivityItem[] = JSON.parse(stored);
+        // Keep only the first (most-recent) occurrence of each unique item
+        const seen = new Set<string>();
+        const deduped = items.filter(item => {
+          const key = `${item.type}:${item.notePath ?? item.noteId ?? item.questionId}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setActivityHistory(deduped);
+      }
     } catch { }
   }, []);
 

@@ -2308,7 +2308,9 @@ export default function Home() {
                       }
                     }}
                   >
-                    <span className={styles.activityIcon}>{item.type === "open" ? "👁️" : item.type === "note" ? "📝" : "🃏"}</span>
+                    <span className={styles.activityIcon}>
+                      {item.type === "card" ? <AnkiIcon /> : <ObsidianIcon />}
+                    </span>
                     <div className={styles.activityItemBody}>
                       <div className={styles.activityTitle}>{item.title}</div>
                       <div className={styles.activityMeta}>

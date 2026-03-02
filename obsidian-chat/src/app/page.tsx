@@ -153,6 +153,9 @@ export default function Home() {
   const [ankiEditError, setAnkiEditError] = useState("");
   const [expandedTagCards, setExpandedTagCards] = useState<Set<number>>(new Set());
   const [activityHistory, setActivityHistory] = useState<ActivityItem[]>([]);
+  const [noteCardCounts, setNoteCardCounts] = useState<Record<string, number | null>>({});
+  // null = loading, -1 = Anki unavailable, 0 = no cards, N = card count
+
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
 
@@ -250,6 +253,37 @@ export default function Home() {
       if (stored) setActivityHistory(JSON.parse(stored));
     } catch { }
   }, []);
+
+  // Card-detection: query AnkiConnect for each numeric tag in the selected note
+  useEffect(() => {
+    if (!selectedNote || !noteContent) {
+      setNoteCardCounts({});
+      return;
+    }
+    const numericTags = (selectedNote.tags || []).filter((t) => /^\d+$/.test(t));
+    if (numericTags.length === 0) {
+      setNoteCardCounts({});
+      return;
+    }
+    const initial: Record<string, number | null> = {};
+    numericTags.forEach((t) => (initial[t] = null));
+    setNoteCardCounts(initial);
+
+    numericTags.forEach(async (qId) => {
+      try {
+        const resp = await fetch(`${CREWAI_URL}/anki/direct-search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: qId }),
+        });
+        if (!resp.ok) { setNoteCardCounts((p) => ({ ...p, [qId]: -1 })); return; }
+        const data = await resp.json();
+        setNoteCardCounts((p) => ({ ...p, [qId]: data.cards?.length ?? 0 }));
+      } catch {
+        setNoteCardCounts((p) => ({ ...p, [qId]: -1 }));
+      }
+    });
+  }, [selectedNote]);
 
   // Load templates
   useEffect(() => {

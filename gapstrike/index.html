@@ -143,6 +143,34 @@
 <body class="antialiased min-h-screen relative selection:bg-accent selection:text-white">
     <div class="noise-overlay"></div>
 
+    <!-- NAVBAR -->
+    <header class="fixed w-full z-50 top-0 transition-all duration-300" id="navbar">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-md border-b border-white/5"></div>
+        <div class="max-w-[1440px] mx-auto px-6 py-4 relative flex justify-between items-center">
+            <!-- Logo -->
+            <div class="flex items-center gap-2.5 group cursor-pointer">
+                <div class="w-2.5 h-2.5 bg-accent rounded-full group-hover:shadow-[0_0_12px_rgba(124,58,237,0.6)] transition-shadow duration-300"></div>
+                <span class="font-display font-semibold tracking-tight text-lg text-white">GapStrike</span>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="hidden md:flex items-center gap-8 text-xs font-mono uppercase tracking-widest text-muted">
+                <a href="#method" class="hover:text-white transition-colors">Method</a>
+                <a href="#features" class="hover:text-white transition-colors">Features</a>
+                <a href="#pricing" class="hover:text-white transition-colors">Pricing</a>
+            </nav>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-4">
+                <a href="#" class="text-sm text-secondary hover:text-white transition-colors hidden md:block">Login</a>
+                <div class="hidden md:block w-px h-4 bg-white/10"></div>
+                <button class="px-5 py-2 bg-accent text-white text-sm font-medium rounded-full hover:bg-accent/90 hover:shadow-[0_0_20px_rgba(124,58,237,0.4)] transition-all">
+                    Get Started
+                </button>
+            </div>
+        </div>
+    </header>
+
     <!-- Sections will be added in subsequent tasks -->
 
     <script>

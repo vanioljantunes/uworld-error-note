@@ -31,6 +31,9 @@ yarn-debug.log*
 yarn-error.log*
 tsconfig.tsbuildinfo
 
+# Git worktrees
+.worktrees/
+
 # IDEs
 .idea/
 .vscode/settings.json

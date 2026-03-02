@@ -639,15 +639,15 @@ export default function LandingPage() {
             className="text-xs uppercase tracking-widest flex gap-6"
             style={{ fontFamily: "var(--font-mono)" }}
           >
-            <a href="#" className="hover:text-white transition-colors">
+            <span className="hover:text-white transition-colors cursor-pointer">
               Privacy
-            </a>
-            <a href="#" className="hover:text-white transition-colors">
+            </span>
+            <span className="hover:text-white transition-colors cursor-pointer">
               Terms
-            </a>
-            <a href="#" className="hover:text-white transition-colors">
+            </span>
+            <span className="hover:text-white transition-colors cursor-pointer">
               Support
-            </a>
+            </span>
           </div>
 
           <div className="text-xs text-muted">&copy; 2026 GapStrike.</div>

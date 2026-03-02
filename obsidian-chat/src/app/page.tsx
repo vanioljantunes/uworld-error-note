@@ -880,6 +880,25 @@ export default function Home() {
     }
   };
 
+  const handleUnsuspend = async (card: AnkiCard) => {
+    try {
+      const resp = await fetch(`${CREWAI_URL}/anki/unsuspend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ card_ids: [card.card_id] }),
+      });
+      if (resp.ok) {
+        setAnkiCards((prev) =>
+          prev.map((c) => c.note_id === card.note_id ? { ...c, suspended: false } : c)
+        );
+      } else {
+        setAnkiEditError("Unsuspend failed — is Anki open?");
+      }
+    } catch {
+      setAnkiEditError("Could not reach backend.");
+    }
+  };
+
   const handleFormatCard = async () => {
     setAnkiFormatting(true);
     setAnkiEditError("");
@@ -1670,6 +1689,17 @@ export default function Home() {
                           )}
                         </div>
                         <div className={styles.ankiCardHeaderActions}>
+                          {card.suspended && (
+                            <span className={styles.suspendedBadge}>suspended</span>
+                          )}
+                          {card.suspended && (
+                            <button
+                              className={styles.unsuspendBtn}
+                              onClick={(e) => { e.stopPropagation(); handleUnsuspend(card); }}
+                            >
+                              Unsuspend ↑
+                            </button>
+                          )}
                           <svg
                             className={styles.ankiChevron}
                             width="14" height="14" viewBox="0 0 24 24" fill="none"

@@ -29,7 +29,7 @@ export function decrypt(blob: string): string {
   const ciphertext = buf.subarray(IV_LEN + TAG_LEN)
   const decipher = createDecipheriv(ALGORITHM, key, iv)
   decipher.setAuthTag(tag)
-  return decipher.update(ciphertext) + decipher.final('utf8')
+  return decipher.update(ciphertext, undefined, 'utf8') + decipher.final('utf8')
 }
 
 export function maskKey(key: string): string {

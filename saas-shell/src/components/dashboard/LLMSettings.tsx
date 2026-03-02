@@ -4,9 +4,9 @@ import { useState, useTransition } from 'react'
 import { saveLLMSettings, type LLMProvider, type LLMSettings } from '@/actions/integrations'
 
 const PROVIDER_META: Record<LLMProvider, { label: string; placeholder: string }> = {
-  openai: { label: 'OpenAI', placeholder: 'sk-...' },
-  anthropic: { label: 'Anthropic', placeholder: 'sk-ant-...' },
-  google: { label: 'Google', placeholder: 'AIza...' },
+  openai: { label: 'OpenAI', placeholder: 'sk-proj-abc123...' },
+  anthropic: { label: 'Anthropic', placeholder: 'sk-ant-api03-abc123...' },
+  google: { label: 'Google', placeholder: 'AIzaSyA...' },
 }
 
 const MODEL_OPTIONS: Record<LLMProvider, { primary: string[]; economy: string[] }> = {

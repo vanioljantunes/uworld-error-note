@@ -61,13 +61,22 @@ export async function getLLMSettings(): Promise<LLMSettings> {
     .eq('id', user.id)
     .single()
 
+  function safeMask(encrypted: string | null): string | null {
+    if (!encrypted) return null
+    try {
+      return maskKey(decrypt(encrypted))
+    } catch {
+      return '****err'
+    }
+  }
+
   return {
     provider: (profile?.llm_provider as LLMProvider) ?? 'openai',
     primaryModel: profile?.primary_model ?? '',
     economyModel: profile?.economy_model ?? '',
-    maskedOpenaiKey: profile?.encrypted_openai_key ? maskKey(decrypt(profile.encrypted_openai_key)) : null,
-    maskedAnthropicKey: profile?.encrypted_anthropic_key ? maskKey(decrypt(profile.encrypted_anthropic_key)) : null,
-    maskedGoogleKey: profile?.encrypted_google_key ? maskKey(decrypt(profile.encrypted_google_key)) : null,
+    maskedOpenaiKey: safeMask(profile?.encrypted_openai_key ?? null),
+    maskedAnthropicKey: safeMask(profile?.encrypted_anthropic_key ?? null),
+    maskedGoogleKey: safeMask(profile?.encrypted_google_key ?? null),
   }
 }
 
@@ -96,23 +105,31 @@ export async function saveLLMSettings(formData: FormData) {
 
   function resolveKey(newValue: string, existingEncrypted: string | null): string | null {
     if (!newValue || newValue.startsWith('****')) return existingEncrypted ?? null
-    return encrypt(newValue)
+    try {
+      return encrypt(newValue)
+    } catch (e) {
+      throw new Error(`Encryption failed: ${e instanceof Error ? e.message : 'unknown error'}`)
+    }
   }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      llm_provider: provider,
-      primary_model: primaryModel,
-      economy_model: economyModel,
-      encrypted_openai_key: resolveKey(openaiKey, existing?.encrypted_openai_key ?? null),
-      encrypted_anthropic_key: resolveKey(anthropicKey, existing?.encrypted_anthropic_key ?? null),
-      encrypted_google_key: resolveKey(googleKey, existing?.encrypted_google_key ?? null),
-    })
-    .eq('id', user.id)
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        llm_provider: provider,
+        primary_model: primaryModel,
+        economy_model: economyModel,
+        encrypted_openai_key: resolveKey(openaiKey, existing?.encrypted_openai_key ?? null),
+        encrypted_anthropic_key: resolveKey(anthropicKey, existing?.encrypted_anthropic_key ?? null),
+        encrypted_google_key: resolveKey(googleKey, existing?.encrypted_google_key ?? null),
+      })
+      .eq('id', user.id)
 
-  if (error) return { error: error.message }
+    if (error) return { error: error.message }
 
-  revalidatePath('/dashboard')
-  return { error: null }
+    revalidatePath('/dashboard')
+    return { error: null }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to save LLM settings.' }
+  }
 }

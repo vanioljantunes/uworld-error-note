@@ -15,8 +15,8 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: "Obsidian Chat",
-  description: "Chat with your Obsidian vault using MCP",
+  title: "USMLE Error Agent",
+  description: "Diagnose USMLE errors and create Obsidian micro-notes",
 };
 
 export default function RootLayout({

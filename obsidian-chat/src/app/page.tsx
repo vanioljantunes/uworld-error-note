@@ -1201,7 +1201,7 @@ export default function Home() {
     <div className={styles.container}>
       {/* Left Sidebar */}
       <div className={styles.sidebar}>
-        <h1>Obsidian Chat</h1>
+        <h1>USMLE Error Agent</h1>
 
         {/* View Toggle */}
         <div className={styles.viewToggle}>
@@ -1366,7 +1366,7 @@ export default function Home() {
           <div className={styles.messages}>
             {messages.length === 0 ? (
               <div className={styles.emptyState}>
-                <h2>Obsidian Chat</h2>
+                <h2>USMLE Error Agent</h2>
                 <p>Type to chat • Paste screenshots to create error notes</p>
               </div>
             ) : (

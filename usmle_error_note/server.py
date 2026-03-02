@@ -43,6 +43,7 @@ from models import (
     AnkiAddNoteResponse,
     KeyNoteRequest,
     KeyNoteResponse,
+    AnkiUnsuspendRequest,
 )
 from crew import build_questions_crew, build_error_note_crew, build_format_crew, list_templates, build_anki_crew, build_anki_format_crew, build_keynote_crew, build_anki_create_crew
 from tools import set_vault_path, get_vault_path
@@ -726,6 +727,24 @@ def anki_update(req: AnkiUpdateRequest):
     except Exception as e:
         traceback.print_exc()
         return AnkiUpdateResponse(success=False, error=str(e))
+
+
+# ── POST /anki/unsuspend — Unsuspend Anki cards ───────────────────────────
+
+@app.post("/anki/unsuspend")
+def anki_unsuspend(req: AnkiUnsuspendRequest):
+    """Unsuspend Anki cards by card ID via AnkiConnect."""
+    try:
+        _direct_anki("unsuspendCards", cards=req.card_ids)
+        return {"success": True}
+    except OSError:
+        raise HTTPException(
+            status_code=503,
+            detail="AnkiConnect not reachable. Open Anki with the AnkiConnect plugin installed.",
+        )
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── GET /anki/decks — List Anki deck names ────────────────────────────────

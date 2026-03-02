@@ -14,18 +14,27 @@ export type Database = {
           id: string
           full_name: string | null
           avatar_url: string | null
+          anki_connect_url: string | null
+          obsidian_vault_path: string | null
+          obsidian_git_remote: string | null
           created_at: string
         }
         Insert: {
           id: string
           full_name?: string | null
           avatar_url?: string | null
+          anki_connect_url?: string | null
+          obsidian_vault_path?: string | null
+          obsidian_git_remote?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           full_name?: string | null
           avatar_url?: string | null
+          anki_connect_url?: string | null
+          obsidian_vault_path?: string | null
+          obsidian_git_remote?: string | null
           created_at?: string
         }
         Relationships: []

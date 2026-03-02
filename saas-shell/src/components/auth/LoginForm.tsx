@@ -40,13 +40,13 @@ export function LoginForm() {
         required
         autoComplete="current-password"
       />
-      {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+      {error && <p className="text-sm text-red-400 text-center">{error}</p>}
       <Button type="submit" disabled={loading} className="w-full mt-1">
         {loading ? 'Signing in…' : 'Sign in'}
       </Button>
-      <p className="text-sm text-center text-slate-600">
+      <p className="text-sm text-center text-neutral-500">
         No account?{' '}
-        <Link href="/auth/register" className="text-indigo-600 hover:underline">
+        <Link href="/auth/register" className="text-violet-400 hover:text-violet-300 transition-colors">
           Register
         </Link>
       </p>

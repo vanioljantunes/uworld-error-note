@@ -50,13 +50,13 @@ export function RegisterForm() {
         autoComplete="new-password"
         minLength={6}
       />
-      {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+      {error && <p className="text-sm text-red-400 text-center">{error}</p>}
       <Button type="submit" disabled={loading} className="w-full mt-1">
         {loading ? 'Creating account…' : 'Create account'}
       </Button>
-      <p className="text-sm text-center text-slate-600">
+      <p className="text-sm text-center text-neutral-500">
         Already have an account?{' '}
-        <Link href="/auth/login" className="text-indigo-600 hover:underline">
+        <Link href="/auth/login" className="text-violet-400 hover:text-violet-300 transition-colors">
           Login
         </Link>
       </p>

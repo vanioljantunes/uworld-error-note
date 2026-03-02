@@ -31,7 +31,7 @@ export default async function DashboardPage() {
           </h1>
           <p className="text-slate-500">Here&apos;s your account overview.</p>
         </div>
-        <Link href="https://gapstrike-app.vercel.app">
+        <Link href="/app">
           <Button>Launch App</Button>
         </Link>
       </div>

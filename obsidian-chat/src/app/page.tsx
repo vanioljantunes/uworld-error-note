@@ -62,13 +62,42 @@ interface AnkiCard {
 }
 
 interface ActivityItem {
-  type: "note" | "card";
+  type: "note" | "card" | "open";
   questionId: string;
   title: string;
   notePath?: string;
   noteId?: number;
   savedAt: number;
 }
+
+// ── Activity history logo icons ───────────────────────────────────────────
+
+function ObsidianIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-label="Obsidian note">
+      {/* Main gem body */}
+      <polygon points="7,0.5 13.5,5 7,13.5 0.5,5" fill="#7c3aed" />
+      {/* Top facet highlight */}
+      <polygon points="7,0.5 13.5,5 7,5.5 0.5,5" fill="#a855f7" />
+      {/* Right facet shadow */}
+      <polygon points="7,5.5 13.5,5 7,13.5" fill="#6d28d9" />
+    </svg>
+  );
+}
+
+function AnkiIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-label="Anki card">
+      {/* 4-pointed star approximating Anki's burst logo */}
+      <path
+        d="M7 0.5 L8.3 5.7 L13.5 7 L8.3 8.3 L7 13.5 L5.7 8.3 L0.5 7 L5.7 5.7 Z"
+        fill="#06b6d4"
+      />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const CREWAI_URL = "http://localhost:8000";
 
@@ -100,7 +129,7 @@ export default function Home() {
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [tagFilter, setTagFilter] = useState("");
   const [vaultPath, setVaultPath] = useState(
-    "C:\\Users\\vanio\\OneDrive\\Área de Trabalho\\teste_crew\\teste"
+    "C:\\Users\\vanio\\OneDrive\\Documentos\\vaults\\USMLE vault"
   );
   const [showPathSettings, setShowPathSettings] = useState(false);
   const [tempPath, setTempPath] = useState(vaultPath);
@@ -122,6 +151,8 @@ export default function Home() {
   const [errorNoteResult, setErrorNoteResult] = useState<ErrorNoteResult | null>(null);
   const [showContinueChoice, setShowContinueChoice] = useState(false);
   const [pendingAnswersForNote, setPendingAnswersForNote] = useState<string[]>([]);
+  const [showPostGenChoice, setShowPostGenChoice] = useState(false);
+  const [showCreateNoteChoice, setShowCreateNoteChoice] = useState(false);
 
   // Editor mode
   const [noteSearch, setNoteSearch] = useState("");
@@ -132,6 +163,11 @@ export default function Home() {
   const [templates, setTemplates] = useState<{ name: string; filename: string }[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [formatInstructions, setFormatInstructions] = useState("");
+  const [selectedFormatText, setSelectedFormatText] = useState("");
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [noteHistory, setNoteHistory] = useState<string[]>([]);
+  const [streamingChip, setStreamingChip] = useState<string | null>(null);
+  const editorTextAreaRef = useRef<HTMLTextAreaElement>(null);
 
   // Editor: saving & keynote
   const [savingNote, setSavingNote] = useState(false);
@@ -585,18 +621,17 @@ export default function Home() {
 
     setTimeout(() => {
       if (!isCorrect) {
-        // Wrong — generate note immediately
+        // Wrong — generate note, then ask if user wants more questions
         const msg = `❌ That was **${correctLetter}) ${q.options[q.correct]}**. Generating your note now...`;
         setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: msg }]);
-        handleSubmitAnswers(updatedAnswers);
-      } else if (currentQuestionIdx < mcQuestions.length - 1) {
-        // Correct, more questions available — let user decide
         setPendingAnswersForNote(updatedAnswers);
-        setShowContinueChoice(true);
-      } else {
-        // Correct, no more questions — generate note
-        setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "✅ Correct! Generating your error note..." }]);
         handleSubmitAnswers(updatedAnswers);
+      } else {
+        // Correct — ask if user wants to create a note anyway
+        const msg = `✅ Correct! **${chosenLetter}) ${q.options[optionIdx]}**`;
+        setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: msg }]);
+        setPendingAnswersForNote(updatedAnswers);
+        setShowCreateNoteChoice(true);
       }
     }, 1200);
   };
@@ -627,7 +662,24 @@ export default function Home() {
         role: "assistant",
         content: `✅ **${notesArr.length} note${notesArr.length > 1 ? "s" : ""} created!**\n\n${noteSummaries}`,
       }]);
-      setWorkflowStep("done");
+      // Add generated notes to activity history
+      notesArr.forEach((n: NoteResultItem) => {
+        const qId = (n.tags || []).find((t) => /^\d+$/.test(t)) || "";
+        addActivity({
+          type: "note",
+          questionId: qId,
+          title: n.error_pattern || n.file_path.split("/").pop()?.replace(".md", "") || "Note",
+          notePath: n.file_path,
+        });
+      });
+
+      // If more questions are available, ask user; otherwise mark done
+      if (currentQuestionIdx < mcQuestions.length - 1) {
+        setShowPostGenChoice(true);
+        setWorkflowStep("answering");
+      } else {
+        setWorkflowStep("done");
+      }
 
       // Refresh tags & notes
       try {
@@ -658,6 +710,8 @@ export default function Home() {
     setErrorNoteResult(null);
     setShowContinueChoice(false);
     setPendingAnswersForNote([]);
+    setShowPostGenChoice(false);
+    setShowCreateNoteChoice(false);
   };
 
   // ── Editor: read note ──────────────────────────────────────────────────
@@ -674,6 +728,14 @@ export default function Home() {
       if (resp.ok) {
         const data = await resp.json();
         setNoteContent(data.content || "");
+        // Track note open (dedup: skip if the most recent item is the same open)
+        const qId = (note.tags || []).find((t) => /^\d+$/.test(t)) || "";
+        addActivity({
+          type: "open",
+          questionId: qId,
+          title: note.title,
+          notePath: note.path,
+        });
       } else {
         setNoteContent("Failed to load note.");
       }
@@ -693,41 +755,99 @@ export default function Home() {
     window.open(uri);
   };
 
-  const formatNote = async (customMsg?: string) => {
+  const formatNote = async (mode: string, customSelected?: string) => {
     if (!selectedNote || formatting) return;
     setFormatting(true);
+    setStreamingChip(mode);
+
+    // Save history before formatting
+    setNoteHistory((prev) => [...prev, noteContent].slice(-20));
+
+    const textToFormat = customSelected || selectedFormatText || (() => {
+      if (!editorTextAreaRef.current) return "";
+      const { selectionStart: s, selectionEnd: e } = editorTextAreaRef.current;
+      return (s !== e && s !== undefined && e !== undefined) ? noteContent.substring(s, e) : "";
+    })();
+
+    const originalContent = noteContent;
+    let accumulated = "";
+
     try {
-      const resp = await fetch(`${CREWAI_URL}/format`, {
+      const resp = await fetch(`${CREWAI_URL}/format/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vault_path: vaultPath,
           note_path: selectedNote.path,
           selected_template: selectedTemplate,
-          custom_instructions: customMsg || formatInstructions,
+          selected_text: textToFormat,
+          format_mode: mode,
         }),
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.success) {
-          setNoteContent(data.formatted_content);
-          setFormatInstructions("");
-        } else {
-          alert(`Format failed: ${data.error}`);
+
+      if (!resp.ok || !resp.body) throw new Error("Stream request failed");
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
+        for (const event of events) {
+          if (!event.startsWith("data: ")) continue;
+          const payload = event.slice(6);
+          if (payload === "[DONE]") break;
+          if (payload.startsWith("[ERROR]")) {
+            alert(`Format error: ${payload.slice(8)}`);
+            break;
+          }
+          // Unescape newlines
+          const chunk = payload.replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
+          accumulated += chunk;
+
+          // Progressively update the editor
+          setNoteContent(
+            textToFormat
+              ? originalContent.replace(textToFormat, accumulated)
+              : accumulated
+          );
         }
       }
-    } catch (error) {
-      console.error("Format error:", error);
-      alert("Failed to format note.");
+
+      setSelectedFormatText("");
+    } catch (err) {
+      console.error("Stream format error:", err);
+      alert("Failed to stream format.");
+      setNoteContent(originalContent); // restore on error
     } finally {
       setFormatting(false);
+      setStreamingChip(null);
     }
   };
 
-  const handleFormatChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formatInstructions.trim() || !selectedNote) return;
-    formatNote(formatInstructions);
+  const handleGrabSelection = () => {
+    let text = "";
+    if (editorTextAreaRef.current) {
+      const start = editorTextAreaRef.current.selectionStart;
+      const end = editorTextAreaRef.current.selectionEnd;
+      if (start !== end && start !== undefined && end !== undefined) {
+        text = noteContent.substring(start, end);
+      }
+    }
+    if (!text) {
+      text = window.getSelection()?.toString() || "";
+    }
+    if (text.trim()) {
+      setSelectedFormatText(text.trim());
+    } else {
+      alert("Please highlight/select some text first!");
+    }
   };
 
   // ── Editor: save note ──────────────────────────────────────────────────
@@ -801,45 +921,56 @@ export default function Home() {
     }
   };
 
-  // ── Anki Search ────────────────────────────────────────────────────────
+  // ── Anki Live Search (Debounced) ───────────────────────────────────────
 
-  const handleAnkiSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ankiQuery.trim() || ankiLoading) return;
-    setAnkiLoading(true);
-    setAnkiError("");
-    setAnkiCards([]);
-    setEditingCard(null);
-    setExpandedTagCards(new Set());
-    try {
-      const resp = await fetch(`${CREWAI_URL}/anki/direct-search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: ankiQuery }),
-      });
-      if (resp.status === 503) {
-        setAnkiError("Anki is not running. Open Anki with the AnkiConnect plugin installed.");
-        return;
-      }
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      if (data.error) {
-        setAnkiError(data.error);
-      } else {
-        const seen = new Set<number>();
-        const unique = (data.cards || []).filter((c: AnkiCard) => {
-          if (seen.has(c.note_id)) return false;
-          seen.add(c.note_id);
-          return true;
+  useEffect(() => {
+    // Only search if we are in Anki view
+    if (viewMode !== "anki") return;
+
+    // Debounce timer
+    const timeoutId = setTimeout(async () => {
+      setAnkiLoading(true);
+      setAnkiError("");
+
+      try {
+        const resp = await fetch(`${CREWAI_URL}/anki/direct-search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: ankiQuery }),
         });
-        setAnkiCards(unique);
+
+        if (resp.status === 503) {
+          setAnkiError("Anki is not running. Open Anki with the AnkiConnect plugin installed.");
+          setAnkiLoading(false);
+          return;
+        }
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const data = await resp.json();
+        if (data.error) {
+          setAnkiError(data.error);
+        } else {
+          // Keep selection stability
+          setEditingCard(null);
+          setExpandedTagCards(new Set());
+
+          const seen = new Set<number>();
+          const unique = (data.cards || []).filter((c: AnkiCard) => {
+            if (seen.has(c.note_id)) return false;
+            seen.add(c.note_id);
+            return true;
+          });
+          setAnkiCards(unique);
+        }
+      } catch (err) {
+        setAnkiError("Failed to reach the backend. Is the server running?");
+      } finally {
+        setAnkiLoading(false);
       }
-    } catch (err) {
-      setAnkiError("Failed to reach the backend. Is the server running?");
-    } finally {
-      setAnkiLoading(false);
-    }
-  };
+    }, 400); // 400ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [ankiQuery, viewMode]);
 
   const handleSaveCard = async (card: AnkiCard) => {
     setAnkiSaving(true);
@@ -983,6 +1114,12 @@ export default function Home() {
 
   const addActivity = (item: Omit<ActivityItem, "savedAt">) => {
     setActivityHistory((prev) => {
+      // Dedup: skip if the most recent item matches same type + path/noteId
+      const top = prev[0];
+      if (top && top.type === item.type) {
+        if (item.notePath && top.notePath === item.notePath) return prev;
+        if (item.noteId && top.noteId === item.noteId) return prev;
+      }
       const next = [{ ...item, savedAt: Date.now() }, ...prev].slice(0, 50);
       try { localStorage.setItem("obsidianChatActivity", JSON.stringify(next)); } catch { }
       return next;
@@ -1000,8 +1137,28 @@ export default function Home() {
     // Bold & italic
     body = body.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     body = body.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Wiki links
-    body = body.replace(/\[\[(.+?)\]\]/g, '<span class="wikilink">$1</span>');
+    // Wiki links - preserve the brackets and apply purple inline styling
+    body = body.replace(/\[\[(.+?)\]\]/g, '<span style="color: #a855f7; background: rgba(147, 51, 234, 0.2); border-radius: 4px; padding: 0 4px; cursor: pointer; transition: all 0.2s;">[[&nbsp;$1&nbsp;]]</span>');
+    // Markdown Tables
+    body = body.replace(/(?:^[ \t]*\|.*\|[ \t]*(?:\r?\n|$))+/gm, (match) => {
+      const rows = match.trim().split(/\r?\n/);
+      if (rows.length < 2) return match;
+      let html = '<table class="md-table" style="width: 100%; border-collapse: collapse; margin: 16px 0;">';
+      rows.forEach((row, i) => {
+        if (row.match(/^\|?\s*:?-+:?\s*\|/)) return; // Skip separator row (e.g., |---|)
+        const cells = row.replace(/^\||\|$/g, '').split('|');
+        html += '<tr>';
+        cells.forEach(cell => {
+          const content = cell.trim();
+          html += i === 0
+            ? `<th style="padding: 8px 12px; border: 1px solid #2a2a2a; background: #111; font-weight: 600;">${content}</th>`
+            : `<td style="padding: 8px 12px; border: 1px solid #2a2a2a;">${content}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</table>';
+      return html;
+    });
     // Line breaks
     body = body.replace(/\n/g, '<br/>');
     return body;
@@ -1154,23 +1311,15 @@ export default function Home() {
         {/* Anki sidebar: search form */}
         {viewMode === "anki" && (
           <div className={styles.editorNoteList}>
-            <form onSubmit={handleAnkiSearch} className={styles.ankiSearchForm}>
+            <div className={styles.ankiSearchForm}>
               <input
                 type="text"
                 placeholder="e.g. 2513  →  tag::2513"
                 value={ankiQuery}
                 onChange={(e) => setAnkiQuery(e.target.value)}
                 className={styles.noteSearchInput}
-                disabled={ankiLoading}
               />
-              <button
-                type="submit"
-                disabled={ankiLoading || !ankiQuery.trim()}
-                className={styles.ankiSearchBtn}
-              >
-                {ankiLoading ? "..." : "Search"}
-              </button>
-            </form>
+            </div>
             <div className={styles.ankiSyntaxHints}>
               <div className={styles.ankiHint}>2513 → ::2513</div>
               <div className={styles.ankiHint}>uworld → ::uworld</div>
@@ -1246,15 +1395,90 @@ export default function Home() {
           </div>
 
           {workflowStep === "answering" && mcQuestions.length > 0 && (
-            showContinueChoice ? (
+            showPostGenChoice ? (
+              /* ── Post-generation: want more questions? ──────────────── */
               <div className={styles.questionCards}>
                 <div className={styles.questionCard}>
                   <div style={{ fontSize: "14px", color: "#dcddde", marginBottom: "16px" }}>
-                    ✅ You got it right. Keep going with more questions or generate your note now?
+                    📝 Note created! Want to keep going with more questions?
                   </div>
                   <div style={{ display: "flex", gap: "12px" }}>
                     <button
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      onClick={() => {
+                        setShowPostGenChoice(false);
+                        const nextIdx = currentQuestionIdx + 1;
+                        setCurrentQuestionIdx(nextIdx);
+                        setMcFeedback(null);
+                        const nextQ = mcQuestions[nextIdx];
+                        const optionsText = nextQ.options.map((o, i) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
+                        setMessages((prev) => [...prev, {
+                          id: Date.now().toString(), role: "assistant",
+                          content: `➡️ Next question *(${nextQ.difficulty})*:\n\n${nextQ.question}\n\n${optionsText}`
+                        }]);
+                      }}
+                    >
+                      More Questions
+                    </button>
+                    <button
                       style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #888", background: "#2a2a2a", color: "#dcddde", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      onClick={() => {
+                        resetWorkflow();
+                        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "✅ Done! Paste more screenshots whenever you're ready." }]);
+                      }}
+                    >
+                      I'm Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : showCreateNoteChoice ? (
+              /* ── Correct answer: create note anyway? ────────────────── */
+              <div className={styles.questionCards}>
+                <div className={styles.questionCard}>
+                  <div style={{ fontSize: "14px", color: "#dcddde", marginBottom: "16px" }}>
+                    ✅ You got it right! Want to create a note for this question anyway?
+                  </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      onClick={() => {
+                        setShowCreateNoteChoice(false);
+                        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "📝 Generating your note..." }]);
+                        handleSubmitAnswers(pendingAnswersForNote);
+                      }}
+                    >
+                      Yes, Create Note
+                    </button>
+                    <button
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #888", background: "#2a2a2a", color: "#dcddde", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      onClick={() => {
+                        setShowCreateNoteChoice(false);
+                        if (currentQuestionIdx < mcQuestions.length - 1) {
+                          // More questions available — ask if user wants to continue
+                          setShowContinueChoice(true);
+                        } else {
+                          // No more questions
+                          resetWorkflow();
+                          setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "✅ Done! Paste more screenshots whenever you're ready." }]);
+                        }
+                      }}
+                    >
+                      No, Skip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : showContinueChoice ? (
+              /* ── After skipping note: want more questions? ──────────── */
+              <div className={styles.questionCards}>
+                <div className={styles.questionCard}>
+                  <div style={{ fontSize: "14px", color: "#dcddde", marginBottom: "16px" }}>
+                    Want more questions?
+                  </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
                       onClick={() => {
                         setShowContinueChoice(false);
                         const nextIdx = currentQuestionIdx + 1;
@@ -1268,16 +1492,16 @@ export default function Home() {
                         }]);
                       }}
                     >
-                      Keep Going
+                      More Questions
                     </button>
                     <button
-                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #888", background: "#2a2a2a", color: "#dcddde", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
                       onClick={() => {
-                        setShowContinueChoice(false);
-                        handleSubmitAnswers(pendingAnswersForNote);
+                        resetWorkflow();
+                        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "✅ Done! Paste more screenshots whenever you're ready." }]);
                       }}
                     >
-                      Generate Note
+                      I'm Done
                     </button>
                   </div>
                 </div>
@@ -1365,7 +1589,7 @@ export default function Home() {
                       <option key={i} value={t.filename}>{t.name}</option>
                     ))}
                   </select>
-                  <button className={styles.formatNoteBtn} onClick={() => formatNote()} disabled={formatting}>
+                  <button className={styles.formatNoteBtn} onClick={() => formatNote("sections")} disabled={formatting}>
                     {formatting ? (
                       <>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.spinIcon} aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" /></svg>
@@ -1420,8 +1644,28 @@ export default function Home() {
               {loadingNote ? (
                 <div className={styles.editorLoading}>Loading note...</div>
               ) : (
-                <div className={styles.editorSplitView}>
+                <div
+                  className={`${styles.editorSplitView} ${formatting ? styles.editorStreaming : ""}`}
+                  style={{ cursor: isSelectionMode ? "crosshair" : "auto" }}
+                  onMouseUp={() => {
+                    if (isSelectionMode) {
+                      let text = window.getSelection()?.toString() || "";
+                      if (!text.trim() && editorTextAreaRef.current) {
+                        const start = editorTextAreaRef.current.selectionStart;
+                        const end = editorTextAreaRef.current.selectionEnd;
+                        if (start !== end && start !== undefined && end !== undefined) {
+                          text = noteContent.substring(start, end);
+                        }
+                      }
+                      if (text.trim()) {
+                        setSelectedFormatText(text.trim());
+                        setIsSelectionMode(false);
+                      }
+                    }
+                  }}
+                >
                   <textarea
+                    ref={editorTextAreaRef}
                     className={styles.editorTextarea}
                     value={noteContent}
                     onChange={(e) => setNoteContent(e.target.value)}
@@ -1430,38 +1674,140 @@ export default function Home() {
                   <div className={styles.editorPreview} dangerouslySetInnerHTML={{ __html: renderMarkdown(noteContent) }} />
                 </div>
               )}
-              {/* Formatting overlay */}
-              {formatting && (
-                <div className={styles.formattingOverlay}>
-                  <div className={styles.loadingInner}>
-                    <div className={styles.spinner} />
-                    <div className={styles.loadingText}>
-                      <span className={styles.thinkingLabel}>Formatting<span className={styles.ellipsis} /></span>
-                      <span className={styles.statusLine}>{statusMsg}</span>
-                    </div>
+              {/* Selected Text Pill */}
+              {selectedFormatText && (
+                <div style={{ margin: "0 20px 10px 20px", padding: "10px", background: "rgba(147, 51, 234, 0.15)", border: "1px solid rgba(147, 51, 234, 0.4)", borderRadius: "8px", position: "relative" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", fontSize: "12px", color: "#d8b4fe", fontWeight: 600 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" /></svg>
+                      Targeting Selection:
+                    </span>
+                    <button type="button" onClick={() => setSelectedFormatText("")} style={{ background: "transparent", border: "none", color: "#d8b4fe", cursor: "pointer", padding: 0 }}>✕</button>
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#e2e8f0", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", display: "-webkit-box", overflow: "hidden", fontStyle: "italic", opacity: 0.9 }}>
+                    "{selectedFormatText}"
+                  </div>
+                  <div className={styles.selectionQuickActions}>
+                    <button
+                      type="button"
+                      className={styles.selectionQuickBtn}
+                      onClick={() => formatNote("expand")}
+                      disabled={formatting}
+                      aria-label="Expand selected text"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                      Expand
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.selectionQuickBtn}
+                      onClick={() => formatNote("concise")}
+                      disabled={formatting}
+                      aria-label="Make selected text concise"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="21" y2="3"/><line x1="3" y1="21" x2="14" y2="10"/></svg>
+                      Concise
+                    </button>
                   </div>
                 </div>
               )}
-              {/* Format Chat Input */}
-              <form onSubmit={handleFormatChat} className={styles.formatChatBar}>
-                <input
-                  type="text"
-                  value={formatInstructions}
-                  onChange={(e) => setFormatInstructions(e.target.value)}
-                  placeholder={formatting ? "Formatting in progress..." : "Ask the formatter to make specific changes..."}
-                  disabled={formatting}
-                  className={styles.formatChatInput}
-                />
+              {/* Format Chip Toolbar */}
+              <div className={styles.formatBar}>
+                {/* Feynman */}
                 <button
-                  type="submit"
-                  disabled={formatting || !formatInstructions.trim()}
-                  className={styles.formatChatSend}
+                  type="button"
+                  className={`${styles.formatChip} ${styles.formatChipFeynman} ${streamingChip === "feynman" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => formatNote("feynman")}
+                  disabled={formatting || !selectedFormatText}
+                  title="Rewrite in plain student-friendly language (requires selection)"
+                  aria-label="Feynman: rewrite as simple explanation"
                 >
-                  {formatting ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.spinIcon} aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" /></svg>
-                  ) : "Send"}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7l-1 3H10l-1-3C7 14.5 5 12 5 9a7 7 0 0 1 7-7z"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
+                  Feynman
                 </button>
-              </form>
+
+                {/* Flowchart */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${styles.formatChipFlowchart} ${streamingChip === "flowchart" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => formatNote("flowchart")}
+                  disabled={formatting || !selectedFormatText}
+                  title="Append a Mermaid flowchart (requires selection)"
+                  aria-label="Flowchart: append Mermaid diagram"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="6" height="4" rx="1"/><rect x="15" y="3" width="6" height="4" rx="1"/><rect x="9" y="17" width="6" height="4" rx="1"/><line x1="6" y1="7" x2="6" y2="19"/><line x1="18" y1="7" x2="18" y2="12"/><line x1="6" y1="19" x2="9" y2="19"/><line x1="15" y1="19" x2="18" y2="19"/><line x1="18" y1="12" x2="15" y2="19"/></svg>
+                  Flowchart
+                </button>
+
+                {/* List */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${streamingChip === "list" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => formatNote("list")}
+                  disabled={formatting}
+                  aria-label="Convert to list"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>
+                  List
+                </button>
+
+                {/* Table */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${streamingChip === "table" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => formatNote("table")}
+                  disabled={formatting}
+                  aria-label="Convert to table"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+                  Table
+                </button>
+
+                {/* Split */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${streamingChip === "split" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => formatNote("split")}
+                  disabled={formatting}
+                  aria-label="Split into shorter ideas"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><path d="M3 8h9"/><path d="M3 16h9"/><path d="M15 8h6"/><path d="M15 16h6"/></svg>
+                  Split
+                </button>
+
+                {/* Sections */}
+                <button
+                  type="button"
+                  className={`${styles.formatChip} ${streamingChip === "sections" ? styles.formatChipStreaming : ""}`}
+                  onClick={() => formatNote("sections")}
+                  disabled={formatting}
+                  aria-label="Divide into sections with subtitles"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
+                  Sections
+                </button>
+
+                <div className={styles.formatBarSpacer} />
+
+                {/* Undo */}
+                <button
+                  type="button"
+                  className={styles.formatUndoBtn}
+                  title="Undo last format"
+                  aria-label="Undo last format"
+                  disabled={noteHistory.length === 0 || formatting}
+                  onClick={() => {
+                    const newHistory = [...noteHistory];
+                    const prev = newHistory.pop();
+                    if (prev !== undefined) {
+                      setNoteContent(prev);
+                      setNoteHistory(newHistory);
+                    }
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.2-5.8"/></svg>
+                </button>
+              </div>
             </>
           ) : (
             <div className={styles.editorEmpty}>
@@ -1479,337 +1825,348 @@ export default function Home() {
               <span>Searching Anki collection...</span>
             </div>
           )}
-          {!ankiLoading && ankiError && (
+          {ankiError && (
             <div className={styles.ankiErrorBanner}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
               {ankiError}
             </div>
           )}
-          {!ankiLoading && !ankiError && ankiCards.length === 0 && (
-            <div className={styles.ankiCreatePanel}>
-              <h2 className={styles.ankiCreateTitle}>Create Anki Card</h2>
-              <p className={styles.ankiCreateSubtitle}>Select an Obsidian note and template to generate a new card.</p>
 
-              <div className={styles.ankiCreateForm}>
-                {/* Note selector combobox */}
-                <div className={styles.ankiCreateField}>
-                  <label className={styles.ankiCreateLabel}>Source Note</label>
+          <div className={styles.ankiCreatePanel}>
+            <h2 className={styles.ankiCreateTitle}>Create Anki Card</h2>
+            <p className={styles.ankiCreateSubtitle}>Select an Obsidian note and template to generate a new card.</p>
 
-                  {/* Tag filter chips — always visible in the main panel */}
-                  {allNotesTags.length > 0 && (
-                    <div className={styles.comboboxTagRow}>
-                      {allNotesTags.map((tag) => (
-                        <button
-                          key={tag}
-                          type="button"
-                          className={`${styles.comboboxTagChip} ${ankiCreateTagFilter === tag ? styles.comboboxTagChipActive : ""}`}
-                          onClick={() => setAnkiCreateTagFilter((f) => f === tag ? "" : tag)}
-                        >
-                          {tag}
-                        </button>
-                      ))}
+            <div className={styles.ankiCreateForm}>
+              {/* Note selector combobox */}
+              <div className={styles.ankiCreateField}>
+                <label className={styles.ankiCreateLabel}>Source Note</label>
+
+                {/* Tag filter chips — always visible in the main panel */}
+                {allNotesTags.length > 0 && (
+                  <div className={styles.comboboxTagRow}>
+                    {allNotesTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={`${styles.comboboxTagChip} ${ankiCreateTagFilter === tag ? styles.comboboxTagChipActive : ""}`}
+                        onClick={() => setAnkiCreateTagFilter((f) => f === tag ? "" : tag)}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className={styles.comboboxWrap} ref={comboboxRef}>
+                  <button
+                    type="button"
+                    className={styles.comboboxToggle}
+                    onClick={() => setAnkiCreateDropdownOpen((o) => !o)}
+                  >
+                    <span className={styles.comboboxToggleText}>
+                      {ankiCreateNote
+                        ? (allNotes.find((n) => n.path === ankiCreateNote)?.title || ankiCreateNote)
+                        : "Select a note..."}
+                    </span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, transform: ankiCreateDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+
+                  {ankiCreateDropdownOpen && (
+                    <div className={styles.comboboxDropdown}>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Search notes..."
+                        value={ankiCreateNoteSearch}
+                        onChange={(e) => setAnkiCreateNoteSearch(e.target.value)}
+                        className={styles.comboboxSearch}
+                      />
+                      <div className={styles.comboboxList}>
+                        {filteredCreateNotes.length === 0 ? (
+                          <div className={styles.comboboxEmpty}>No notes found</div>
+                        ) : (
+                          filteredCreateNotes.map((note, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className={`${styles.comboboxOption} ${ankiCreateNote === note.path ? styles.comboboxOptionActive : ""}`}
+                              onClick={() => {
+                                setAnkiCreateNote(note.path);
+                                setAnkiCreateDropdownOpen(false);
+                                setAnkiCreateNoteSearch("");
+                              }}
+                            >
+                              <span className={styles.comboboxOptionTitle}>{note.title}</span>
+                              {note.tags && note.tags.length > 0 && (
+                                <span className={styles.comboboxOptionTags}>{note.tags.slice(0, 3).join(", ")}</span>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
                     </div>
                   )}
-
-                  <div className={styles.comboboxWrap} ref={comboboxRef}>
-                    <button
-                      type="button"
-                      className={styles.comboboxToggle}
-                      onClick={() => setAnkiCreateDropdownOpen((o) => !o)}
-                    >
-                      <span className={styles.comboboxToggleText}>
-                        {ankiCreateNote
-                          ? (allNotes.find((n) => n.path === ankiCreateNote)?.title || ankiCreateNote)
-                          : "Select a note..."}
-                      </span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, transform: ankiCreateDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}><polyline points="6 9 12 15 18 9" /></svg>
-                    </button>
-
-                    {ankiCreateDropdownOpen && (
-                      <div className={styles.comboboxDropdown}>
-                        <input
-                          autoFocus
-                          type="text"
-                          placeholder="Search notes..."
-                          value={ankiCreateNoteSearch}
-                          onChange={(e) => setAnkiCreateNoteSearch(e.target.value)}
-                          className={styles.comboboxSearch}
-                        />
-                        <div className={styles.comboboxList}>
-                          {filteredCreateNotes.length === 0 ? (
-                            <div className={styles.comboboxEmpty}>No notes found</div>
-                          ) : (
-                            filteredCreateNotes.map((note, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                className={`${styles.comboboxOption} ${ankiCreateNote === note.path ? styles.comboboxOptionActive : ""}`}
-                                onClick={() => {
-                                  setAnkiCreateNote(note.path);
-                                  setAnkiCreateDropdownOpen(false);
-                                  setAnkiCreateNoteSearch("");
-                                }}
-                              >
-                                <span className={styles.comboboxOptionTitle}>{note.title}</span>
-                                {note.tags && note.tags.length > 0 && (
-                                  <span className={styles.comboboxOptionTags}>{note.tags.slice(0, 3).join(", ")}</span>
-                                )}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
-
-                {/* Template selector */}
-                <div className={styles.ankiCreateField}>
-                  <label className={styles.ankiCreateLabel}>Card Template</label>
-                  <select
-                    className={styles.ankiCreateTemplateSelect}
-                    value={selectedCardTemplate}
-                    onChange={(e) => setSelectedCardTemplate(e.target.value)}
-                  >
-                    {ankiCardTemplates.map((t) => (
-                      <option key={t.filename} value={t.filename}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  className={styles.ankiGenerateBtn}
-                  onClick={handleCreateCard}
-                  disabled={ankiCreating || !ankiCreateNote}
-                >
-                  {ankiCreating ? (
-                    <>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.spinIcon} aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" /></svg>
-                      Generating...
-                    </>
-                  ) : "Generate Card"}
-                </button>
               </div>
 
-              {ankiCreateError && (
-                <div className={styles.ankiEditError} style={{ marginTop: "12px" }}>{ankiCreateError}</div>
-              )}
-              {ankiCreateSuccess && (
-                <div className={styles.ankiCreateSuccessMsg}>{ankiCreateSuccess}</div>
-              )}
+              {/* Template selector */}
+              <div className={styles.ankiCreateField}>
+                <label className={styles.ankiCreateLabel}>Card Template</label>
+                <select
+                  className={styles.ankiCreateTemplateSelect}
+                  value={selectedCardTemplate}
+                  onChange={(e) => setSelectedCardTemplate(e.target.value)}
+                >
+                  {ankiCardTemplates.map((t) => (
+                    <option key={t.filename} value={t.filename}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
 
-              {/* Generated preview */}
-              {(ankiCreateFront || ankiCreateBack) && (
-                <div className={styles.ankiCreatePreview}>
-                  <div className={styles.ankiCreatePreviewDivider} />
-                  <div className={styles.ankiCreatePreviewTitle}>Generated Card Preview</div>
-
-                  <label className={styles.ankiEditLabel}>Front</label>
-                  <div
-                    ref={ankiCreateFrontRef}
-                    className={styles.ankiEditRichText}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={(e) => setAnkiCreateFront(e.currentTarget.innerHTML)}
-                    spellCheck={false}
-                    style={{ minHeight: "70px" }}
-                  />
-
-                  <label className={styles.ankiEditLabel} style={{ marginTop: "10px" }}>Back</label>
-                  <div
-                    ref={ankiCreateBackRef}
-                    className={styles.ankiEditRichText}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={(e) => setAnkiCreateBack(e.currentTarget.innerHTML)}
-                    spellCheck={false}
-                    style={{ minHeight: "100px" }}
-                  />
-
-                  <div className={styles.ankiCreateSaveRow}>
-                    <div className={styles.ankiCreateField} style={{ marginBottom: 0, flex: 1 }}>
-                      <label className={styles.ankiCreateLabel}>Deck</label>
-                      {ankiDecks.length > 0 ? (
-                        <select
-                          className={styles.ankiCreateTemplateSelect}
-                          value={ankiCreateDeck}
-                          onChange={(e) => setAnkiCreateDeck(e.target.value)}
-                        >
-                          {ankiDecks.map((d) => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          className={styles.ankiCreateSearch}
-                          value={ankiCreateDeck}
-                          onChange={(e) => setAnkiCreateDeck(e.target.value)}
-                          placeholder="Deck name (e.g. Default)"
-                        />
-                      )}
-                    </div>
-                    <button
-                      className={styles.ankiSaveBtn}
-                      onClick={handleAddNote}
-                      disabled={ankiAddingNote || !ankiCreateFront}
-                      style={{ alignSelf: "flex-end" }}
-                    >
-                      {ankiAddingNote ? "Saving…" : "Save to Anki"}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button
+                className={styles.ankiGenerateBtn}
+                onClick={handleCreateCard}
+                disabled={ankiCreating || !ankiCreateNote}
+              >
+                {ankiCreating ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.spinIcon} aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" /></svg>
+                    Generating...
+                  </>
+                ) : "Generate Card"}
+              </button>
             </div>
-          )}
-          {!ankiLoading && ankiCards.length > 0 && (
-            <div className={styles.ankiCardList}>
-              {ankiCards.map((card) => {
-                const frontText = stripHtml(card.front);
-                const displayTags = card.tags;
-                const isEditing = editingCard === card.note_id;
-                const tagsExpanded = expandedTagCards.has(card.note_id);
-                return (
-                  <div
-                    key={card.note_id}
-                    className={`${styles.ankiCard} ${isEditing ? styles.ankiCardEditing : ""}`}
-                    onClick={isEditing ? undefined : () => {
-                      setEditingCard(card.note_id);
-                      setEditFront(card.front);
-                      setEditBack(card.back);
-                      setAnkiEditError("");
-                    }}
+
+            {ankiCreateError && (
+              <div className={styles.ankiEditError} style={{ marginTop: "12px" }}>{ankiCreateError}</div>
+            )}
+            {ankiCreateSuccess && (
+              <div className={styles.ankiCreateSuccessMsg}>{ankiCreateSuccess}</div>
+            )}
+
+            {/* Generated preview */}
+            {(ankiCreateFront || ankiCreateBack) && (
+              <div className={styles.ankiCreatePreview}>
+                <div className={styles.ankiCreatePreviewDivider} />
+                <div className={styles.ankiCreatePreviewTitle}>Generated Card Preview</div>
+
+                <label className={styles.ankiEditLabel}>Front</label>
+                <div
+                  ref={ankiCreateFrontRef}
+                  className={styles.ankiEditRichText}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) => setAnkiCreateFront(e.currentTarget.innerHTML)}
+                  spellCheck={false}
+                  style={{ minHeight: "70px" }}
+                />
+
+                <label className={styles.ankiEditLabel} style={{ marginTop: "10px" }}>Back</label>
+                <div
+                  ref={ankiCreateBackRef}
+                  className={styles.ankiEditRichText}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) => setAnkiCreateBack(e.currentTarget.innerHTML)}
+                  spellCheck={false}
+                  style={{ minHeight: "100px" }}
+                />
+
+                <div className={styles.ankiCreateSaveRow}>
+                  <div className={styles.ankiCreateField} style={{ marginBottom: 0, flex: 1 }}>
+                    <label className={styles.ankiCreateLabel}>Deck</label>
+                    {ankiDecks.length > 0 ? (
+                      <select
+                        className={styles.ankiCreateTemplateSelect}
+                        value={ankiCreateDeck}
+                        onChange={(e) => setAnkiCreateDeck(e.target.value)}
+                      >
+                        {ankiDecks.map((d) => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className={styles.ankiCreateSearch}
+                        value={ankiCreateDeck}
+                        onChange={(e) => setAnkiCreateDeck(e.target.value)}
+                        placeholder="Deck name (e.g. Default)"
+                      />
+                    )}
+                  </div>
+                  <button
+                    className={styles.ankiSaveBtn}
+                    onClick={handleAddNote}
+                    disabled={ankiAddingNote || !ankiCreateFront}
+                    style={{ alignSelf: "flex-end" }}
                   >
-                    {/* Collapsed header — card title, hidden while editing */}
-                    {!isEditing && (
-                      <div className={styles.ankiCardHeader}>
-                        <div className={styles.ankiCardFront}>
-                          {frontText ? (
-                            <span dangerouslySetInnerHTML={{ __html: card.front }} />
-                          ) : (
-                            <span className={styles.ankiCardFrontFallback}>{card.deck}</span>
-                          )}
-                        </div>
-                        <div className={styles.ankiCardHeaderActions}>
-                          {card.suspended && (
-                            <span className={styles.suspendedBadge}>suspended</span>
-                          )}
-                          {card.suspended && (
-                            <button
-                              className={styles.unsuspendBtn}
-                              onClick={(e) => { e.stopPropagation(); handleUnsuspend(card); }}
+                    {ankiAddingNote ? "Saving…" : "Save to Anki"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* List of cards (View/Edit) */}
+            <div className={styles.ankiCardList} style={{ marginTop: "24px", paddingTop: "24px", borderTop: "1px solid #333" }}>
+              <h2 className={styles.ankiCreateTitle}>Anki Cards</h2>
+              {ankiLoading ? (
+                <div className={styles.ankiCenterMsg}>
+                  <div className={styles.spinner} />
+                  <span>Searching...</span>
+                </div>
+              ) : ankiCards.length === 0 ? (
+                <div className={styles.ankiCenterMsg} style={{ color: "#888" }}>
+                  No cards found.
+                </div>
+              ) : (
+                ankiCards.map((card) => {
+                  const frontText = stripHtml(card.front);
+                  const displayTags = card.tags;
+                  const isEditing = editingCard === card.note_id;
+                  const tagsExpanded = expandedTagCards.has(card.note_id);
+                  return (
+                    <div
+                      key={card.note_id}
+                      className={`${styles.ankiCard} ${isEditing ? styles.ankiCardEditing : ""}`}
+                      onClick={isEditing ? undefined : () => {
+                        setEditingCard(card.note_id);
+                        setEditFront(card.front);
+                        setEditBack(card.back);
+                        setAnkiEditError("");
+                      }}
+                    >
+                      {/* Collapsed header — card title, hidden while editing */}
+                      {!isEditing && (
+                        <div className={styles.ankiCardHeader}>
+                          <div className={styles.ankiCardFront}>
+                            {frontText ? (
+                              <span dangerouslySetInnerHTML={{ __html: card.front }} />
+                            ) : (
+                              <span className={styles.ankiCardFrontFallback}>{card.deck}</span>
+                            )}
+                          </div>
+                          <div className={styles.ankiCardHeaderActions}>
+                            {card.suspended && (
+                              <span className={styles.suspendedBadge}>suspended</span>
+                            )}
+                            {card.suspended && (
+                              <button
+                                className={styles.unsuspendBtn}
+                                onClick={(e) => { e.stopPropagation(); handleUnsuspend(card); }}
+                              >
+                                Unsuspend ↑
+                              </button>
+                            )}
+                            <svg
+                              className={styles.ankiChevron}
+                              width="14" height="14" viewBox="0 0 24 24" fill="none"
+                              stroke="currentColor" strokeWidth="2"
+                              strokeLinecap="round" strokeLinejoin="round"
+                              aria-hidden="true"
                             >
-                              Unsuspend ↑
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Edit panel — shown immediately on click */}
+                      {isEditing && (
+                        <div className={styles.ankiEditPanel} onClick={(e) => e.stopPropagation()}>
+                          <div className={styles.ankiDeckBadge} style={{ marginBottom: "8px" }}>{card.deck}</div>
+                          <div className={styles.ankiEditLabelRow}>
+                            <label className={styles.ankiEditLabel}>Front</label>
+                            {ankiCardTemplates.length > 0 && (
+                              <select
+                                className={styles.ankiTemplateSelect}
+                                value={selectedCardTemplate}
+                                onChange={(e) => setSelectedCardTemplate(e.target.value)}
+                              >
+                                {ankiCardTemplates.map((t) => (
+                                  <option key={t.filename} value={t.filename}>{t.name}</option>
+                                ))}
+                              </select>
+                            )}
+                            <button
+                              className={styles.ankiFormatBtn}
+                              onClick={handleFormatCard}
+                              disabled={ankiFormatting || ankiSaving}
+                            >
+                              {ankiFormatting ? "Formatting…" : "Format"}
+                            </button>
+                          </div>
+                          <div
+                            ref={ankiFrontRef}
+                            className={styles.ankiEditRichText}
+                            contentEditable
+                            suppressContentEditableWarning
+                            onInput={(e) => setEditFront(e.currentTarget.innerHTML)}
+                            spellCheck={false}
+                            style={{ minHeight: "80px" }}
+                          />
+                          <label className={styles.ankiEditLabel}>Back</label>
+                          <div
+                            ref={ankiBackRef}
+                            className={styles.ankiEditRichText}
+                            contentEditable
+                            suppressContentEditableWarning
+                            onInput={(e) => setEditBack(e.currentTarget.innerHTML)}
+                            spellCheck={false}
+                            style={{ minHeight: "120px" }}
+                          />
+                          {ankiEditError && (
+                            <div className={styles.ankiEditError}>{ankiEditError}</div>
+                          )}
+                          <div className={styles.ankiEditButtons}>
+                            <button
+                              className={styles.ankiSaveBtn}
+                              onClick={() => handleSaveCard(card)}
+                              disabled={ankiSaving || ankiFormatting}
+                            >
+                              {ankiSaving ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              className={styles.ankiCancelBtn}
+                              onClick={() => { setEditingCard(null); setAnkiEditError(""); }}
+                              disabled={ankiSaving || ankiFormatting}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tags at bottom with collapse toggle */}
+                      {displayTags.length > 0 && (
+                        <div className={styles.ankiCardTagsFooter} onClick={(e) => e.stopPropagation()}>
+                          <div className={`${styles.ankiCardTagsRow} ${displayTags.length > 4 && !tagsExpanded ? styles.ankiCardTagsCollapsed : ""}`}>
+                            {displayTags.map((tag, i) => (
+                              <span key={i} className={styles.resultTag}>{tag}</span>
+                            ))}
+                          </div>
+                          {displayTags.length > 4 && (
+                            <button
+                              className={styles.ankiTagsToggleBtn}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedTagCards((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(card.note_id)) next.delete(card.note_id);
+                                  else next.add(card.note_id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              {tagsExpanded ? "▲" : `+${displayTags.length - 4} ▼`}
                             </button>
                           )}
-                          <svg
-                            className={styles.ankiChevron}
-                            width="14" height="14" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" strokeWidth="2"
-                            strokeLinecap="round" strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Edit panel — shown immediately on click */}
-                    {isEditing && (
-                      <div className={styles.ankiEditPanel} onClick={(e) => e.stopPropagation()}>
-                        <div className={styles.ankiDeckBadge} style={{ marginBottom: "8px" }}>{card.deck}</div>
-                        <div className={styles.ankiEditLabelRow}>
-                          <label className={styles.ankiEditLabel}>Front</label>
-                          {ankiCardTemplates.length > 0 && (
-                            <select
-                              className={styles.ankiTemplateSelect}
-                              value={selectedCardTemplate}
-                              onChange={(e) => setSelectedCardTemplate(e.target.value)}
-                            >
-                              {ankiCardTemplates.map((t) => (
-                                <option key={t.filename} value={t.filename}>{t.name}</option>
-                              ))}
-                            </select>
-                          )}
-                          <button
-                            className={styles.ankiFormatBtn}
-                            onClick={handleFormatCard}
-                            disabled={ankiFormatting || ankiSaving}
-                          >
-                            {ankiFormatting ? "Formatting…" : "Format"}
-                          </button>
-                        </div>
-                        <div
-                          ref={ankiFrontRef}
-                          className={styles.ankiEditRichText}
-                          contentEditable
-                          suppressContentEditableWarning
-                          onInput={(e) => setEditFront(e.currentTarget.innerHTML)}
-                          spellCheck={false}
-                          style={{ minHeight: "80px" }}
-                        />
-                        <label className={styles.ankiEditLabel}>Back</label>
-                        <div
-                          ref={ankiBackRef}
-                          className={styles.ankiEditRichText}
-                          contentEditable
-                          suppressContentEditableWarning
-                          onInput={(e) => setEditBack(e.currentTarget.innerHTML)}
-                          spellCheck={false}
-                          style={{ minHeight: "120px" }}
-                        />
-                        {ankiEditError && (
-                          <div className={styles.ankiEditError}>{ankiEditError}</div>
-                        )}
-                        <div className={styles.ankiEditButtons}>
-                          <button
-                            className={styles.ankiSaveBtn}
-                            onClick={() => handleSaveCard(card)}
-                            disabled={ankiSaving || ankiFormatting}
-                          >
-                            {ankiSaving ? "Saving…" : "Save"}
-                          </button>
-                          <button
-                            className={styles.ankiCancelBtn}
-                            onClick={() => { setEditingCard(null); setAnkiEditError(""); }}
-                            disabled={ankiSaving || ankiFormatting}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tags at bottom with collapse toggle */}
-                    {displayTags.length > 0 && (
-                      <div className={styles.ankiCardTagsFooter} onClick={(e) => e.stopPropagation()}>
-                        <div className={`${styles.ankiCardTagsRow} ${displayTags.length > 4 && !tagsExpanded ? styles.ankiCardTagsCollapsed : ""}`}>
-                          {displayTags.map((tag, i) => (
-                            <span key={i} className={styles.resultTag}>{tag}</span>
-                          ))}
-                        </div>
-                        {displayTags.length > 4 && (
-                          <button
-                            className={styles.ankiTagsToggleBtn}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedTagCards((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(card.note_id)) next.delete(card.note_id);
-                                else next.add(card.note_id);
-                                return next;
-                              });
-                            }}
-                          >
-                            {tagsExpanded ? "▲" : `+${displayTags.length - 4} ▼`}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -1894,7 +2251,7 @@ export default function Home() {
                           });
                           setAnkiCards(unique);
                         }
-                      }).catch(() => {});
+                      }).catch(() => { });
                     }}
                   >
                     ✅ {count} card{count !== 1 ? "s" : ""} → view
@@ -1909,7 +2266,7 @@ export default function Home() {
         <div className={styles.activitySection}>
           <div className={styles.sourcesHeading}>History</div>
           {activityHistory.length === 0 ? (
-            <div className={styles.activityEmpty}>No edits yet this session</div>
+            <div className={styles.activityEmpty}>No activity recorded yet</div>
           ) : (
             <div className={styles.activityList}>
               {activityHistory.map((item, i) => {
@@ -1917,7 +2274,9 @@ export default function Home() {
                   const diff = Date.now() - item.savedAt;
                   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
                   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-                  return `${Math.floor(diff / 3600000)}h ago`;
+                  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+                  return new Date(item.savedAt).toLocaleDateString();
                 })();
                 return (
                   <button
@@ -1945,11 +2304,11 @@ export default function Home() {
                             });
                             setAnkiCards(unique);
                           }
-                        }).catch(() => {});
+                        }).catch(() => { });
                       }
                     }}
                   >
-                    <span className={styles.activityIcon}>{item.type === "note" ? "📝" : "🃏"}</span>
+                    <span className={styles.activityIcon}>{item.type === "open" ? "👁️" : item.type === "note" ? "📝" : "🃏"}</span>
                     <div className={styles.activityItemBody}>
                       <div className={styles.activityTitle}>{item.title}</div>
                       <div className={styles.activityMeta}>

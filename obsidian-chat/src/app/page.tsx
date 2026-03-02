@@ -101,6 +101,22 @@ function AnkiIcon() {
 
 const CREWAI_URL = "http://localhost:8000";
 
+// ── AnkiConnect direct helper ─────────────────────────────────────────────
+
+async function ankiConnect(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  const resp = await fetch("http://localhost:8765", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, version: 6, params }),
+  });
+  if (!resp.ok) throw new Error(`AnkiConnect HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return data.result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const STATUS_MESSAGES = [
   "Searching through your vault",
   "Analyzing note connections",
@@ -951,47 +967,68 @@ export default function Home() {
     // Only search if we are in Anki view
     if (viewMode !== "anki") return;
 
-    // Debounce timer
+    // Debounce timer — direct AnkiConnect (no Python backend roundtrip)
     const timeoutId = setTimeout(async () => {
       setAnkiLoading(true);
       setAnkiError("");
 
       try {
-        const resp = await fetch(`${CREWAI_URL}/anki/direct-search`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: ankiQuery }),
-        });
+        const q = ankiQuery.trim();
+        const isEmpty = !q;
+        let searchQuery = q;
+        if (isEmpty) {
+          searchQuery = "deck:*";
+        } else if (!q.includes("::") && !["tag:", "deck:", "note:", "is:", "prop:"].some(p => q.startsWith(p))) {
+          searchQuery = `tag::${q}`;
+        }
 
-        if (resp.status === 503) {
-          setAnkiError("Anki is not running. Open Anki with the AnkiConnect plugin installed.");
-          setAnkiLoading(false);
+        const limit = isEmpty ? 10 : 20;
+        const allCardIds = (await ankiConnect("findCards", { query: searchQuery })) as number[];
+        if (!allCardIds || allCardIds.length === 0) {
+          setAnkiCards([]);
           return;
         }
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-        const data = await resp.json();
-        if (data.error) {
-          setAnkiError(data.error);
-        } else {
-          // Keep selection stability
-          setEditingCard(null);
-          setExpandedTagCards(new Set());
+        const cardIds = allCardIds.slice(-limit).reverse();
+        const cardsInfo = (await ankiConnect("cardsInfo", { cards: cardIds })) as any[];
+        const noteIds = [...new Set(cardsInfo.map((c: any) => c.note as number))];
+        const notesInfo = (await ankiConnect("notesInfo", { notes: noteIds })) as any[];
+        const tagsByNote: Record<number, string[]> = {};
+        for (const n of notesInfo) tagsByNote[n.noteId] = n.tags || [];
 
-          const seen = new Set<number>();
-          const unique = (data.cards || []).filter((c: AnkiCard) => {
-            if (seen.has(c.note_id)) return false;
-            seen.add(c.note_id);
-            return true;
+        const seen = new Set<number>();
+        const cards: AnkiCard[] = [];
+        for (const card of cardsInfo) {
+          if (seen.has(card.note)) continue;
+          seen.add(card.note);
+          const fieldKeys = Object.keys(card.fields || {});
+          const fieldVals = Object.values(card.fields || {}) as any[];
+          cards.push({
+            note_id: card.note,
+            card_id: card.cardId,
+            front: fieldVals[0]?.value ?? "",
+            back: fieldVals[1]?.value ?? "",
+            deck: card.deckName ?? "",
+            tags: tagsByNote[card.note] ?? [],
+            field_names: fieldKeys.slice(0, 2),
+            suspended: card.queue === -1,
           });
-          setAnkiCards(unique);
         }
-      } catch (err) {
-        setAnkiError("Failed to reach the backend. Is the server running?");
+
+        setEditingCard(null);
+        setExpandedTagCards(new Set());
+        setAnkiCards(cards);
+      } catch (err: any) {
+        const msg = err?.message || "";
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("ERR_CONNECTION_REFUSED")) {
+          setAnkiError("Anki is not running. Open Anki with the AnkiConnect plugin installed.");
+        } else {
+          setAnkiError(msg || "AnkiConnect error.");
+        }
       } finally {
         setAnkiLoading(false);
       }
-    }, 400); // 400ms debounce
+    }, 150); // 150ms debounce — direct localhost call, no backend needed
 
     return () => clearTimeout(timeoutId);
   }, [ankiQuery, viewMode]);
@@ -2233,21 +2270,6 @@ export default function Home() {
                     onClick={() => {
                       setViewMode("anki");
                       setAnkiQuery(qId);
-                      fetch(`${CREWAI_URL}/anki/direct-search`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ query: qId }),
-                      }).then((r) => r.json()).then((data) => {
-                        if (!data.error) {
-                          const seen = new Set<number>();
-                          const unique = (data.cards || []).filter((c: AnkiCard) => {
-                            if (seen.has(c.note_id)) return false;
-                            seen.add(c.note_id);
-                            return true;
-                          });
-                          setAnkiCards(unique);
-                        }
-                      }).catch(() => { });
                     }}
                   >
                     ✅ {count} card{count !== 1 ? "s" : ""} → view
@@ -2286,21 +2308,6 @@ export default function Home() {
                       } else if (item.type === "card" && item.questionId) {
                         setViewMode("anki");
                         setAnkiQuery(item.questionId);
-                        fetch(`${CREWAI_URL}/anki/direct-search`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ query: item.questionId }),
-                        }).then((r) => r.json()).then((data) => {
-                          if (!data.error) {
-                            const seen = new Set<number>();
-                            const unique = (data.cards || []).filter((c: AnkiCard) => {
-                              if (seen.has(c.note_id)) return false;
-                              seen.add(c.note_id);
-                              return true;
-                            });
-                            setAnkiCards(unique);
-                          }
-                        }).catch(() => { });
                       }
                     }}
                   >

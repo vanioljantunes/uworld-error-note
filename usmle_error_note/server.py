@@ -27,6 +27,8 @@ from models import (
     QuestionsResponse,
     GenerateRequest,
     GenerateResponse,
+    NoteResult,
+    MultiNoteResult,
     AnkiSearchRequest,
     AnkiSearchResponse,
     AnkiCard,
@@ -35,8 +37,14 @@ from models import (
     AnkiFormatCardRequest,
     AnkiFormatCardResponse,
     AnkiCardFormatOutput,
+    AnkiCreateCardRequest,
+    AnkiCreateCardResponse,
+    AnkiAddNoteRequest,
+    AnkiAddNoteResponse,
+    KeyNoteRequest,
+    KeyNoteResponse,
 )
-from crew import build_questions_crew, build_error_note_crew, build_format_crew, list_templates, build_anki_crew, build_anki_format_crew
+from crew import build_questions_crew, build_error_note_crew, build_format_crew, list_templates, build_anki_crew, build_anki_format_crew, build_keynote_crew, build_anki_create_crew
 from tools import set_vault_path, get_vault_path
 
 
@@ -93,6 +101,17 @@ def _collect_vault_tags(vault_path: str) -> list[str]:
                 except Exception:
                     continue
     return sorted(all_tags)
+
+
+# ── Helper: strip markdown code fences ────────────────────────────────────
+
+def _strip_code_fence(text: str) -> str:
+    """Remove wrapping ```markdown ... ``` (or any language tag) from text."""
+    text = text.strip()
+    m = re.match(r'^```[a-zA-Z]*\s*\n([\s\S]*?)```\s*$', text)
+    if m:
+        return m.group(1).strip()
+    return text
 
 
 # ── Helper: guaranteed file write ─────────────────────────────────────────
@@ -161,22 +180,29 @@ async def generate_questions(req: QuestionsRequest):
 
         # Extract questions from pydantic output
         if hasattr(result, "pydantic") and result.pydantic:
-            questions = result.pydantic.questions
+            mc_questions = result.pydantic.questions
+            questions = [q.model_dump() if hasattr(q, "model_dump") else {"question": str(q), "options": [], "correct": 0, "difficulty": "medium"} for q in mc_questions]
         else:
             # Fallback: parse from raw text
             raw = str(result)
             try:
                 parsed = json.loads(raw)
-                questions = parsed.get("questions", [raw])
+                raw_qs = parsed.get("questions", [])
+                questions = []
+                for q in raw_qs:
+                    if isinstance(q, dict):
+                        questions.append(q)
+                    else:
+                        questions.append({"question": str(q), "options": [], "correct": 0, "difficulty": "medium"})
             except json.JSONDecodeError:
-                questions = [raw]
+                questions = [{"question": raw, "options": [], "correct": 0, "difficulty": "medium"}]
 
         return QuestionsResponse(questions=questions)
 
     except Exception as e:
         traceback.print_exc()
         return QuestionsResponse(
-            questions=[f"Error generating questions: {str(e)}"]
+            questions=[{"question": f"Error: {str(e)}", "options": [], "correct": 0, "difficulty": "medium"}]
         )
 
 
@@ -212,47 +238,74 @@ async def generate_note(req: GenerateRequest):
         crew = build_error_note_crew(inputs)
         result = crew.kickoff()
 
-        # The crew now has 3 tasks: infer → compose → format
-        # Task 2 (compose) has structured pydantic output with metadata
-        # Task 3 (format) returns the formatted note as raw text
-        # We extract metadata from task 2 and formatted content from task 3
+        # The crew has 3 tasks: infer → compose → format
+        # Task 2 (compose) outputs MultiNoteResult (list of notes)
+        # Task 3 (format) returns formatted text for the notes
 
-        action = "created"
-        file_path = "unknown"
-        error_pattern = "unknown"
-        tags = []
-        note_content = ""
+        notes: list[NoteResult] = []
 
-        # Get structured metadata from task 2 (compose_note)
+        # Get structured notes from task 2 (compose_note)
         if hasattr(result, "tasks_output") and len(result.tasks_output) >= 2:
             compose_output = result.tasks_output[1]
             if hasattr(compose_output, "pydantic") and compose_output.pydantic:
-                note = compose_output.pydantic
-                action = note.action
-                file_path = note.file_path
-                error_pattern = note.error_pattern
-                tags = note.tags
-                note_content = note.note_content
+                multi = compose_output.pydantic
+                if isinstance(multi, MultiNoteResult):
+                    notes = list(multi.notes)
+                elif isinstance(multi, NoteResult):
+                    # Backwards compat: single note
+                    notes = [multi]
 
-        # Get formatted content from task 3 (format_note) — raw text
+        # Get formatted content from task 3 (format_note) — may override note_content
         formatted_text = str(result).strip()
-        if formatted_text and "---" in formatted_text:
-            note_content = formatted_text  # Use the formatted version
-        elif not note_content:
-            # Fallback: try to parse structured data from raw result
+        if formatted_text and "---" in formatted_text and len(notes) == 1:
+            notes[0] = NoteResult(
+                action=notes[0].action,
+                file_path=notes[0].file_path,
+                error_pattern=notes[0].error_pattern,
+                tags=notes[0].tags,
+                note_content=formatted_text,
+            )
+
+        # Fallback: try to parse from raw if no structured output
+        if not notes:
             try:
                 parsed = json.loads(str(result))
-                action = parsed.get("action", "created")
-                file_path = parsed.get("file_path", "unknown")
-                error_pattern = parsed.get("error_pattern", "unknown")
-                tags = parsed.get("tags", [])
-                note_content = parsed.get("note_content", str(result))
+                # Could be {"notes": [...]} or single note
+                if "notes" in parsed and isinstance(parsed["notes"], list):
+                    notes = [NoteResult(**n) for n in parsed["notes"]]
+                else:
+                    notes = [NoteResult(
+                        action=parsed.get("action", "created"),
+                        file_path=parsed.get("file_path", "unknown"),
+                        error_pattern=parsed.get("error_pattern", "unknown"),
+                        tags=parsed.get("tags", []),
+                        note_content=parsed.get("note_content", str(result)),
+                    )]
             except json.JSONDecodeError:
-                note_content = str(result)
+                notes = [NoteResult(
+                    action="created",
+                    file_path="unknown",
+                    error_pattern="unknown",
+                    tags=[],
+                    note_content=str(result),
+                )]
 
-        # ── GUARANTEED FILE WRITE ──
-        if note_content and file_path and file_path != "unknown":
-            _ensure_note_written(req.vault_path, file_path, note_content)
+        # ── STRIP CODE FENCES from every note ──
+        notes = [
+            NoteResult(
+                action=n.action,
+                file_path=n.file_path,
+                error_pattern=n.error_pattern,
+                tags=n.tags,
+                note_content=_strip_code_fence(n.note_content),
+            )
+            for n in notes
+        ]
+
+        # ── GUARANTEED FILE WRITE — for every note ──
+        for note in notes:
+            if note.note_content and note.file_path and note.file_path != "unknown":
+                _ensure_note_written(req.vault_path, note.file_path, note.note_content)
 
         # Build Q&A recap
         questions_recap = []
@@ -261,22 +314,20 @@ async def generate_note(req: GenerateRequest):
             questions_recap.append({"question": q, "answer": a})
 
         return GenerateResponse(
-            action=action,
-            file_path=file_path,
-            error_pattern=error_pattern,
-            tags=tags,
-            note_content=note_content,
+            notes=notes,
             questions_recap=questions_recap,
         )
 
     except Exception as e:
         traceback.print_exc()
         return GenerateResponse(
-            action="error",
-            file_path="",
-            error_pattern="",
-            tags=[],
-            note_content=f"Error: {str(e)}",
+            notes=[NoteResult(
+                action="error",
+                file_path="",
+                error_pattern="",
+                tags=[],
+                note_content=f"Error: {str(e)}",
+            )],
             questions_recap=[
                 {"question": q, "answer": req.answers[i] if i < len(req.answers) else ""}
                 for i, q in enumerate(req.questions)
@@ -419,6 +470,124 @@ async def format_note(req: FormatRequest):
         return FormatResponse(formatted_content="", success=False, error=str(e))
 
 
+# ── POST /api/save-note — Write note content to vault ─────────────────────
+
+class SaveNoteRequest(BaseModel):
+    vault_path: str
+    file_path: str  # relative path inside vault
+    content: str
+
+class SaveNoteResponse(BaseModel):
+    success: bool
+    error: str = ""
+
+@app.post("/api/save-note", response_model=SaveNoteResponse)
+async def save_note(req: SaveNoteRequest):
+    """Write (or overwrite) a note in the vault."""
+    try:
+        full = os.path.join(req.vault_path, req.file_path.replace("/", os.sep))
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(req.content)
+        print(f"💾 Saved note: {full}")
+        return SaveNoteResponse(success=True)
+    except Exception as e:
+        traceback.print_exc()
+        return SaveNoteResponse(success=False, error=str(e))
+
+
+# ── POST /api/keynote — Synthesize a Key Note ─────────────────────────────
+
+@app.post("/api/keynote", response_model=KeyNoteResponse)
+async def synthesize_keynote(req: KeyNoteRequest):
+    """Read a note, find all notes that wikilink to it, and synthesize a Key Note."""
+    try:
+        set_vault_path(req.vault_path)
+
+        # Read the current note
+        note_full = os.path.join(req.vault_path, req.note_path.replace("/", os.sep))
+        if not os.path.isfile(note_full):
+            return KeyNoteResponse(
+                suggested_filename="", content="", source_notes=[],
+                success=False, error="Note not found.",
+            )
+        with open(note_full, "r", encoding="utf-8") as fh:
+            current_note = fh.read()
+
+        # Find notes that contain a wikilink to this note
+        note_title = os.path.splitext(os.path.basename(req.note_path))[0]
+        referencing_contents: list[str] = []
+        source_note_paths: list[str] = []
+
+        for root, dirs, files in os.walk(req.vault_path):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in files:
+                if not f.endswith(".md"):
+                    continue
+                full = os.path.join(root, f)
+                rel = os.path.relpath(full, req.vault_path).replace("\\", "/")
+                if rel == req.note_path.replace("\\", "/"):
+                    continue  # skip self
+                try:
+                    with open(full, "r", encoding="utf-8") as fh:
+                        content = fh.read()
+                    if f"[[{note_title}]]" in content:
+                        referencing_contents.append(f"--- {rel} ---\n{content}")
+                        source_note_paths.append(rel)
+                except Exception:
+                    continue
+
+        referencing_notes = "\n\n".join(referencing_contents) if referencing_contents else "No notes reference this note."
+
+        crew = build_keynote_crew(
+            current_note=current_note,
+            referencing_notes=referencing_notes,
+        )
+        result = crew.kickoff()
+
+        # Extract structured output
+        if hasattr(result, "pydantic") and result.pydantic:
+            kn = result.pydantic
+            # Write the Key Note to vault
+            if kn.suggested_filename and kn.content:
+                _ensure_note_written(req.vault_path, kn.suggested_filename, kn.content)
+            return KeyNoteResponse(
+                suggested_filename=kn.suggested_filename,
+                content=kn.content,
+                source_notes=source_note_paths,
+                success=True,
+            )
+
+        # Fallback: parse raw JSON
+        try:
+            parsed = json.loads(str(result).strip())
+            filename = parsed.get("suggested_filename", "key-note.md")
+            content = parsed.get("content", str(result))
+            if filename and content:
+                _ensure_note_written(req.vault_path, filename, content)
+            return KeyNoteResponse(
+                suggested_filename=filename,
+                content=content,
+                source_notes=source_note_paths,
+                success=True,
+            )
+        except json.JSONDecodeError:
+            return KeyNoteResponse(
+                suggested_filename="",
+                content=str(result),
+                source_notes=source_note_paths,
+                success=False,
+                error="Failed to parse Key Note output.",
+            )
+
+    except Exception as e:
+        traceback.print_exc()
+        return KeyNoteResponse(
+            suggested_filename="", content="", source_notes=[],
+            success=False, error=str(e),
+        )
+
+
 # ── POST /anki/search — Search Anki cards via AnkiConnect ─────────────────
 
 @app.post("/anki/search", response_model=AnkiSearchResponse)
@@ -508,11 +677,13 @@ def anki_direct_search(req: AnkiSearchRequest):
             back = field_values[1]["value"] if len(field_values) > 1 else ""
             cards.append(AnkiCard(
                 note_id=card["note"],
+                card_id=card["cardId"],
                 front=front,
                 back=back,
                 deck=card.get("deckName", ""),
                 tags=tags_by_note.get(card["note"], []),
                 field_names=field_keys[:2],
+                suspended=card.get("queue", 0) == -1,
             ))
 
         return AnkiSearchResponse(cards=cards, total=len(cards))
@@ -555,6 +726,105 @@ def anki_update(req: AnkiUpdateRequest):
     except Exception as e:
         traceback.print_exc()
         return AnkiUpdateResponse(success=False, error=str(e))
+
+
+# ── GET /anki/decks — List Anki deck names ────────────────────────────────
+
+@app.get("/anki/decks")
+def anki_get_decks_list():
+    """Return list of deck names from AnkiConnect."""
+    try:
+        decks = _direct_anki("deckNames")
+        return {"decks": sorted(decks)}
+    except OSError:
+        return {"decks": [], "error": "AnkiConnect not reachable."}
+    except Exception as e:
+        return {"decks": [], "error": str(e)}
+
+
+# ── POST /anki/create-card — Generate card front/back from Obsidian note ──
+
+@app.post("/anki/create-card", response_model=AnkiCreateCardResponse)
+async def anki_create_card(req: AnkiCreateCardRequest):
+    """Generate a new Anki card's front/back from an Obsidian note using LLM."""
+    try:
+        full = os.path.join(req.vault_path, req.note_path.replace("/", os.sep))
+        if not os.path.isfile(full):
+            return AnkiCreateCardResponse(success=False, error="Note not found.")
+
+        with open(full, "r", encoding="utf-8") as fh:
+            note_content = fh.read()
+
+        import glob as _glob
+        templates = sorted(_glob.glob(os.path.join(_ANKI_TEMPLATES_DIR, "*.md")))
+        template_path = None
+        if req.template_filename:
+            for p in templates:
+                if os.path.basename(p) == req.template_filename:
+                    template_path = p
+                    break
+        if not template_path and templates:
+            template_path = templates[0]
+
+        template_content = ""
+        if template_path:
+            with open(template_path, "r", encoding="utf-8") as fh:
+                template_content = fh.read()
+
+        crew = build_anki_create_crew(note_content, template_content)
+        result = crew.kickoff()
+
+        if hasattr(result, "pydantic") and result.pydantic:
+            return AnkiCreateCardResponse(
+                front=result.pydantic.front,
+                back=result.pydantic.back,
+                success=True,
+            )
+        try:
+            parsed = json.loads(str(result).strip())
+            return AnkiCreateCardResponse(
+                front=parsed.get("front", ""),
+                back=parsed.get("back", ""),
+                success=True,
+            )
+        except Exception:
+            return AnkiCreateCardResponse(
+                success=False, error="LLM returned unrecognized output."
+            )
+
+    except Exception as e:
+        traceback.print_exc()
+        return AnkiCreateCardResponse(success=False, error=str(e))
+
+
+# ── POST /anki/add-note — Add a new note to Anki ─────────────────────────
+
+@app.post("/anki/add-note", response_model=AnkiAddNoteResponse)
+def anki_add_note(req: AnkiAddNoteRequest):
+    """Add a new note to Anki via AnkiConnect."""
+    try:
+        field_front = req.field_names[0] if len(req.field_names) > 0 else "Text"
+        field_back = req.field_names[1] if len(req.field_names) > 1 else "Extra"
+        note_id = _direct_anki("addNote", note={
+            "deckName": req.deck,
+            "modelName": req.model,
+            "fields": {
+                field_front: req.front,
+                field_back: req.back,
+            },
+            "tags": req.tags,
+        })
+        return AnkiAddNoteResponse(success=True, note_id=note_id)
+    except OSError:
+        raise HTTPException(
+            status_code=503,
+            detail="AnkiConnect not reachable. Open Anki with the AnkiConnect plugin installed.",
+        )
+    except ValueError as e:
+        return AnkiAddNoteResponse(success=False, error=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        return AnkiAddNoteResponse(success=False, error=str(e))
 
 
 if __name__ == "__main__":

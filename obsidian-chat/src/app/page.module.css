@@ -350,7 +350,9 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.tagInput::placeholder { color: var(--text-subtle); }
+.tagInput::placeholder {
+  color: var(--text-subtle);
+}
 
 .tagInput:focus {
   outline: none;
@@ -609,7 +611,9 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.messageInput::placeholder { color: var(--text-subtle); }
+.messageInput::placeholder {
+  color: var(--text-subtle);
+}
 
 .messageInput:focus {
   outline: none;
@@ -1151,7 +1155,9 @@
   color: var(--text);
 }
 
-.noteSearchInput::placeholder { color: var(--text-subtle); }
+.noteSearchInput::placeholder {
+  color: var(--text-subtle);
+}
 
 .noteSearchInput:focus {
   outline: none;
@@ -1497,7 +1503,9 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.formatChatInput::placeholder { color: var(--text-subtle); }
+.formatChatInput::placeholder {
+  color: var(--text-subtle);
+}
 
 .formatChatInput:focus {
   outline: none;
@@ -1878,14 +1886,15 @@
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: background 0.15s;
 }
+
 .ankiEditBtn:hover {
-  background: rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
 
@@ -1901,15 +1910,23 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(255,255,255,0.4);
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+}
+
+.ankiEditLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 
 .ankiEditTextarea {
   width: 100%;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 12px;
   font-family: "JetBrains Mono", "Fira Code", monospace;
   padding: 8px 10px;
@@ -1917,8 +1934,49 @@
   outline: none;
   line-height: 1.5;
 }
+
 .ankiEditTextarea:focus {
-  border-color: rgba(124,58,237,0.5);
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+.ankiEditRichText {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 10px;
+  outline: none;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  cursor: text;
+}
+
+.ankiEditRichText:focus {
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+.ankiEditRichText b,
+.ankiEditRichText strong {
+  font-weight: 700;
+}
+
+.ankiEditRichText i,
+.ankiEditRichText em {
+  font-style: italic;
+}
+
+.ankiEditRichText u {
+  text-decoration: underline;
+}
+
+.ankiEditRichText div {
+  margin: 0;
 }
 
 .ankiEditError {
@@ -1938,12 +1996,13 @@
 .ankiTemplateSelect {
   flex: 1;
   min-width: 0;
+  max-width: 160px;
   font-size: 11px;
   padding: 4px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(0,0,0,0.3);
-  color: rgba(255,255,255,0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
 }
 
@@ -1951,39 +2010,727 @@
   font-size: 11px;
   padding: 4px 12px;
   border-radius: 4px;
-  border: 1px solid rgba(124,58,237,0.4);
-  background: rgba(124,58,237,0.15);
-  color: rgba(124,58,237,0.9);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  background: rgba(124, 58, 237, 0.15);
+  color: rgba(124, 58, 237, 0.9);
   cursor: pointer;
   transition: background 0.15s;
 }
+
 .ankiFormatBtn:hover:not(:disabled) {
-  background: rgba(124,58,237,0.3);
+  background: rgba(124, 58, 237, 0.3);
 }
-.ankiFormatBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ankiFormatBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .ankiSaveBtn {
   font-size: 11px;
   padding: 4px 14px;
   border-radius: 4px;
   border: none;
-  background: rgba(34,197,94,0.2);
+  background: rgba(34, 197, 94, 0.2);
   color: #4ade80;
   cursor: pointer;
   transition: background 0.15s;
 }
-.ankiSaveBtn:hover:not(:disabled) { background: rgba(34,197,94,0.35); }
-.ankiSaveBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ankiSaveBtn:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.35);
+}
+
+.ankiSaveBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .ankiCancelBtn {
   font-size: 11px;
   padding: 4px 10px;
   border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background: transparent;
-  color: rgba(255,255,255,0.45);
+  color: rgba(255, 255, 255, 0.45);
   cursor: pointer;
   transition: color 0.15s;
 }
-.ankiCancelBtn:hover:not(:disabled) { color: rgba(255,255,255,0.75); }
-.ankiCancelBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ankiCancelBtn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.ankiCancelBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Anki card tags footer ───────────────────────────────────────────── */
+
+.ankiCardTagsFooter {
+  position: relative;
+  margin-top: 8px;
+  padding-right: 36px;
+  /* room for toggle button */
+}
+
+.ankiCardTagsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ankiCardTagsCollapsed {
+  max-height: 26px;
+  overflow: hidden;
+}
+
+.ankiTagsToggleBtn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 9px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ankiTagsToggleBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ── Anki edit history (right sidebar) ──────────────────────────────── */
+
+.ankiHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px 10px;
+}
+
+.ankiHistoryItem {
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.ankiHistoryFront {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+
+.ankiHistoryMeta {
+  font-size: 10px;
+  color: var(--text-subtle);
+}
+
+/* ── Side-by-Side Editor ────────────────────────────────────────────────── */
+
+.editorSplitView {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editorTextarea {
+  flex: 1;
+  padding: 20px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.editorTextarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.editorPreview {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  line-height: 1.8;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg-surface);
+}
+
+.editorPreview h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 20px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.editorPreview h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 18px 0 10px;
+}
+
+.editorPreview h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 14px 0 8px;
+}
+
+.editorPreview strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Save Note Button ────────────────────────────────────────────────── */
+
+.saveNoteBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: opacity 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.saveNoteBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+.saveNoteBtn:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
+}
+
+.saveNoteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Key Note Button ─────────────────────────────────────────────────── */
+
+.keyNoteBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: opacity 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.keyNoteBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35);
+}
+
+.keyNoteBtn:focus-visible {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}
+
+.keyNoteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Anki Create Card Panel ── */
+
+.ankiCreatePanel {
+  padding: 32px 36px;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.ankiCreateTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.ankiCreateSubtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 24px;
+}
+
+.ankiCreateForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ankiCreateField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ankiCreateLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+}
+
+.ankiCreateSearch {
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.ankiCreateSearch:focus {
+  border-color: #7c3aed;
+}
+
+.ankiCreateSelect {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 4px 0;
+  outline: none;
+  overflow-y: auto;
+}
+
+.ankiCreateSelect option {
+  padding: 6px 10px;
+}
+
+.ankiCreateSelect:focus {
+  border-color: #7c3aed;
+}
+
+.ankiCreateTemplateSelect {
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.ankiCreateTemplateSelect:focus {
+  border-color: #7c3aed;
+}
+
+.ankiGenerateBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  align-self: flex-start;
+}
+
+.ankiGenerateBtn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.ankiGenerateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ankiCreatePreview {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ankiCreatePreviewDivider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0 8px;
+}
+
+.ankiCreatePreviewTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.ankiCreateSaveRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.ankiCreateSuccessMsg {
+  padding: 10px 14px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  color: #22c55e;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+/* ── Note selector combobox ── */
+
+.comboboxWrap {
+  position: relative;
+  width: 100%;
+}
+
+.comboboxToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+
+.comboboxToggle:hover {
+  border-color: #7c3aed;
+}
+
+.comboboxToggleText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.comboboxDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.comboboxSearch {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  background: var(--bg-elevated);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.comboboxTagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 8px;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+.comboboxTagChip {
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.comboboxTagChip:hover {
+  border-color: #7c3aed;
+  color: #a78bfa;
+}
+
+.comboboxTagChipActive {
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.15);
+  color: #a78bfa;
+}
+
+.comboboxList {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.comboboxOption {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.comboboxOption:hover {
+  background: var(--bg-elevated);
+}
+
+.comboboxOptionActive {
+  background: rgba(124, 58, 237, 0.15);
+  color: #a78bfa;
+}
+
+.comboboxOptionTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.comboboxOptionTags {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.comboboxEmpty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── Activity Feed (right panel) ──────────────────────────────────────── */
+
+.activityContext {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.activityContextLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.activityContextRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.activityQId {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 40px;
+}
+
+.activityStatus {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.activityLink {
+  font-size: 12px;
+  color: #a78bfa;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+}
+
+.activityLink:hover {
+  text-decoration: underline;
+}
+
+.activitySection {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0 16px;
+}
+
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.activityItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.activityItem:hover {
+  background: var(--bg-elevated);
+}
+
+.activityIcon {
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.activityItemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.activityTitle {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.activityMeta {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.activityQIdSmall {
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.activityEmpty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 12px 16px;
+}
+
+/* ── Suspended badge & unsuspend button ──────────────────────────────── */
+
+.suspendedBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.unsuspendBtn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.unsuspendBtn:hover {
+  background: rgba(251, 191, 36, 0.2);
+}

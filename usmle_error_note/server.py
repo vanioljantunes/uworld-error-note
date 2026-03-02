@@ -7,10 +7,12 @@ Endpoints:
   POST /format     — Standalone: reformat an existing note using templates
 """
 
+import asyncio
 import itertools
 import json
 import os
 import re
+import threading
 import traceback
 import urllib.request
 from contextlib import asynccontextmanager
@@ -19,6 +21,7 @@ import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
 
@@ -45,7 +48,7 @@ from models import (
     KeyNoteResponse,
     AnkiUnsuspendRequest,
 )
-from crew import build_questions_crew, build_error_note_crew, build_format_crew, list_templates, build_anki_crew, build_anki_format_crew, build_keynote_crew, build_anki_create_crew
+from crew import build_questions_crew, build_error_note_crew, build_format_crew, build_format_crew_streaming, list_templates, build_anki_crew, build_anki_format_crew, build_keynote_crew, build_anki_create_crew
 from tools import set_vault_path, get_vault_path
 
 
@@ -109,10 +112,39 @@ def _collect_vault_tags(vault_path: str) -> list[str]:
 def _strip_code_fence(text: str) -> str:
     """Remove wrapping ```markdown ... ``` (or any language tag) from text."""
     text = text.strip()
-    m = re.match(r'^```[a-zA-Z]*\s*\n([\s\S]*?)```\s*$', text)
+    # Greedy match up to the LAST ``` in the text, ignoring conversation prefix/suffix
+    m = re.search(r'```[a-zA-Z]*\s*\n([\s\S]*)```', text)
     if m:
         return m.group(1).strip()
     return text
+
+
+# ── Helper: save extraction to question index ──────────────────────────────
+
+def _save_question_index(vault_path: str, ext) -> None:
+    """Persist extraction data to {vault_path}/question_index.json, keyed by question_id."""
+    if not vault_path or not ext.question_id:
+        return
+    index_path = os.path.join(vault_path, "question_index.json")
+    try:
+        existing: dict = {}
+        if os.path.isfile(index_path):
+            with open(index_path, "r", encoding="utf-8") as fh:
+                existing = json.load(fh)
+        existing[ext.question_id] = {
+            "question_id": ext.question_id,
+            "question": ext.question or "",
+            "choosed_alternative": ext.choosed_alternative or "",
+            "wrong_alternative": ext.wrong_alternative or "",
+            "explanation": ext.full_explanation or "",
+            "educational_objective": ext.educational_objective or "",
+            "timestamp": int(__import__("time").time()),
+        }
+        with open(index_path, "w", encoding="utf-8") as fh:
+            json.dump(existing, fh, indent=2, ensure_ascii=False)
+        print(f"📚 Saved question {ext.question_id} to question_index.json")
+    except Exception as e:
+        print(f"⚠️  Could not save question index: {e}")
 
 
 # ── Helper: guaranteed file write ─────────────────────────────────────────
@@ -161,6 +193,9 @@ async def get_tags(req: TagsRequest):
 async def generate_questions(req: QuestionsRequest):
     ext = req.extraction
 
+    # Persist extraction data to vault question index
+    _save_question_index(req.vault_path, ext)
+
     # Truncate explanation to ~300 chars for the prompt
     explanation_summary = (ext.full_explanation or "")[:300]
     if len(ext.full_explanation or "") > 300:
@@ -173,6 +208,8 @@ async def generate_questions(req: QuestionsRequest):
         "wrong_alternative": ext.wrong_alternative or "N/A",
         "educational_objective": ext.educational_objective or "N/A",
         "explanation_summary": explanation_summary,
+        "difficulty_target": req.difficulty_target,
+        "previous_questions_json": json.dumps(req.previous_questions) if req.previous_questions else "[]",
     }
 
     try:
@@ -256,9 +293,9 @@ async def generate_note(req: GenerateRequest):
                     # Backwards compat: single note
                     notes = [multi]
 
-        # Get formatted content from task 3 (format_note) — may override note_content
+        # Get formatted content from task 3 (format_note) — overrides note_content
         formatted_text = str(result).strip()
-        if formatted_text and "---" in formatted_text and len(notes) == 1:
+        if formatted_text and "---" in formatted_text and notes:
             notes[0] = NoteResult(
                 action=notes[0].action,
                 file_path=notes[0].file_path,
@@ -428,11 +465,19 @@ class FormatRequest(BaseModel):
     note_path: str  # relative path inside vault
     selected_template: str = ""  # filename of template to use (empty = all)
     custom_instructions: str = ""  # free-text LLM instructions from the user
+    selected_text: str = ""  # specific text selection to format
 
 class FormatResponse(BaseModel):
     formatted_content: str
     success: bool
     error: str = ""
+
+class StreamFormatRequest(BaseModel):
+    vault_path: str
+    note_path: str
+    selected_template: str = ""
+    selected_text: str = ""
+    format_mode: str = "list"   # feynman | flowchart | expand | concise | list | table | split | sections
 
 @app.post("/format", response_model=FormatResponse)
 async def format_note(req: FormatRequest):
@@ -447,18 +492,27 @@ async def format_note(req: FormatRequest):
 
         crew = build_format_crew(
             note_content=original_content,
+            templates_dir=None,
             selected_template=req.selected_template or None,
             custom_instructions=req.custom_instructions,
+            selected_text=req.selected_text,
         )
         result = crew.kickoff()
         formatted = str(result).strip()
+        formatted = _strip_code_fence(formatted)
 
-        # If the formatter returned valid markdown, write it back
-        if formatted and "---" in formatted:
+        # If a specific text selection was formatted, replace it in the original content
+        if req.selected_text.strip() and formatted:
+            final_content = original_content.replace(req.selected_text, formatted, 1)
+        else:
+            final_content = formatted
+
+        # If the final text looks like valid markdown (has frontmatter or we just patched a selection), write it back
+        if final_content and ("---" in final_content or req.selected_text.strip()):
             with open(full, "w", encoding="utf-8") as fh:
-                fh.write(formatted)
+                fh.write(final_content)
             print(f"📝 Formatted and saved: {full}")
-            return FormatResponse(formatted_content=formatted, success=True)
+            return FormatResponse(formatted_content=final_content, success=True)
         else:
             return FormatResponse(
                 formatted_content=original_content,
@@ -469,6 +523,72 @@ async def format_note(req: FormatRequest):
     except Exception as e:
         traceback.print_exc()
         return FormatResponse(formatted_content="", success=False, error=str(e))
+
+
+@app.post("/format/stream")
+async def format_note_stream(req: StreamFormatRequest):
+    """SSE endpoint: streams LLM tokens as they are generated."""
+    full = os.path.join(req.vault_path, req.note_path.replace("/", os.sep))
+    if not os.path.isfile(full):
+        async def err():
+            yield "data: [ERROR] File not found\n\n"
+        return StreamingResponse(err(), media_type="text/event-stream")
+
+    with open(full, "r", encoding="utf-8") as fh:
+        original_content = fh.read()
+
+    loop = asyncio.get_event_loop()
+    token_queue: asyncio.Queue = asyncio.Queue()
+
+    def on_token(tok: str):
+        loop.call_soon_threadsafe(token_queue.put_nowait, tok)
+
+    def on_done():
+        loop.call_soon_threadsafe(token_queue.put_nowait, None)   # sentinel
+
+    def run_crew():
+        try:
+            crew = build_format_crew_streaming(
+                note_content=original_content,
+                selected_text=req.selected_text,
+                format_mode=req.format_mode,
+                on_token=on_token,
+                on_done=on_done,
+                selected_template=req.selected_template or None,
+            )
+            crew.kickoff()
+        except Exception as exc:
+            traceback.print_exc()
+            loop.call_soon_threadsafe(token_queue.put_nowait, f"[ERROR] {exc}")
+            loop.call_soon_threadsafe(token_queue.put_nowait, None)
+
+    threading.Thread(target=run_crew, daemon=True).start()
+
+    async def generate():
+        accumulated = ""
+        while True:
+            chunk = await token_queue.get()
+            if chunk is None:
+                # Write final result back to disk
+                if req.selected_text.strip() and accumulated:
+                    final = original_content.replace(req.selected_text, accumulated, 1)
+                else:
+                    final = accumulated
+                if final and ("---" in final or req.selected_text.strip()):
+                    with open(full, "w", encoding="utf-8") as fh:
+                        fh.write(final)
+                yield "data: [DONE]\n\n"
+                break
+            accumulated += chunk
+            # Escape newlines so each SSE data line stays on one line
+            safe = chunk.replace("\\", "\\\\").replace("\n", "\\n")
+            yield f"data: {safe}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 # ── POST /api/save-note — Write note content to vault ─────────────────────
@@ -549,12 +669,13 @@ async def synthesize_keynote(req: KeyNoteRequest):
         # Extract structured output
         if hasattr(result, "pydantic") and result.pydantic:
             kn = result.pydantic
+            content = _strip_code_fence(kn.content)
             # Write the Key Note to vault
-            if kn.suggested_filename and kn.content:
-                _ensure_note_written(req.vault_path, kn.suggested_filename, kn.content)
+            if kn.suggested_filename and content:
+                _ensure_note_written(req.vault_path, kn.suggested_filename, content)
             return KeyNoteResponse(
                 suggested_filename=kn.suggested_filename,
-                content=kn.content,
+                content=content,
                 source_notes=source_note_paths,
                 success=True,
             )
@@ -563,7 +684,7 @@ async def synthesize_keynote(req: KeyNoteRequest):
         try:
             parsed = json.loads(str(result).strip())
             filename = parsed.get("suggested_filename", "key-note.md")
-            content = parsed.get("content", str(result))
+            content = _strip_code_fence(parsed.get("content", str(result)))
             if filename and content:
                 _ensure_note_written(req.vault_path, filename, content)
             return KeyNoteResponse(
@@ -575,7 +696,7 @@ async def synthesize_keynote(req: KeyNoteRequest):
         except json.JSONDecodeError:
             return KeyNoteResponse(
                 suggested_filename="",
-                content=str(result),
+                content=_strip_code_fence(str(result)),
                 source_notes=source_note_paths,
                 success=False,
                 error="Failed to parse Key Note output.",
@@ -654,15 +775,26 @@ def anki_direct_search(req: AnkiSearchRequest):
     any deck template including AnKing Text/Extra, Basic Front/Back, etc.)."""
     try:
         q = req.query.strip()
-        # Auto-format: bare text/number → tag suffix search
-        if q and "::" not in q and not any(q.startswith(p) for p in ("tag:", "deck:", "note:", "is:", "prop:")):
-            q = f"tag:*::{q}"
+        is_empty = not q
 
-        card_ids = _direct_anki("findCards", query=q)
+        # If empty query, grab all from current deck or everywhere to show recents
+        search_query = q
+        if is_empty:
+            search_query = "deck:*"
+        elif "::" not in q and not any(q.startswith(p) for p in ("tag:", "deck:", "note:", "is:", "prop:")):
+            # Auto-format: bare text/number → tag suffix search
+            search_query = f"tag:*::{q}"
+
+        card_ids = _direct_anki("findCards", query=search_query)
         if not card_ids:
             return AnkiSearchResponse(cards=[], total=0)
+            
+        # Reverse to get newest cards first
+        card_ids.reverse()
 
-        card_ids = list(itertools.islice(card_ids, 20))
+        # Take 10 if it was an empty default query, else limit to 20
+        limit = 10 if is_empty else 20
+        card_ids = list(itertools.islice(card_ids, limit))
         cards_info = _direct_anki("cardsInfo", cards=card_ids)
 
         note_ids = list({c["note"] for c in cards_info})

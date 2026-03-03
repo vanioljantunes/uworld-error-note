@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./page.module.css";
 
-type ViewMode = "chat" | "editor" | "anki";
+type ViewMode = "flow" | "chat" | "editor" | "anki";
 type WorkflowStep = "idle" | "extracting" | "questioning" | "answering" | "generating" | "done";
 
 interface Message {
@@ -1417,6 +1417,13 @@ export default function Home() {
           <span className={styles.sidebarAppName}>GapStrike</span>
         </a>
         <div className={styles.navTabs}>
+          <button
+            className={`${styles.navTab} ${viewMode === "flow" ? styles.navTabActive : ""}`}
+            onClick={() => setViewMode("flow")}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+            Flow
+          </button>
           <button
             className={`${styles.navTab} ${viewMode === "chat" ? styles.navTabActive : ""}`}
             onClick={() => setViewMode("chat")}

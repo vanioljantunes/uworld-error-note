@@ -403,7 +403,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                     onClick={() => selectExtraction(e)}
                   >
                     <div className={styles.flowIdDropdownTitle}>
-                      {e.questionId ? `#${e.questionId}` : "?"} — {e.title}
+                      {e.questionId || "?"} — {e.title}
                     </div>
                     <div className={styles.flowIdDropdownMeta}>
                       {new Date(e.savedAt).toLocaleDateString()}
@@ -433,16 +433,17 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       </div>
 
       {/* Active ID */}
-      {activeExtraction && (
-        <div className={styles.flowActiveId}>
+      <div className={styles.flowActiveId}>
+        {activeExtraction ? (
           <div className={styles.flowActiveIdLabel}>
-            {qId ? `#${qId}` : "Unknown ID"} — {activeExtraction.title}
+            {qId || "Unknown ID"} — {activeExtraction.title}
           </div>
-          <div className={styles.flowActiveIdSub}>
-            {ext?.educational_objective?.slice(0, 120) || ""}
+        ) : (
+          <div className={styles.flowActiveIdLabel} style={{ color: "var(--text-subtle)" }}>
+            No extraction selected
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Three panels */}
       <div className={styles.flowPanels}>
@@ -589,7 +590,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 ) : ankiError ? (
                   <div className={styles.flowEmpty}>{ankiError}</div>
                 ) : ankiCards.length === 0 ? (
-                  <div className={styles.flowEmpty}>No cards found for #{qId}</div>
+                  <div className={styles.flowEmpty}>No cards found for {qId}</div>
                 ) : (
                   ankiCards.map((card) => (
                     <div key={card.card_id} className={styles.flowAnkiCard}>

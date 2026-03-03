@@ -3585,6 +3585,7 @@
 .flowIdBar {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   padding: 14px 0;
   flex-shrink: 0;
@@ -3660,9 +3661,12 @@
 
 .flowActiveId {
   text-align: center;
-  padding: 4px 0;
-  flex: 1;
-  min-width: 0;
+  padding: 8px 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .flowActiveIdLabel {
@@ -3734,7 +3738,7 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-surface) 100%);
 }
 

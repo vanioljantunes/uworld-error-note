@@ -269,14 +269,12 @@ export default function Home() {
 
   useEffect(() => { scrollToBottom(); }, [messages, statusMsg]);
 
-  // ── Read user cookie set by middleware ─────────────────────────────────
+  // ── Fetch user info from saas-shell ────────────────────────────────────
   useEffect(() => {
-    try {
-      const match = document.cookie.split('; ').find(c => c.startsWith('__gs_user='));
-      if (match) {
-        setGsUser(JSON.parse(decodeURIComponent(match.split('=').slice(1).join('='))));
-      }
-    } catch { /* ignore parse errors */ }
+    fetch('/api/me', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setGsUser(data); })
+      .catch(() => {});
   }, []);
 
   // ── Progressive loading effect ─────────────────────────────────────────

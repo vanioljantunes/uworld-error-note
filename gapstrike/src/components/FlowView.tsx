@@ -1,0 +1,613 @@
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import styles from "../app/page.module.css";
+
+// ── Types (mirrored from page.tsx) ────────────────────────────────────────
+
+interface SavedExtraction {
+  id: string;
+  questionId: string | null;
+  title: string;
+  extraction: any;
+  savedAt: number;
+}
+
+interface AnkiCard {
+  note_id: number;
+  card_id: number;
+  front: string;
+  back: string;
+  deck: string;
+  tags: string[];
+  field_names: string[];
+  suspended: boolean;
+}
+
+interface Template {
+  id: string;
+  slug: string;
+  category: string;
+  title: string;
+  content: string;
+  updated_at: string;
+}
+
+interface NoteResultItem {
+  action: string;
+  file_path: string;
+  error_pattern: string;
+  tags: string[];
+  note_content: string;
+}
+
+// ── AnkiConnect (browser-direct) ──────────────────────────────────────────
+
+const ANKI_CONNECT_URL = "http://localhost:8765";
+
+async function ankiConnect(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  const resp = await fetch(ANKI_CONNECT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, version: 6, params }),
+  });
+  if (!resp.ok) throw new Error(`AnkiConnect HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return data.result;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || "";
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────
+
+interface FlowViewProps {
+  savedExtractions: SavedExtraction[];
+  userTemplates: Template[];
+  vaultPath: string;
+  onNewExtraction: (ext: SavedExtraction) => void;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────
+
+export default function FlowView({ savedExtractions, userTemplates, vaultPath, onNewExtraction }: FlowViewProps) {
+  // ID selection
+  const [activeExtraction, setActiveExtraction] = useState<SavedExtraction | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Panel focus
+  const [focusedPanel, setFocusedPanel] = useState<"questions" | "editor" | "anki" | null>(null);
+
+  // Note generation
+  const [generating, setGenerating] = useState(false);
+  const [noteResult, setNoteResult] = useState<NoteResultItem | null>(null);
+  const [noteContent, setNoteContent] = useState("");
+  const [notePath, setNotePath] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  // Matching notes for active ID
+  const [matchingNotes, setMatchingNotes] = useState<{ title: string; path: string }[]>([]);
+
+  // Anki
+  const [ankiCards, setAnkiCards] = useState<AnkiCard[]>([]);
+  const [ankiLoading, setAnkiLoading] = useState(false);
+  const [ankiError, setAnkiError] = useState("");
+  const [makingCard, setMakingCard] = useState(false);
+  const [makeCardMsg, setMakeCardMsg] = useState("");
+
+  // Upload
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [extracting, setExtracting] = useState(false);
+
+  // ── Close dropdown on outside click ─────────────────────────────────────
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [dropdownOpen]);
+
+  // ── Fetch Anki cards when extraction changes ────────────────────────────
+
+  useEffect(() => {
+    if (!activeExtraction) { setAnkiCards([]); setAnkiError(""); return; }
+    const qId = activeExtraction.questionId || activeExtraction.extraction?.question_id;
+    if (!qId) { setAnkiCards([]); return; }
+
+    setAnkiLoading(true);
+    setAnkiError("");
+    (async () => {
+      try {
+        const cardIds = (await ankiConnect("findCards", { query: `tag:${qId}` })) as number[];
+        if (!cardIds || cardIds.length === 0) { setAnkiCards([]); return; }
+        const cardsInfo = (await ankiConnect("cardsInfo", { cards: cardIds.slice(-20).reverse() })) as any[];
+        const noteIds = [...new Set(cardsInfo.map((c: any) => c.note as number))];
+        const notesInfo = (await ankiConnect("notesInfo", { notes: noteIds })) as any[];
+        const tagsByNote: Record<number, string[]> = {};
+        for (const n of notesInfo) tagsByNote[n.noteId] = n.tags || [];
+
+        const seen = new Set<number>();
+        const cards: AnkiCard[] = [];
+        for (const card of cardsInfo) {
+          if (seen.has(card.note)) continue;
+          seen.add(card.note);
+          const fieldKeys = Object.keys(card.fields || {});
+          const fieldVals = Object.values(card.fields || {}) as any[];
+          cards.push({
+            note_id: card.note,
+            card_id: card.cardId,
+            front: fieldVals[0]?.value ?? "",
+            back: fieldVals[1]?.value ?? "",
+            deck: card.deckName ?? "",
+            tags: tagsByNote[card.note] ?? [],
+            field_names: fieldKeys.slice(0, 2),
+            suspended: card.queue === -1,
+          });
+        }
+        setAnkiCards(cards);
+      } catch (err: any) {
+        const msg = err?.message || "";
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("unreachable")) {
+          setAnkiError("Anki is not running.");
+        } else {
+          setAnkiError(msg || "AnkiConnect error.");
+        }
+      } finally {
+        setAnkiLoading(false);
+      }
+    })();
+  }, [activeExtraction]);
+
+  // Find all notes matching this extraction's question ID
+  useEffect(() => {
+    if (!activeExtraction) { setNoteContent(""); setNotePath(""); setNoteResult(null); setMatchingNotes([]); return; }
+    const qId = activeExtraction.questionId || activeExtraction.extraction?.question_id;
+    if (!qId) { setMatchingNotes([]); return; }
+
+    (async () => {
+      try {
+        const resp = await fetch("/api/list-notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vaultPath }),
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const notes = data.notes || [];
+        const matches = notes.filter((n: any) => (n.tags || []).includes(qId));
+        setMatchingNotes(matches.map((n: any) => ({ title: n.title, path: n.path })));
+        // Auto-load first matching note
+        if (matches.length > 0) {
+          loadNote(matches[0].path);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [activeExtraction, vaultPath]);
+
+  // ── Select extraction ───────────────────────────────────────────────────
+
+  const selectExtraction = (ext: SavedExtraction) => {
+    setActiveExtraction(ext);
+    setDropdownOpen(false);
+    setNoteResult(null);
+    setNoteContent("");
+    setNotePath("");
+    setSaveMsg("");
+    setMakeCardMsg("");
+    setMatchingNotes([]);
+  };
+
+  // ── Load a note by path ─────────────────────────────────────────────────
+
+  const loadNote = async (path: string) => {
+    try {
+      const readResp = await fetch("/api/read-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vaultPath, notePath: path }),
+      });
+      if (readResp.ok) {
+        const readData = await readResp.json();
+        setNoteContent(readData.content || "");
+        setNotePath(path);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // ── Upload & extract ────────────────────────────────────────────────────
+
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    setExtracting(true);
+    try {
+      // Convert to base64
+      const images: string[] = [];
+      for (const file of imageFiles) {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        images.push(base64);
+      }
+      // Extract
+      const resp = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images }),
+      });
+      if (!resp.ok) throw new Error("Extraction failed");
+      const data = await resp.json();
+      const extracted = data.extraction || data;
+      const newExt: SavedExtraction = {
+        id: Date.now().toString(),
+        questionId: extracted.question_id || null,
+        title: extracted.educational_objective || extracted.question?.slice(0, 60) || "New Extraction",
+        extraction: extracted,
+        savedAt: Date.now(),
+      };
+      onNewExtraction(newExt);
+      selectExtraction(newExt);
+    } catch {
+      /* ignore */
+    } finally {
+      setExtracting(false);
+      if (uploadRef.current) uploadRef.current.value = "";
+    }
+  };
+
+  // ── Generate note ───────────────────────────────────────────────────────
+
+  const handleGenerateNote = async () => {
+    if (!activeExtraction || generating) return;
+    setGenerating(true);
+    setSaveMsg("");
+    setMakeCardMsg("");
+    try {
+      const template = userTemplates.find((t) => t.slug === "error_note_a")?.content || "";
+      const resp = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          extraction: activeExtraction.extraction,
+          questions: [],
+          answers: [],
+          template,
+        }),
+      });
+      if (!resp.ok) throw new Error("Generation failed");
+      const result = await resp.json();
+      const note = result.notes?.[0];
+      if (note) {
+        setNoteResult(note);
+        setNoteContent(note.note_content || "");
+        setNotePath(note.file_path || "");
+        setFocusedPanel("editor");
+        // Save note to vault
+        await fetch("/api/save-note", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vaultPath, notePath: note.file_path, content: note.note_content }),
+        });
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // ── Save note ───────────────────────────────────────────────────────────
+
+  const handleSaveNote = async () => {
+    if (!notePath || savingNote) return;
+    setSavingNote(true);
+    setSaveMsg("");
+    try {
+      const resp = await fetch("/api/save-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vaultPath, notePath, content: noteContent }),
+      });
+      if (resp.ok) setSaveMsg("Saved");
+      else setSaveMsg("Save failed");
+    } catch {
+      setSaveMsg("Save failed");
+    } finally {
+      setSavingNote(false);
+      setTimeout(() => setSaveMsg(""), 3000);
+    }
+  };
+
+  // ── Make card ───────────────────────────────────────────────────────────
+
+  const handleMakeCard = async () => {
+    if (!noteContent || makingCard) return;
+    setMakingCard(true);
+    setMakeCardMsg("");
+    try {
+      const tpl = userTemplates.find((t) => t.category === "anki")?.content || "";
+      const resp = await fetch("/api/create-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note_content: noteContent, template: tpl }),
+      });
+      const data = await resp.json();
+      if (data.success && data.front) {
+        // Add to Anki
+        await ankiConnect("addNote", {
+          note: {
+            deckName: "Default",
+            modelName: "Cloze",
+            fields: { Text: data.front, Extra: data.back || "" },
+            tags: activeExtraction?.questionId ? [activeExtraction.questionId] : [],
+            options: { allowDuplicate: false },
+          },
+        });
+        setMakeCardMsg("Card added!");
+        // Refresh Anki cards
+        setActiveExtraction((prev) => prev ? { ...prev } : null); // trigger re-fetch
+      } else {
+        setMakeCardMsg(data.error || "Failed");
+      }
+    } catch (err: any) {
+      setMakeCardMsg(err?.message || "Failed to create card.");
+    } finally {
+      setMakingCard(false);
+      setTimeout(() => setMakeCardMsg(""), 4000);
+    }
+  };
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  const ext = activeExtraction?.extraction;
+  const qId = activeExtraction?.questionId || ext?.question_id || null;
+
+  // ── Render ──────────────────────────────────────────────────────────────
+
+  return (
+    <div className={styles.flowContainer}>
+      {/* ID Bar */}
+      <div className={styles.flowIdBar}>
+        <div className={styles.flowIdDropdown} ref={dropdownRef}>
+          <button className={styles.flowIdBtn} onClick={() => setDropdownOpen(!dropdownOpen)}>
+            ▼ Choose from extractions
+          </button>
+          {dropdownOpen && (
+            <div className={styles.flowIdDropdownMenu}>
+              {savedExtractions.length === 0 ? (
+                <div className={styles.flowIdDropdownItem} style={{ cursor: "default", color: "var(--text-muted)" }}>
+                  No extractions yet
+                </div>
+              ) : (
+                savedExtractions.map((e) => (
+                  <button
+                    key={e.id}
+                    className={styles.flowIdDropdownItem}
+                    onClick={() => selectExtraction(e)}
+                  >
+                    <div className={styles.flowIdDropdownTitle}>
+                      {e.questionId ? `#${e.questionId}` : "?"} — {e.title}
+                    </div>
+                    <div className={styles.flowIdDropdownMeta}>
+                      {new Date(e.savedAt).toLocaleDateString()}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          className={styles.flowIdBtn}
+          onClick={() => uploadRef.current?.click()}
+          disabled={extracting}
+        >
+          {extracting ? "Extracting…" : "Upload Screenshot"}
+        </button>
+        <input
+          ref={uploadRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className={styles.flowUploadInput}
+          onChange={(e) => handleUpload(e.target.files)}
+        />
+      </div>
+
+      {/* Active ID */}
+      {activeExtraction && (
+        <div className={styles.flowActiveId}>
+          <div className={styles.flowActiveIdLabel}>
+            {qId ? `#${qId}` : "Unknown ID"} — {activeExtraction.title}
+          </div>
+          <div className={styles.flowActiveIdSub}>
+            {ext?.educational_objective?.slice(0, 120) || ""}
+          </div>
+        </div>
+      )}
+
+      {/* Three panels */}
+      <div className={styles.flowPanels}>
+        {/* ── Questions Panel ────────────────────────────────────────── */}
+        <div
+          className={`${styles.flowPanel} ${focusedPanel === "questions" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
+          onClick={() => setFocusedPanel(focusedPanel === "questions" ? null : "questions")}
+        >
+          <div className={styles.flowPanelHeader}>Questions</div>
+          <div className={styles.flowPanelBody}>
+            {!activeExtraction ? (
+              <div className={styles.flowEmpty}>Select an extraction or upload a screenshot to begin</div>
+            ) : (
+              <div className={styles.flowExtSummary}>
+                {ext?.question && (
+                  <div className={styles.flowExtField}>
+                    <div className={styles.flowExtFieldLabel}>Question</div>
+                    <div className={styles.flowExtFieldValue}>{ext.question}</div>
+                  </div>
+                )}
+                {ext?.choosed_alternative && (
+                  <div className={styles.flowExtField}>
+                    <div className={styles.flowExtFieldLabel}>Your Answer (Wrong)</div>
+                    <div className={styles.flowExtFieldValue}>{ext.choosed_alternative}</div>
+                  </div>
+                )}
+                {ext?.wrong_alternative && (
+                  <div className={styles.flowExtField}>
+                    <div className={styles.flowExtFieldLabel}>Correct Answer</div>
+                    <div className={styles.flowExtFieldValue}>{ext.wrong_alternative}</div>
+                  </div>
+                )}
+                {ext?.educational_objective && (
+                  <div className={styles.flowExtField}>
+                    <div className={styles.flowExtFieldLabel}>Educational Objective</div>
+                    <div className={styles.flowExtFieldValue}>{ext.educational_objective}</div>
+                  </div>
+                )}
+
+                {noteResult && (
+                  <div className={styles.flowExtField}>
+                    <div className={styles.flowExtFieldLabel}>Generated Note</div>
+                    <div className={styles.flowExtFieldValue}>{noteResult.error_pattern}</div>
+                    <div style={{ marginTop: 6 }}>
+                      {noteResult.tags.map((t) => (
+                        <span key={t} className={styles.flowResultTag}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  className={styles.flowGenerateBtn}
+                  onClick={(e) => { e.stopPropagation(); handleGenerateNote(); }}
+                  disabled={generating}
+                >
+                  {generating ? "Generating…" : noteResult ? "Regenerate Note" : "Generate Note"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Note Editor Panel ──────────────────────────────────────── */}
+        <div
+          className={`${styles.flowPanel} ${focusedPanel === "editor" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
+          onClick={() => setFocusedPanel(focusedPanel === "editor" ? null : "editor")}
+        >
+          <div className={styles.flowPanelHeader}>Note Editor</div>
+          {matchingNotes.length > 0 && (
+            <div className={styles.flowNotesList}>
+              {matchingNotes.map((n) => (
+                <button
+                  key={n.path}
+                  className={`${styles.flowNotesItem} ${n.path === notePath ? styles.flowNotesItemActive : ""}`}
+                  onClick={() => loadNote(n.path)}
+                >
+                  {n.title}
+                </button>
+              ))}
+            </div>
+          )}
+          {noteContent ? (
+            <>
+              <div className={styles.flowPanelBody}>
+                <textarea
+                  className={styles.flowNoteEditor}
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  spellCheck={false}
+                />
+              </div>
+              <div className={styles.flowNoteSaveRow}>
+                {saveMsg && <span className={styles.flowNoteSaveMsg}>{saveMsg}</span>}
+                <button
+                  className={styles.flowNoteSaveBtn}
+                  onClick={(e) => { e.stopPropagation(); handleSaveNote(); }}
+                  disabled={savingNote}
+                >
+                  {savingNote ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className={styles.flowPanelBody}>
+              <div className={styles.flowEmpty}>
+                {activeExtraction
+                  ? matchingNotes.length === 0
+                    ? "Click \"Generate Note\" to create an error note"
+                    : "Select a note above to view it"
+                  : "Select an extraction to get started"}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Anki Panel ─────────────────────────────────────────────── */}
+        <div
+          className={`${styles.flowPanel} ${focusedPanel === "anki" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
+          onClick={() => setFocusedPanel(focusedPanel === "anki" ? null : "anki")}
+        >
+          <div className={styles.flowPanelHeader}>Anki</div>
+          <div className={styles.flowPanelBody}>
+            {!activeExtraction ? (
+              <div className={styles.flowEmpty}>Select an extraction to see matching cards</div>
+            ) : (
+              <>
+                <button
+                  className={styles.flowMakeCardBtn}
+                  onClick={(e) => { e.stopPropagation(); handleMakeCard(); }}
+                  disabled={makingCard || !noteContent}
+                >
+                  {makingCard ? "Creating…" : "+ Make Card"}
+                </button>
+                {makeCardMsg && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, textAlign: "center" }}>
+                    {makeCardMsg}
+                  </div>
+                )}
+
+                {ankiLoading ? (
+                  <div className={styles.flowEmpty}>Searching Anki…</div>
+                ) : ankiError ? (
+                  <div className={styles.flowEmpty}>{ankiError}</div>
+                ) : ankiCards.length === 0 ? (
+                  <div className={styles.flowEmpty}>No cards found for #{qId}</div>
+                ) : (
+                  ankiCards.map((card) => (
+                    <div key={card.card_id} className={styles.flowAnkiCard}>
+                      <div
+                        className={styles.flowAnkiCardFront}
+                        dangerouslySetInnerHTML={{ __html: stripHtml(card.front).slice(0, 120) + (card.front.length > 120 ? "…" : "") }}
+                      />
+                      <div className={styles.flowAnkiCardMeta}>
+                        {card.deck} · {card.tags.join(", ")}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

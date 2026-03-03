@@ -41,6 +41,13 @@ interface NoteResultItem {
   note_content: string;
 }
 
+interface MCQuestionItem {
+  question: string;
+  options: string[];
+  correct: number;
+  difficulty: string;
+}
+
 // ── AnkiConnect (browser-direct) ──────────────────────────────────────────
 
 const ANKI_CONNECT_URL = "http://localhost:8765";
@@ -84,6 +91,15 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
   // Panel focus
   const [focusedPanel, setFocusedPanel] = useState<"questions" | "editor" | "anki" | null>(null);
+
+  // Question flow
+  const [currentQuestion, setCurrentQuestion] = useState<MCQuestionItem | null>(null);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [previousQuestions, setPreviousQuestions] = useState<string[]>([]);
+  const [diagnosticQuestions, setDiagnosticQuestions] = useState<MCQuestionItem[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<string[]>([]);
+  const [fetchingQuestion, setFetchingQuestion] = useState(false);
+  const [mcFeedback, setMcFeedback] = useState<{ selected: number; correct: number } | null>(null);
 
   // Note generation
   const [generating, setGenerating] = useState(false);
@@ -208,6 +224,13 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setSaveMsg("");
     setMakeCardMsg("");
     setMatchingNotes([]);
+    // Reset question flow
+    setCurrentQuestion(null);
+    setQuestionCount(0);
+    setPreviousQuestions([]);
+    setDiagnosticQuestions([]);
+    setQuestionAnswers([]);
+    setMcFeedback(null);
   };
 
   // ── Load a note by path ─────────────────────────────────────────────────
@@ -246,7 +269,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         });
         images.push(base64);
       }
-      // Extract
+      // Extract — API returns { result: { question_id, question, ... } }
       const resp = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -254,7 +277,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       });
       if (!resp.ok) throw new Error("Extraction failed");
       const data = await resp.json();
-      const extracted = data.extraction || data;
+      const extracted = data.result || data;
       const newExt: SavedExtraction = {
         id: Date.now().toString(),
         questionId: extracted.question_id || null,
@@ -272,6 +295,51 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     }
   };
 
+  // ── Fetch question ────────────────────────────────────────────────────
+
+  const fetchNextQuestion = async () => {
+    if (!activeExtraction || fetchingQuestion) return;
+    setFetchingQuestion(true);
+    setMcFeedback(null);
+    try {
+      const difficulties = ["hard", "medium", "easy"];
+      const difficulty = difficulties[questionCount % 3];
+      const resp = await fetch("/api/questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          extraction: activeExtraction.extraction,
+          previous_questions: previousQuestions,
+          difficulty_target: difficulty,
+        }),
+      });
+      if (!resp.ok) throw new Error(`Questions error: ${resp.status}`);
+      const data = await resp.json();
+      const q = (data.questions || [])[0] as MCQuestionItem | undefined;
+      if (q && q.question && Array.isArray(q.options) && q.options.length > 0) {
+        setCurrentQuestion(q);
+        setQuestionCount((c) => c + 1);
+        setPreviousQuestions((prev) => [...prev, q.question]);
+        setFocusedPanel("questions");
+      }
+    } catch { /* ignore */ }
+    finally { setFetchingQuestion(false); }
+  };
+
+  // ── Answer question ───────────────────────────────────────────────────
+
+  const handleAnswer = (selectedIdx: number) => {
+    if (!currentQuestion || mcFeedback) return;
+    setMcFeedback({ selected: selectedIdx, correct: currentQuestion.correct });
+    setDiagnosticQuestions((prev) => [...prev, currentQuestion]);
+    setQuestionAnswers((prev) => [...prev, currentQuestion.options[selectedIdx]]);
+  };
+
+  const dismissFeedback = () => {
+    setMcFeedback(null);
+    setCurrentQuestion(null);
+  };
+
   // ── Generate note ───────────────────────────────────────────────────────
 
   const handleGenerateNote = async () => {
@@ -286,8 +354,8 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           extraction: activeExtraction.extraction,
-          questions: [],
-          answers: [],
+          questions: diagnosticQuestions,
+          answers: questionAnswers,
           template,
         }),
       });
@@ -378,6 +446,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
   const ext = activeExtraction?.extraction;
   const qId = activeExtraction?.questionId || ext?.question_id || null;
+  const hasAnswered = questionAnswers.length > 0;
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -456,7 +525,62 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
           <div className={styles.flowPanelBody}>
             {!activeExtraction ? (
               <div className={styles.flowEmpty}>Select an extraction or upload a screenshot to begin</div>
+            ) : currentQuestion ? (
+              /* ── Active MC question ── */
+              <div className={styles.flowExtSummary} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.flowExtField}>
+                  <div className={styles.flowExtFieldLabel}>
+                    Question {questionCount} · {currentQuestion.difficulty}
+                  </div>
+                  <div className={styles.flowExtFieldValue}>{currentQuestion.question}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {currentQuestion.options.map((opt, i) => {
+                    let optStyle: React.CSSProperties = {
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "var(--bg-elevated)",
+                      color: "var(--text)",
+                      fontSize: 13,
+                      fontFamily: "inherit",
+                      cursor: mcFeedback ? "default" : "pointer",
+                      textAlign: "left" as const,
+                      transition: "all 150ms",
+                    };
+                    if (mcFeedback) {
+                      if (i === mcFeedback.correct) {
+                        optStyle = { ...optStyle, borderColor: "var(--green)", background: "rgba(34,197,94,0.12)", color: "var(--green)" };
+                      } else if (i === mcFeedback.selected && mcFeedback.selected !== mcFeedback.correct) {
+                        optStyle = { ...optStyle, borderColor: "var(--red)", background: "rgba(239,68,68,0.12)", color: "var(--red)" };
+                      }
+                    }
+                    return (
+                      <button key={i} style={optStyle} onClick={() => handleAnswer(i)}>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                {mcFeedback && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button className={styles.flowGenerateBtn} onClick={dismissFeedback} style={{ flex: 1 }}>
+                      {mcFeedback.selected === mcFeedback.correct ? "Next Question" : "Generate Note"}
+                    </button>
+                    {mcFeedback.selected === mcFeedback.correct && (
+                      <button
+                        className={styles.flowGenerateBtn}
+                        onClick={() => { dismissFeedback(); handleGenerateNote(); }}
+                        style={{ flex: 1, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                      >
+                        Skip to Note
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
+              /* ── Extraction summary + action buttons ── */
               <div className={styles.flowExtSummary}>
                 {ext?.question && (
                   <div className={styles.flowExtField}>
@@ -497,11 +621,22 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
                 <button
                   className={styles.flowGenerateBtn}
-                  onClick={(e) => { e.stopPropagation(); handleGenerateNote(); }}
-                  disabled={generating}
+                  onClick={(e) => { e.stopPropagation(); fetchNextQuestion(); }}
+                  disabled={fetchingQuestion}
                 >
-                  {generating ? "Generating…" : noteResult ? "Regenerate Note" : "Generate Note"}
+                  {fetchingQuestion ? "Generating…" : questionCount > 0 ? "More Questions" : "Generate Question"}
                 </button>
+
+                {hasAnswered && !noteResult && (
+                  <button
+                    className={styles.flowGenerateBtn}
+                    onClick={(e) => { e.stopPropagation(); handleGenerateNote(); }}
+                    disabled={generating}
+                    style={{ marginTop: 4, background: "var(--bg-elevated)", border: "1px solid var(--accent)" }}
+                  >
+                    {generating ? "Generating Note…" : "Generate Note"}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -552,9 +687,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
             <div className={styles.flowPanelBody}>
               <div className={styles.flowEmpty}>
                 {activeExtraction
-                  ? matchingNotes.length === 0
-                    ? "Click \"Generate Note\" to create an error note"
-                    : "Select a note above to view it"
+                  ? "Answer a question, then generate a note"
                   : "Select an extraction to get started"}
               </div>
             </div>

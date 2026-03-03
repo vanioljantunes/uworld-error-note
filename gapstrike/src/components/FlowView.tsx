@@ -143,8 +143,17 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
   useEffect(() => {
     if (!activeExtraction) { setShortTitle(""); return; }
+
+    // Check localStorage cache first — avoid regenerating on every reload
+    const cacheKey = `title_${activeExtraction.id}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) { setShortTitle(cached); return; }
+
     const eduObj = activeExtraction.extraction?.educational_objective;
     if (!eduObj) { setShortTitle(activeExtraction.title); return; }
+
+    // Show fallback title while LLM generates the short one
+    setShortTitle(activeExtraction.title);
 
     (async () => {
       try {
@@ -155,7 +164,9 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         });
         if (resp.ok) {
           const data = await resp.json();
-          setShortTitle(data.title || activeExtraction.title);
+          const title = data.title || activeExtraction.title;
+          setShortTitle(title);
+          localStorage.setItem(cacheKey, title);
         }
       } catch {
         setShortTitle(activeExtraction.title);

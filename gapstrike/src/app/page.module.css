@@ -4023,6 +4023,7 @@
   line-height: 1.6;
   color: var(--text);
   flex-shrink: 0;
+  text-align: justify;
 }
 .flowExtTabEmpty {
   color: var(--text-subtle);

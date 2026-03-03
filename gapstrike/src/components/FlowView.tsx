@@ -123,7 +123,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [ankiSaving, setAnkiSaving] = useState(false);
   const [ankiFormatting, setAnkiFormatting] = useState(false);
   const [ankiEditError, setAnkiEditError] = useState("");
-  const [expandedTagCards, setExpandedTagCards] = useState<Set<number>>(new Set());
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
 
@@ -837,8 +836,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                     {ankiCards.map((card) => {
                       const isEditing = editingFlowCard === card.note_id;
                       const frontText = stripHtml(card.front);
-                      const displayTags = card.tags;
-                      const tagsExpanded = expandedTagCards.has(card.note_id);
                       return (
                         <div
                           key={card.card_id}
@@ -915,31 +912,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                             </div>
                           )}
 
-                          {isEditing && displayTags.length > 0 && (
-                            <div className={styles.ankiCardTagsFooter} onClick={(e) => e.stopPropagation()}>
-                              <div className={`${styles.ankiCardTagsRow} ${displayTags.length > 4 && !tagsExpanded ? styles.ankiCardTagsCollapsed : ""}`}>
-                                {displayTags.map((tag, i) => (
-                                  <span key={i} className={styles.resultTag}>{tag}</span>
-                                ))}
-                              </div>
-                              {displayTags.length > 4 && (
-                                <button
-                                  className={styles.ankiTagsToggleBtn}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedTagCards((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(card.note_id)) next.delete(card.note_id);
-                                      else next.add(card.note_id);
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  {tagsExpanded ? "▲" : `+${displayTags.length - 4} ▼`}
-                                </button>
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     })}

@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./page.module.css";
+import TemplatesView, { Template } from "../components/TemplatesView";
+import FlowView from "../components/FlowView";
 
-type ViewMode = "chat" | "editor" | "anki";
+type ViewMode = "flow" | "chat" | "editor" | "anki" | "templates";
 type WorkflowStep = "idle" | "extracting" | "questioning" | "answering" | "generating" | "done";
 
 interface Message {
@@ -70,12 +72,26 @@ interface ActivityItem {
   savedAt: number;
 }
 
+interface ChatSessionWorkflow {
+  workflowStep: WorkflowStep;
+  extractedJson: any;
+  currentQuestion: MCQuestionItem | null;
+  questionCount: number;
+  previousQuestions: string[];
+  diagnosticQuestions: string[];
+  questionAnswers: string[];
+  showPostGenChoice: boolean;
+  showCreateNoteChoice: boolean;
+  showQuestionPrompt: boolean;
+}
+
 interface ChatSession {
   id: string;
   title: string;
   messages: Message[];
   createdAt: number;
   updatedAt: number;
+  workflow?: ChatSessionWorkflow;
 }
 
 interface SavedExtraction {
@@ -129,10 +145,12 @@ function AnkiIcon() {
 
 const CREWAI_URL = "http://localhost:8000";
 
-// ── AnkiConnect direct helper ─────────────────────────────────────────────
+// ── AnkiConnect direct helper (browser → localhost) ───────────────────────
+
+const ANKI_CONNECT_URL = "http://localhost:8765";
 
 async function ankiConnect(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
-  const resp = await fetch("/api/anki-connect", {
+  const resp = await fetch(ANKI_CONNECT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, version: 6, params }),
@@ -165,7 +183,7 @@ const WORKFLOW_STATUS_MESSAGES: Record<string, string[]> = {
 };
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<ViewMode>("chat");
+  const [viewMode, setViewMode] = useState<ViewMode>("flow");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -246,6 +264,10 @@ export default function Home() {
 
   // Saved extractions
   const [savedExtractions, setSavedExtractions] = useState<SavedExtraction[]>([]);
+
+  // User templates (from Supabase)
+  const [userTemplates, setUserTemplates] = useState<Template[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
@@ -360,7 +382,7 @@ export default function Home() {
     } catch { }
   }, []);
 
-  // Auto-save messages to current session whenever they change
+  // Auto-save messages + workflow to current session whenever they change
   useEffect(() => {
     if (messages.length === 0) return;
     if (!currentSessionIdRef.current) {
@@ -379,12 +401,25 @@ export default function Home() {
         messages,
         createdAt: existing?.createdAt ?? Date.now(),
         updatedAt: Date.now(),
+        workflow: {
+          workflowStep,
+          extractedJson,
+          currentQuestion,
+          questionCount,
+          previousQuestions,
+          diagnosticQuestions,
+          questionAnswers,
+          showPostGenChoice,
+          showCreateNoteChoice,
+          showQuestionPrompt,
+        },
       };
       const newSessions = [updated, ...prev.filter((s) => s.id !== sessionId)];
       localStorage.setItem("chatSessions", JSON.stringify(newSessions));
       return newSessions;
     });
-  }, [messages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, workflowStep, showPostGenChoice, showCreateNoteChoice, showQuestionPrompt, currentQuestion]);
 
   // Load activity history from localStorage on mount, deduplicating legacy data
   useEffect(() => {
@@ -422,55 +457,64 @@ export default function Home() {
 
     numericTags.forEach(async (qId) => {
       try {
-        const resp = await fetch(`${CREWAI_URL}/anki/direct-search`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: qId }),
-        });
-        if (!resp.ok) { setNoteCardCounts((p) => ({ ...p, [qId]: -1 })); return; }
-        const data = await resp.json();
-        setNoteCardCounts((p) => ({ ...p, [qId]: data.cards?.length ?? 0 }));
+        const cardIds = (await ankiConnect("findCards", { query: `tag:${qId}` })) as number[];
+        setNoteCardCounts((p) => ({ ...p, [qId]: cardIds?.length ?? 0 }));
       } catch {
         setNoteCardCounts((p) => ({ ...p, [qId]: -1 }));
       }
     });
   }, [selectedNote]);
 
-  // Load templates
+  // Legacy template loading removed — now uses Supabase via /api/templates
+
+  // Fetch user templates from Supabase on mount (needed for Templates tab + generate)
   useEffect(() => {
-    const loadTemplates = async () => {
+    const loadUserTemplates = async () => {
       try {
-        const resp = await fetch(`${CREWAI_URL}/templates`);
+        const resp = await fetch("/api/templates");
         if (resp.ok) {
           const data = await resp.json();
-          setTemplates(data.templates || []);
+          setUserTemplates(data.templates || []);
+          setTemplatesLoaded(true);
+        } else {
+          console.error("Templates fetch failed:", resp.status);
         }
       } catch (error) {
-        console.error("Failed to load templates:", error);
+        console.error("Failed to load user templates:", error);
       }
     };
-    loadTemplates();
+    loadUserTemplates();
   }, []);
 
-  // Load vault tags
-  useEffect(() => {
-    const loadTags = async () => {
-      try {
-        const response = await fetch(`${CREWAI_URL}/tags`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vault_path: vaultPath }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setVaultTags(data.tags || []);
-        }
-      } catch (error) {
-        console.error("Failed to load vault tags:", error);
-      }
-    };
-    loadTags();
-  }, [vaultPath]);
+  const handleTemplateUpdate = async (slug: string, content: string) => {
+    const resp = await fetch("/api/templates", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, content }),
+    });
+    if (resp.ok) {
+      const { template } = await resp.json();
+      setUserTemplates((prev) =>
+        prev.map((t) => (t.slug === slug ? { ...t, content: template.content, updated_at: template.updated_at } : t))
+      );
+    }
+  };
+
+  const handleTemplateReset = async (slug: string) => {
+    const resp = await fetch("/api/templates/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug }),
+    });
+    if (resp.ok) {
+      const { template } = await resp.json();
+      setUserTemplates((prev) =>
+        prev.map((t) => (t.slug === slug ? { ...t, content: template.content, updated_at: template.updated_at } : t))
+      );
+    }
+  };
+
+  // Vault tags loading removed — only works with local CrewAI backend
 
   // Populate contentEditable fields when a card is opened or content is programmatically updated
   useEffect(() => {
@@ -483,18 +527,20 @@ export default function Home() {
 
   useEffect(() => {
     if (viewMode !== "anki") return;
-    fetch(`${CREWAI_URL}/anki/card-templates`)
-      .then((r) => r.json())
-      .then((d) => {
-        setAnkiCardTemplates(d.templates || []);
-        if (d.templates?.length > 0) setSelectedCardTemplate(d.templates[0].filename);
+    // Card templates from Supabase (already loaded)
+    const ankiTpls = userTemplates
+      .filter((t) => t.category === "anki")
+      .map((t) => ({ name: t.title, filename: t.slug }));
+    setAnkiCardTemplates(ankiTpls);
+    if (ankiTpls.length > 0 && !selectedCardTemplate) setSelectedCardTemplate(ankiTpls[0].filename);
+    // Decks from AnkiConnect directly
+    ankiConnect("deckNames")
+      .then((decks) => {
+        const d = decks as string[];
+        if (d.length > 0) { setAnkiDecks(d); if (!ankiCreateDeck) setAnkiCreateDeck(d[0]); }
       })
       .catch(() => { });
-    fetch(`${CREWAI_URL}/anki/decks`)
-      .then((r) => r.json())
-      .then((d) => { if (d.decks?.length > 0) { setAnkiDecks(d.decks); setAnkiCreateDeck(d.decks[0]); } })
-      .catch(() => { });
-  }, [viewMode]);
+  }, [viewMode, userTemplates]);
 
   // Sync create card contentEditable refs when content is set by LLM
   useEffect(() => {
@@ -524,14 +570,22 @@ export default function Home() {
     setAnkiCreateFront("");
     setAnkiCreateBack("");
     try {
-      const resp = await fetch(`${CREWAI_URL}/anki/create-card`, {
+      // Read note content first
+      const noteResp = await fetch("/api/read-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vault_path: vaultPath,
-          note_path: ankiCreateNote,
-          template_filename: selectedCardTemplate,
-        }),
+        body: JSON.stringify({ vaultPath, notePath: ankiCreateNote }),
+      });
+      if (!noteResp.ok) throw new Error("Failed to read note.");
+      const noteData = await noteResp.json();
+      const noteContent = noteData.content || "";
+      // Get selected template content
+      const tpl = userTemplates.find((t) => t.slug === selectedCardTemplate);
+      // Generate card via LLM
+      const resp = await fetch("/api/create-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note_content: noteContent, template: tpl?.content || "" }),
       });
       const data = await resp.json();
       if (data.success) {
@@ -541,7 +595,7 @@ export default function Home() {
         setAnkiCreateError(data.error || "Generation failed.");
       }
     } catch {
-      setAnkiCreateError("Failed to reach backend.");
+      setAnkiCreateError("Failed to generate card.");
     } finally {
       setAnkiCreating(false);
     }
@@ -553,29 +607,22 @@ export default function Home() {
     setAnkiCreateError("");
     setAnkiCreateSuccess("");
     try {
-      const resp = await fetch(`${CREWAI_URL}/anki/add-note`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deck: ankiCreateDeck || "Default",
-          model: "Cloze",
-          front: ankiCreateFront,
-          back: ankiCreateBack,
+      await ankiConnect("addNote", {
+        note: {
+          deckName: ankiCreateDeck || "Default",
+          modelName: "Cloze",
+          fields: { Text: ankiCreateFront, Extra: ankiCreateBack },
           tags: [],
-          field_names: ["Text", "Extra"],
-        }),
+          options: { allowDuplicate: false },
+        },
       });
-      const data = await resp.json();
-      if (data.success) {
-        setAnkiCreateSuccess("Card added to Anki successfully!");
-        setAnkiCreateFront("");
-        setAnkiCreateBack("");
-        setAnkiCreateNote("");
-      } else {
-        setAnkiCreateError(data.error || "Failed to add card.");
-      }
-    } catch {
-      setAnkiCreateError("Failed to reach backend.");
+      setAnkiCreateSuccess("Card added to Anki successfully!");
+      setAnkiCreateFront("");
+      setAnkiCreateBack("");
+      setAnkiCreateNote("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to add card.";
+      setAnkiCreateError(msg);
     } finally {
       setAnkiAddingNote(false);
     }
@@ -700,6 +747,14 @@ export default function Home() {
     }
   };
 
+  const handleFlowNewExtraction = (ext: SavedExtraction) => {
+    setSavedExtractions((prev) => {
+      const updated = [ext, ...prev];
+      localStorage.setItem("savedExtractions", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const runFullWorkflow = async () => {
     if (uploadedImages.length === 0 || loading) return;
     setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: `📸 Sent ${uploadedImages.length} screenshot${uploadedImages.length > 1 ? "s" : ""} for error note` }]);
@@ -793,7 +848,7 @@ export default function Home() {
     setWorkflowStep("generating");
 
     try {
-      const generateResp = await fetch(`${CREWAI_URL}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ extraction: extractedJson, questions: diagnosticQuestions, answers: answers, vault_path: vaultPath }) });
+      const generateResp = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ extraction: extractedJson, questions: diagnosticQuestions, answers: answers, template: userTemplates.find((t) => t.slug === "error_note_a")?.content || "" }) });
       if (!generateResp.ok) throw new Error(`Generate error: ${generateResp.status}`);
       const result = await generateResp.json();
       setErrorNoteResult(result);
@@ -827,13 +882,9 @@ export default function Home() {
       setShowPostGenChoice(true);
       setWorkflowStep("answering");
 
-      // Refresh tags & notes
+      // Refresh notes list
       try {
-        const [tagsResp, notesResp] = await Promise.all([
-          fetch(`${CREWAI_URL}/tags`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vault_path: vaultPath }) }),
-          fetch("/api/list-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vaultPath }) }),
-        ]);
-        if (tagsResp.ok) { const d = await tagsResp.json(); setVaultTags(d.tags || []); }
+        const notesResp = await fetch("/api/list-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vaultPath }) });
         if (notesResp.ok) { const d = await notesResp.json(); setAllNotes(d.notes || []); }
       } catch { }
     } catch (error) {
@@ -871,7 +922,24 @@ export default function Home() {
     setMessages(session.messages);
     setCurrentSessionId(session.id);
     currentSessionIdRef.current = session.id;
-    resetWorkflow();
+    // Restore workflow state if saved, otherwise reset
+    const w = session.workflow;
+    if (w) {
+      setWorkflowStep(w.workflowStep);
+      setExtractedJson(w.extractedJson);
+      setCurrentQuestion(w.currentQuestion);
+      setQuestionCount(w.questionCount);
+      setPreviousQuestions(w.previousQuestions);
+      setDiagnosticQuestions(w.diagnosticQuestions);
+      setQuestionAnswers(w.questionAnswers);
+      setShowPostGenChoice(w.showPostGenChoice);
+      setShowCreateNoteChoice(w.showCreateNoteChoice);
+      setShowQuestionPrompt(w.showQuestionPrompt);
+      setMcFeedback(null);
+      setErrorNoteResult(null);
+    } else {
+      resetWorkflow();
+    }
   };
 
   const deleteSession = (sessionId: string, e: React.MouseEvent) => {
@@ -1186,36 +1254,26 @@ export default function Home() {
     setAnkiSaving(true);
     setAnkiEditError("");
     try {
-      const resp = await fetch(`${CREWAI_URL}/anki/update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          note_id: card.note_id,
-          front: editFront,
-          back: editBack,
-          field_names: card.field_names,
-        }),
+      const fields: Record<string, string> = {};
+      if (card.field_names[0]) fields[card.field_names[0]] = editFront;
+      if (card.field_names[1]) fields[card.field_names[1]] = editBack;
+      await ankiConnect("updateNoteFields", { note: { id: card.note_id, fields } });
+      setAnkiCards((prev) =>
+        prev.map((c) =>
+          c.note_id === card.note_id ? { ...c, front: editFront, back: editBack } : c
+        )
+      );
+      setEditingCard(null);
+      const qId = card.tags.find((t) => /^\d+$/.test(t)) || "";
+      addActivity({
+        type: "card",
+        questionId: qId,
+        title: stripHtml(editFront).slice(0, 50),
+        noteId: card.note_id,
       });
-      const data = await resp.json();
-      if (data.success) {
-        setAnkiCards((prev) =>
-          prev.map((c) =>
-            c.note_id === card.note_id ? { ...c, front: editFront, back: editBack } : c
-          )
-        );
-        setEditingCard(null);
-        const qId = card.tags.find((t) => /^\d+$/.test(t)) || "";
-        addActivity({
-          type: "card",
-          questionId: qId,
-          title: stripHtml(editFront).slice(0, 50),
-          noteId: card.note_id,
-        });
-      } else {
-        setAnkiEditError(data.error || "Save failed.");
-      }
-    } catch {
-      setAnkiEditError("Failed to reach backend.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Save failed.";
+      setAnkiEditError(msg);
     } finally {
       setAnkiSaving(false);
     }
@@ -1223,20 +1281,12 @@ export default function Home() {
 
   const handleUnsuspend = async (card: AnkiCard) => {
     try {
-      const resp = await fetch(`${CREWAI_URL}/anki/unsuspend`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_ids: [card.card_id] }),
-      });
-      if (resp.ok) {
-        setAnkiCards((prev) =>
-          prev.map((c) => c.note_id === card.note_id ? { ...c, suspended: false } : c)
-        );
-      } else {
-        setAnkiEditError("Unsuspend failed — is Anki open?");
-      }
+      await ankiConnect("unsuspend", { cards: [card.card_id] });
+      setAnkiCards((prev) =>
+        prev.map((c) => c.note_id === card.note_id ? { ...c, suspended: false } : c)
+      );
     } catch {
-      setAnkiEditError("Could not reach backend.");
+      setAnkiEditError("Unsuspend failed — is Anki open?");
     }
   };
 
@@ -1244,13 +1294,14 @@ export default function Home() {
     setAnkiFormatting(true);
     setAnkiEditError("");
     try {
-      const resp = await fetch(`${CREWAI_URL}/anki/format-card`, {
+      const tpl = userTemplates.find((t) => t.slug === selectedCardTemplate);
+      const resp = await fetch("/api/format-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           front: editFront,
           back: editBack,
-          template_filename: selectedCardTemplate,
+          template: tpl?.content || "",
         }),
       });
       const data = await resp.json();
@@ -1263,7 +1314,7 @@ export default function Home() {
         setAnkiEditError(data.error || "Format failed.");
       }
     } catch {
-      setAnkiEditError("Failed to reach backend.");
+      setAnkiEditError("Failed to format card.");
     } finally {
       setAnkiFormatting(false);
     }
@@ -1418,6 +1469,15 @@ export default function Home() {
         </a>
         <div className={styles.navTabs}>
           <button
+            className={`${styles.navTab} ${viewMode === "flow" ? styles.navTabActive : ""}`}
+            onClick={() => setViewMode("flow")}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            Flow
+          </button>
+          <button
             className={`${styles.navTab} ${viewMode === "chat" ? styles.navTabActive : ""}`}
             onClick={() => setViewMode("chat")}
           >
@@ -1438,6 +1498,13 @@ export default function Home() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
             Anki
           </button>
+          <button
+            className={`${styles.navTab} ${viewMode === "templates" ? styles.navTabActive : ""}`}
+            onClick={() => setViewMode("templates")}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+            Templates
+          </button>
           <a href="/dashboard" className={styles.navTab}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
             Dashboard
@@ -1455,6 +1522,15 @@ export default function Home() {
       </nav>
 
       <div className={styles.container}>
+      {viewMode === "flow" ? (
+        <FlowView
+          savedExtractions={savedExtractions}
+          userTemplates={userTemplates}
+          vaultPath={vaultPath}
+          onNewExtraction={handleFlowNewExtraction}
+        />
+      ) : (
+        <>
       {/* Left Sidebar */}
       <div className={styles.sidebar}>
         {/* Vault Path */}
@@ -2184,6 +2260,13 @@ export default function Home() {
             </div>
           )}
         </div>
+      ) : viewMode === "templates" ? (
+        /* ── Templates View ────────────────────────────────────────── */
+        <TemplatesView
+          templates={userTemplates}
+          onUpdate={handleTemplateUpdate}
+          onReset={handleTemplateReset}
+        />
       ) : (
         /* ── Anki View ──────────────────────────────────────────────── */
         <div className={styles.ankiContainer}>
@@ -2685,6 +2768,8 @@ export default function Home() {
           )}
         </div>
       </div>
+        </>
+      )}
       </div>
     </div>
   );

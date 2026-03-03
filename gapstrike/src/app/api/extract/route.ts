@@ -146,7 +146,66 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ result: parsed }, { status: 200 });
+    // ── Post-process: fix letter-only alternatives using explanation ──
+    const isLetterOnly = (val: string | null) => {
+      if (!val) return false;
+      const trimmed = val.trim();
+      // Matches patterns like "D", "D.", "D. D", "C. C", single letter answers
+      return /^[A-F]\.?\s*[A-F]?\.?$/i.test(trimmed) || trimmed.length <= 4;
+    };
+
+    const obj = Array.isArray(parsed) ? parsed[0] : parsed;
+    const needsFix =
+      obj &&
+      (isLetterOnly(obj.choosed_alternative) || isLetterOnly(obj.wrong_alternative)) &&
+      (obj.full_explanation || obj.educational_objective || obj.question);
+
+    if (needsFix) {
+      try {
+        const context = [
+          obj.full_explanation ? `Explanation: ${obj.full_explanation}` : "",
+          obj.educational_objective ? `Educational Objective: ${obj.educational_objective}` : "",
+          obj.question ? `Question: ${obj.question}` : "",
+        ].filter(Boolean).join("\n\n");
+
+        const fixPrompt = `Given this USMLE question context, identify the FULL text of these answer choices.
+
+${context}
+
+Student's chosen answer letter: ${obj.choosed_alternative || "unknown"}
+Correct answer letter: ${obj.wrong_alternative || "unknown"}
+
+Return ONLY valid JSON with these two fields:
+{
+  "choosed_alternative": "LETTER. Full text of the student's chosen answer",
+  "wrong_alternative": "LETTER. Full text of the correct answer"
+}
+
+Find the answer text from the explanation or context. If you cannot determine the full text, return the best description based on context.`;
+
+        const fixResp = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: fixPrompt }],
+          temperature: 0,
+          max_tokens: 300,
+        });
+
+        const fixRaw = fixResp.choices[0].message.content || "";
+        const fixCleaned = fixRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+        const fixParsed = JSON.parse(fixCleaned);
+
+        if (fixParsed.choosed_alternative && fixParsed.choosed_alternative.length > 5) {
+          obj.choosed_alternative = fixParsed.choosed_alternative;
+        }
+        if (fixParsed.wrong_alternative && fixParsed.wrong_alternative.length > 5) {
+          obj.wrong_alternative = fixParsed.wrong_alternative;
+        }
+      } catch {
+        // If fix fails, keep original values
+      }
+    }
+
+    return NextResponse.json({ result: Array.isArray(parsed) ? parsed : obj }, { status: 200 });
   } catch (error) {
     console.error("Extract API error:", error);
     const errorMessage =

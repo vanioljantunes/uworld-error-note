@@ -117,6 +117,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [ankiError, setAnkiError] = useState("");
   const [makingCard, setMakingCard] = useState(false);
   const [makeCardMsg, setMakeCardMsg] = useState("");
+  const [expandedFlowCard, setExpandedFlowCard] = useState<number | null>(null);
 
   // Upload
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -760,17 +761,40 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 ) : ankiCards.length === 0 ? (
                   <div className={styles.flowEmpty}>No cards found for {qId}</div>
                 ) : (
-                  ankiCards.map((card) => (
-                    <div key={card.card_id} className={styles.flowAnkiCard}>
+                  ankiCards.map((card) => {
+                    const isOpen = expandedFlowCard === card.note_id;
+                    const frontText = stripHtml(card.front);
+                    return (
                       <div
-                        className={styles.flowAnkiCardFront}
-                        dangerouslySetInnerHTML={{ __html: stripHtml(card.front).slice(0, 120) + (card.front.length > 120 ? "…" : "") }}
-                      />
-                      <div className={styles.flowAnkiCardMeta}>
-                        {card.deck} · {card.tags.join(", ")}
+                        key={card.card_id}
+                        className={`${styles.ankiCard} ${isOpen ? styles.ankiCardExpanded : ""}`}
+                        onClick={(e) => { e.stopPropagation(); setExpandedFlowCard(isOpen ? null : card.note_id); }}
+                      >
+                        <div className={styles.ankiCardHeader}>
+                          <div className={styles.ankiCardFront}>
+                            <span>{frontText || card.deck}</span>
+                          </div>
+                          <svg
+                            className={`${styles.ankiChevron} ${isOpen ? styles.ankiChevronOpen : ""}`}
+                            width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2"
+                            strokeLinecap="round" strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </div>
+                        {isOpen && (
+                          <>
+                            <div className={styles.ankiCardBack} dangerouslySetInnerHTML={{ __html: card.back }} />
+                            <div className={styles.ankiCardMeta}>
+                              <span className={styles.ankiMetaTag}>{card.deck}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </div>
-                  ))
+                    );
+                  }))
                 )}
               </>
             )}

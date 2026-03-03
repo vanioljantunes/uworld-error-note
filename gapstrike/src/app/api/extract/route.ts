@@ -47,15 +47,17 @@ Extract only the full question stem (vignette + lead-in).
 Do NOT include answer choices.
 
 choosed_alternative
-Return the FULL option selected by the student — the letter AND the complete text.
-NEVER return only the letter. Always include the full answer text.
-Format: "A. Acute tubular necrosis"
-If only the letter is visible, still try to find the answer text from the explanation or context.
+CRITICAL: Return the FULL text of the option selected by the student — letter AND complete text.
+Returning only the letter (e.g. "D") is WRONG. You MUST find the actual answer text.
+Look in the answer choices, the explanation, or the educational objective to find the full text.
+Format example: "D. Inhibition of acetylcholine release at the neuromuscular junction"
+If the screenshot shows highlighted/selected answers, extract the full text of the highlighted one.
 
 wrong_alternative
-Return the FULL correct answer (letter AND complete text) ONLY if the chosen one was wrong.
-NEVER return only the letter. Always include the full answer text.
-Format: "E. Mammillary bodies"
+CRITICAL: Return the FULL text of the correct answer — letter AND complete text.
+This is the answer the student SHOULD have picked. Only return if the student got it wrong.
+Returning only the letter is WRONG. Find the full answer text from choices or explanation.
+Format example: "E. Mammillary bodies"
 If the chosen answer was correct, return null.
 
 full_explanation

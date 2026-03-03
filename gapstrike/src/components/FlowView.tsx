@@ -123,7 +123,11 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [extracting, setExtracting] = useState(false);
 
   // Collapsible sections (all collapsed by default)
-  const [showExtraction, setShowExtraction] = useState(false);
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [showChosenAlt, setShowChosenAlt] = useState(false);
+  const [showCorrectAlt, setShowCorrectAlt] = useState(false);
+  const [showEduObj, setShowEduObj] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
   const [showPriorQuestions, setShowPriorQuestions] = useState(false);
 
   // ── Close dropdown on outside click ─────────────────────────────────────
@@ -254,7 +258,11 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setDiagnosticQuestions([]);
     setQuestionAnswers([]);
     setMcFeedback(null);
-    setShowExtraction(false);
+    setShowQuestion(false);
+    setShowChosenAlt(false);
+    setShowCorrectAlt(false);
+    setShowEduObj(false);
+    setShowExplanation(false);
     setShowPriorQuestions(false);
   };
 
@@ -636,44 +644,75 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                   </>
                 )}
 
-                {/* Extraction details — collapsible */}
-                <button className={styles.flowSectionToggle} onClick={() => setShowExtraction(!showExtraction)}>
-                  <span className={`${styles.flowSectionArrow} ${showExtraction ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                  Extraction Details
-                </button>
-                {showExtraction && (
-                  <div className={styles.flowSectionContent}>
-                    {ext?.question && (
+                {/* Individual field toggles */}
+                {ext?.question && (
+                  <>
+                    <button className={styles.flowSectionToggle} onClick={() => setShowQuestion(!showQuestion)}>
+                      <span className={`${styles.flowSectionArrow} ${showQuestion ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                      Question
+                    </button>
+                    {showQuestion && (
                       <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldLabel}>Question Stem</div>
                         <div className={styles.flowExtFieldValue}>{ext.question}</div>
                       </div>
                     )}
-                    {ext?.choosed_alternative && (
+                  </>
+                )}
+
+                {ext?.choosed_alternative && (
+                  <>
+                    <button className={styles.flowSectionToggle} onClick={() => setShowChosenAlt(!showChosenAlt)}>
+                      <span className={`${styles.flowSectionArrow} ${showChosenAlt ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                      Chosen Alternative
+                    </button>
+                    {showChosenAlt && (
                       <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldLabel}>Your Answer (Wrong)</div>
                         <div className={styles.flowExtFieldValue}>{ext.choosed_alternative}</div>
                       </div>
                     )}
-                    {ext?.wrong_alternative && (
+                  </>
+                )}
+
+                {ext?.wrong_alternative && (
+                  <>
+                    <button className={styles.flowSectionToggle} onClick={() => setShowCorrectAlt(!showCorrectAlt)}>
+                      <span className={`${styles.flowSectionArrow} ${showCorrectAlt ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                      Correct Alternative
+                    </button>
+                    {showCorrectAlt && (
                       <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldLabel}>Correct Answer</div>
                         <div className={styles.flowExtFieldValue}>{ext.wrong_alternative}</div>
                       </div>
                     )}
-                    {ext?.educational_objective && (
+                  </>
+                )}
+
+                {ext?.educational_objective && (
+                  <>
+                    <button className={styles.flowSectionToggle} onClick={() => setShowEduObj(!showEduObj)}>
+                      <span className={`${styles.flowSectionArrow} ${showEduObj ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                      Educational Objective
+                    </button>
+                    {showEduObj && (
                       <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldLabel}>Educational Objective</div>
                         <div className={styles.flowExtFieldValue}>{ext.educational_objective}</div>
                       </div>
                     )}
-                    {ext?.full_explanation && (
+                  </>
+                )}
+
+                {ext?.full_explanation && (
+                  <>
+                    <button className={styles.flowSectionToggle} onClick={() => setShowExplanation(!showExplanation)}>
+                      <span className={`${styles.flowSectionArrow} ${showExplanation ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                      Explanation
+                    </button>
+                    {showExplanation && (
                       <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldLabel}>Explanation</div>
                         <div className={styles.flowExtFieldValue}>{ext.full_explanation}</div>
                       </div>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             )}

@@ -680,14 +680,13 @@ export default function Home() {
     const difficulties = ["hard", "medium", "easy"];
     const difficulty = difficulties[count % 3];
     try {
-      const resp = await fetch(`${CREWAI_URL}/questions`, {
+      const resp = await fetch("/api/questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           extraction,
           previous_questions: prevQuestions,
           difficulty_target: difficulty,
-          vault_path: vaultPath,
         }),
       });
       if (!resp.ok) throw new Error(`Questions error: ${resp.status}`);

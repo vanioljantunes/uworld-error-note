@@ -1195,6 +1195,57 @@ export default function Home() {
     return () => clearTimeout(timeoutId);
   }, [ankiQuery, viewMode]);
 
+  // Flow: refresh Anki cards for active extraction
+  const refreshFlowAnkiCards = useCallback(async () => {
+    if (!activeFlowExtraction) {
+      setFlowAnkiCards([]);
+      return;
+    }
+    const qid = activeFlowExtraction.questionId || activeFlowExtraction.id;
+    try {
+      const cardIds = (await ankiConnect("findCards", { query: `tag:${qid}` })) as number[];
+      if (cardIds && cardIds.length > 0) {
+        const cardsInfo = (await ankiConnect("cardsInfo", { cards: cardIds })) as any[];
+        setFlowAnkiCards(
+          (cardsInfo || []).map((c: any) => ({
+            note_id: c.note,
+            card_id: c.cardId,
+            front: c.fields?.Front?.value || c.fields?.[Object.keys(c.fields)[0]]?.value || "",
+            back: c.fields?.Back?.value || c.fields?.[Object.keys(c.fields)[1]]?.value || "",
+            deck: c.deckName || "",
+            tags: c.tags || [],
+            field_names: Object.keys(c.fields || {}),
+            suspended: c.suspended || false,
+          }))
+        );
+      } else {
+        setFlowAnkiCards([]);
+      }
+    } catch {
+      setFlowAnkiCards([]);
+    }
+  }, [activeFlowExtraction]);
+
+  // Flow: auto-refresh Anki cards when extraction changes
+  useEffect(() => {
+    if (viewMode === "flow") {
+      refreshFlowAnkiCards();
+    }
+  }, [activeFlowExtraction, viewMode, refreshFlowAnkiCards]);
+
+  // Flow: close ID dropdown on outside click
+  useEffect(() => {
+    if (!showFlowIdDropdown) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(`.${styles.flowIdDropdown}`)) {
+        setShowFlowIdDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showFlowIdDropdown]);
+
   const handleSaveCard = async (card: AnkiCard) => {
     setAnkiSaving(true);
     setAnkiEditError("");

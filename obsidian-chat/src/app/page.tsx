@@ -196,6 +196,7 @@ export default function Home() {
   const [errorNoteResult, setErrorNoteResult] = useState<ErrorNoteResult | null>(null);
   const [showPostGenChoice, setShowPostGenChoice] = useState(false);
   const [showCreateNoteChoice, setShowCreateNoteChoice] = useState(false);
+  const [showQuestionPrompt, setShowQuestionPrompt] = useState(false);
 
   // Editor mode
   const [noteSearch, setNoteSearch] = useState("");
@@ -856,6 +857,7 @@ export default function Home() {
     setErrorNoteResult(null);
     setShowPostGenChoice(false);
     setShowCreateNoteChoice(false);
+    setShowQuestionPrompt(false);
   };
 
   const startNewChat = () => {
@@ -1503,11 +1505,22 @@ export default function Home() {
                       className={styles.extractionItem}
                       onClick={() => {
                         setExtractedJson(ext.extraction);
-                        setMessages([{
+                        setWorkflowStep("answering");
+                        setCurrentQuestion(null);
+                        setShowPostGenChoice(false);
+                        setShowCreateNoteChoice(false);
+                        setShowQuestionPrompt(true);
+                        setQuestionCount(0);
+                        setPreviousQuestions([]);
+                        setQuestionAnswers([]);
+                        setDiagnosticQuestions([]);
+                        setMcFeedback(null);
+                        const label = ext.questionId ? `QID ${ext.questionId}` : "extraction";
+                        setMessages(prev => [...prev, {
                           id: Date.now().toString(),
                           role: "assistant",
-                          content: JSON.stringify(ext.extraction, null, 2),
-                          isJson: true,
+                          content: `Loaded ${label}: **${ext.title}**`,
+                          isJson: false,
                         }]);
                       }}
                       title={ext.title}
@@ -1690,8 +1703,54 @@ export default function Home() {
             )}
           </div>
 
-          {workflowStep === "answering" && (showPostGenChoice || showCreateNoteChoice || currentQuestion !== null) && (
-            showPostGenChoice ? (
+          {workflowStep === "answering" && (showQuestionPrompt || showPostGenChoice || showCreateNoteChoice || currentQuestion !== null) && (
+            showQuestionPrompt ? (
+              /* ── Loaded extraction: generate question? ────────────── */
+              <div className={styles.questionCards}>
+                <div className={styles.questionCard}>
+                  <div style={{ fontSize: "14px", color: "#dcddde", marginBottom: "16px" }}>
+                    Would you like me to generate a question from this extraction?
+                  </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #22c55e", background: "rgba(34,197,94,0.15)", color: "#22c55e", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      onClick={async () => {
+                        setShowQuestionPrompt(false);
+                        setLoading(true);
+                        setWorkflowStep("questioning");
+                        setMessages(prev => [...prev, { id: Date.now().toString(), role: "assistant", content: "Generating question..." }]);
+                        const firstQ = await fetchNextQuestion(extractedJson, [], 0);
+                        setLoading(false);
+                        if (!firstQ) {
+                          setMessages(prev => [...prev, { id: Date.now().toString(), role: "assistant", content: "Could not generate a question. Try again." }]);
+                          setWorkflowStep("idle");
+                          return;
+                        }
+                        setCurrentQuestion(firstQ);
+                        setQuestionCount(1);
+                        setPreviousQuestions([firstQ.question]);
+                        setDiagnosticQuestions([firstQ.question]);
+                        setMcFeedback(null);
+                        const optionsText = firstQ.options.map((o: string, i: number) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n");
+                        setMessages(prev => [...prev, { id: Date.now().toString(), role: "assistant", content: `**Question 1** *(${firstQ.difficulty})*\n\n${firstQ.question}\n\n${optionsText}` }]);
+                        setWorkflowStep("answering");
+                      }}
+                    >
+                      Yes, Ask Me
+                    </button>
+                    <button
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #888", background: "#2a2a2a", color: "#dcddde", cursor: "pointer", fontSize: "13px", fontFamily: "inherit" }}
+                      onClick={() => {
+                        setShowQuestionPrompt(false);
+                        setWorkflowStep("idle");
+                      }}
+                    >
+                      No Thanks
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : showPostGenChoice ? (
               /* ── Post-generation: want more questions? ──────────────── */
               <div className={styles.questionCards}>
                 <div className={styles.questionCard}>

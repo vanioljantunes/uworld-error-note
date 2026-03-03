@@ -3982,3 +3982,60 @@
 .flowUploadInput {
   display: none;
 }
+
+/* Collapsible sections */
+.flowSectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 0;
+  margin-bottom: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: color 150ms;
+}
+.flowSectionToggle:hover {
+  color: var(--text);
+}
+.flowSectionArrow {
+  display: inline-block;
+  font-size: 9px;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.flowSectionArrowOpen {
+  transform: rotate(90deg);
+}
+.flowSectionContent {
+  overflow: hidden;
+}
+.flowPriorQuestion {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  border-left: 2px solid var(--border-hover);
+}
+.flowPriorQuestionDiff {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.flowPriorCorrect {
+  color: var(--green);
+}
+.flowPriorWrong {
+  color: var(--red);
+}

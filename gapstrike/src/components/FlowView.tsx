@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import styles from "../app/page.module.css";
 
-// ── Types (mirrored from page.tsx) ────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────
 
 interface SavedExtraction {
   id: string;
@@ -48,7 +48,7 @@ interface MCQuestionItem {
   difficulty: string;
 }
 
-// ── AnkiConnect (browser-direct) ──────────────────────────────────────────
+// ── AnkiConnect ───────────────────────────────────────────────────────────
 
 const ANKI_CONNECT_URL = "http://localhost:8765";
 
@@ -63,8 +63,6 @@ async function ankiConnect(action: string, params: Record<string, unknown> = {})
   if (data.error) throw new Error(data.error);
   return data.result;
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 function stripHtml(html: string): string {
   const div = document.createElement("div");
@@ -86,6 +84,7 @@ interface FlowViewProps {
 export default function FlowView({ savedExtractions, userTemplates, vaultPath, onNewExtraction }: FlowViewProps) {
   // ID selection
   const [activeExtraction, setActiveExtraction] = useState<SavedExtraction | null>(null);
+  const [shortTitle, setShortTitle] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -97,7 +96,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [questionCount, setQuestionCount] = useState(0);
   const [previousQuestions, setPreviousQuestions] = useState<string[]>([]);
   const [diagnosticQuestions, setDiagnosticQuestions] = useState<MCQuestionItem[]>([]);
-  const [questionAnswers, setQuestionAnswers] = useState<string[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<number[]>([]);
   const [fetchingQuestion, setFetchingQuestion] = useState(false);
   const [mcFeedback, setMcFeedback] = useState<{ selected: number; correct: number } | null>(null);
 
@@ -109,7 +108,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [savingNote, setSavingNote] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
-  // Matching notes for active ID
+  // Matching notes
   const [matchingNotes, setMatchingNotes] = useState<{ title: string; path: string }[]>([]);
 
   // Anki
@@ -123,6 +122,10 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const uploadRef = useRef<HTMLInputElement>(null);
   const [extracting, setExtracting] = useState(false);
 
+  // Collapsible sections (all collapsed by default)
+  const [showExtraction, setShowExtraction] = useState(false);
+  const [showPriorQuestions, setShowPriorQuestions] = useState(false);
+
   // ── Close dropdown on outside click ─────────────────────────────────────
 
   useEffect(() => {
@@ -135,6 +138,30 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [dropdownOpen]);
+
+  // ── Generate short title when extraction changes ────────────────────────
+
+  useEffect(() => {
+    if (!activeExtraction) { setShortTitle(""); return; }
+    const eduObj = activeExtraction.extraction?.educational_objective;
+    if (!eduObj) { setShortTitle(activeExtraction.title); return; }
+
+    (async () => {
+      try {
+        const resp = await fetch("/api/title", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: eduObj }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          setShortTitle(data.title || activeExtraction.title);
+        }
+      } catch {
+        setShortTitle(activeExtraction.title);
+      }
+    })();
+  }, [activeExtraction]);
 
   // ── Fetch Anki cards when extraction changes ────────────────────────────
 
@@ -187,7 +214,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     })();
   }, [activeExtraction]);
 
-  // Find all notes matching this extraction's question ID
+  // Find matching notes
   useEffect(() => {
     if (!activeExtraction) { setNoteContent(""); setNotePath(""); setNoteResult(null); setMatchingNotes([]); return; }
     const qId = activeExtraction.questionId || activeExtraction.extraction?.question_id;
@@ -205,15 +232,12 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         const notes = data.notes || [];
         const matches = notes.filter((n: any) => (n.tags || []).includes(qId));
         setMatchingNotes(matches.map((n: any) => ({ title: n.title, path: n.path })));
-        // Auto-load first matching note
-        if (matches.length > 0) {
-          loadNote(matches[0].path);
-        }
+        if (matches.length > 0) loadNote(matches[0].path);
       } catch { /* ignore */ }
     })();
   }, [activeExtraction, vaultPath]);
 
-  // ── Select extraction ───────────────────────────────────────────────────
+  // ── Actions ─────────────────────────────────────────────────────────────
 
   const selectExtraction = (ext: SavedExtraction) => {
     setActiveExtraction(ext);
@@ -224,16 +248,15 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setSaveMsg("");
     setMakeCardMsg("");
     setMatchingNotes([]);
-    // Reset question flow
     setCurrentQuestion(null);
     setQuestionCount(0);
     setPreviousQuestions([]);
     setDiagnosticQuestions([]);
     setQuestionAnswers([]);
     setMcFeedback(null);
+    setShowExtraction(false);
+    setShowPriorQuestions(false);
   };
-
-  // ── Load a note by path ─────────────────────────────────────────────────
 
   const loadNote = async (path: string) => {
     try {
@@ -250,8 +273,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     } catch { /* ignore */ }
   };
 
-  // ── Upload & extract ────────────────────────────────────────────────────
-
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -259,7 +280,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
     setExtracting(true);
     try {
-      // Convert to base64
       const images: string[] = [];
       for (const file of imageFiles) {
         const reader = new FileReader();
@@ -269,7 +289,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         });
         images.push(base64);
       }
-      // Extract — API returns { result: { question_id, question, ... } }
       const resp = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,15 +306,12 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       };
       onNewExtraction(newExt);
       selectExtraction(newExt);
-    } catch {
-      /* ignore */
-    } finally {
+    } catch { /* ignore */ }
+    finally {
       setExtracting(false);
       if (uploadRef.current) uploadRef.current.value = "";
     }
   };
-
-  // ── Fetch question ────────────────────────────────────────────────────
 
   const fetchNextQuestion = async () => {
     if (!activeExtraction || fetchingQuestion) return;
@@ -326,21 +342,17 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     finally { setFetchingQuestion(false); }
   };
 
-  // ── Answer question ───────────────────────────────────────────────────
-
   const handleAnswer = (selectedIdx: number) => {
     if (!currentQuestion || mcFeedback) return;
     setMcFeedback({ selected: selectedIdx, correct: currentQuestion.correct });
     setDiagnosticQuestions((prev) => [...prev, currentQuestion]);
-    setQuestionAnswers((prev) => [...prev, currentQuestion.options[selectedIdx]]);
+    setQuestionAnswers((prev) => [...prev, selectedIdx]);
   };
 
   const dismissFeedback = () => {
     setMcFeedback(null);
     setCurrentQuestion(null);
   };
-
-  // ── Generate note ───────────────────────────────────────────────────────
 
   const handleGenerateNote = async () => {
     if (!activeExtraction || generating) return;
@@ -349,13 +361,22 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setMakeCardMsg("");
     try {
       const template = userTemplates.find((t) => t.slug === "error_note_a")?.content || "";
+      const questionsPayload = diagnosticQuestions.map((q) => ({
+        question: q.question,
+        options: q.options,
+        correct: q.correct,
+        difficulty: q.difficulty,
+      }));
+      const answersPayload = questionAnswers.map((idx, i) =>
+        diagnosticQuestions[i] ? diagnosticQuestions[i].options[idx] : ""
+      );
       const resp = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           extraction: activeExtraction.extraction,
-          questions: diagnosticQuestions,
-          answers: questionAnswers,
+          questions: questionsPayload,
+          answers: answersPayload,
           template,
         }),
       });
@@ -367,21 +388,15 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         setNoteContent(note.note_content || "");
         setNotePath(note.file_path || "");
         setFocusedPanel("editor");
-        // Save note to vault
         await fetch("/api/save-note", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ vaultPath, notePath: note.file_path, content: note.note_content }),
         });
       }
-    } catch {
-      /* ignore */
-    } finally {
-      setGenerating(false);
-    }
+    } catch { /* ignore */ }
+    finally { setGenerating(false); }
   };
-
-  // ── Save note ───────────────────────────────────────────────────────────
 
   const handleSaveNote = async () => {
     if (!notePath || savingNote) return;
@@ -395,15 +410,12 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       });
       if (resp.ok) setSaveMsg("Saved");
       else setSaveMsg("Save failed");
-    } catch {
-      setSaveMsg("Save failed");
-    } finally {
+    } catch { setSaveMsg("Save failed"); }
+    finally {
       setSavingNote(false);
       setTimeout(() => setSaveMsg(""), 3000);
     }
   };
-
-  // ── Make card ───────────────────────────────────────────────────────────
 
   const handleMakeCard = async () => {
     if (!noteContent || makingCard) return;
@@ -418,7 +430,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       });
       const data = await resp.json();
       if (data.success && data.front) {
-        // Add to Anki
         await ankiConnect("addNote", {
           note: {
             deckName: "Default",
@@ -429,8 +440,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
           },
         });
         setMakeCardMsg("Card added!");
-        // Refresh Anki cards
-        setActiveExtraction((prev) => prev ? { ...prev } : null); // trigger re-fetch
+        setActiveExtraction((prev) => prev ? { ...prev } : null);
       } else {
         setMakeCardMsg(data.error || "Failed");
       }
@@ -447,6 +457,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const ext = activeExtraction?.extraction;
   const qId = activeExtraction?.questionId || ext?.question_id || null;
   const hasAnswered = questionAnswers.length > 0;
+  const displayTitle = shortTitle || activeExtraction?.title || "";
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -466,13 +477,9 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 </div>
               ) : (
                 savedExtractions.map((e) => (
-                  <button
-                    key={e.id}
-                    className={styles.flowIdDropdownItem}
-                    onClick={() => selectExtraction(e)}
-                  >
+                  <button key={e.id} className={styles.flowIdDropdownItem} onClick={() => selectExtraction(e)}>
                     <div className={styles.flowIdDropdownTitle}>
-                      {e.questionId || "?"} — {e.title}
+                      {e.questionId || "?"} — {e.title?.slice(0, 50)}
                     </div>
                     <div className={styles.flowIdDropdownMeta}>
                       {new Date(e.savedAt).toLocaleDateString()}
@@ -483,29 +490,17 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
             </div>
           )}
         </div>
-
-        <button
-          className={styles.flowIdBtn}
-          onClick={() => uploadRef.current?.click()}
-          disabled={extracting}
-        >
+        <button className={styles.flowIdBtn} onClick={() => uploadRef.current?.click()} disabled={extracting}>
           {extracting ? "Extracting…" : "Upload Screenshot"}
         </button>
-        <input
-          ref={uploadRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className={styles.flowUploadInput}
-          onChange={(e) => handleUpload(e.target.files)}
-        />
+        <input ref={uploadRef} type="file" accept="image/*" multiple className={styles.flowUploadInput} onChange={(e) => handleUpload(e.target.files)} />
       </div>
 
       {/* Active ID */}
       <div className={styles.flowActiveId}>
         {activeExtraction ? (
           <div className={styles.flowActiveIdLabel}>
-            {qId || "Unknown ID"} — {activeExtraction.title}
+            {qId || "Unknown ID"} — {displayTitle}
           </div>
         ) : (
           <div className={styles.flowActiveIdLabel} style={{ color: "var(--text-subtle)" }}>
@@ -516,7 +511,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
       {/* Three panels */}
       <div className={styles.flowPanels}>
-        {/* ── Questions Panel ────────────────────────────────────────── */}
+        {/* ── Questions Panel ── */}
         <div
           className={`${styles.flowPanel} ${focusedPanel === "questions" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
           onClick={() => setFocusedPanel(focusedPanel === "questions" ? null : "questions")}
@@ -564,14 +559,14 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 </div>
                 {mcFeedback && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button className={styles.flowGenerateBtn} onClick={dismissFeedback} style={{ flex: 1 }}>
+                    <button className={styles.flowGenerateBtn} onClick={dismissFeedback} style={{ flex: 1, marginTop: 0 }}>
                       {mcFeedback.selected === mcFeedback.correct ? "Next Question" : "Generate Note"}
                     </button>
                     {mcFeedback.selected === mcFeedback.correct && (
                       <button
                         className={styles.flowGenerateBtn}
                         onClick={() => { dismissFeedback(); handleGenerateNote(); }}
-                        style={{ flex: 1, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                        style={{ flex: 1, marginTop: 0, background: "var(--bg-elevated)", border: "1px solid var(--accent)" }}
                       >
                         Skip to Note
                       </button>
@@ -580,31 +575,27 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 )}
               </div>
             ) : (
-              /* ── Extraction summary + action buttons ── */
-              <div className={styles.flowExtSummary}>
-                {ext?.question && (
-                  <div className={styles.flowExtField}>
-                    <div className={styles.flowExtFieldLabel}>Question</div>
-                    <div className={styles.flowExtFieldValue}>{ext.question}</div>
-                  </div>
-                )}
-                {ext?.choosed_alternative && (
-                  <div className={styles.flowExtField}>
-                    <div className={styles.flowExtFieldLabel}>Your Answer (Wrong)</div>
-                    <div className={styles.flowExtFieldValue}>{ext.choosed_alternative}</div>
-                  </div>
-                )}
-                {ext?.wrong_alternative && (
-                  <div className={styles.flowExtField}>
-                    <div className={styles.flowExtFieldLabel}>Correct Answer</div>
-                    <div className={styles.flowExtFieldValue}>{ext.wrong_alternative}</div>
-                  </div>
-                )}
-                {ext?.educational_objective && (
-                  <div className={styles.flowExtField}>
-                    <div className={styles.flowExtFieldLabel}>Educational Objective</div>
-                    <div className={styles.flowExtFieldValue}>{ext.educational_objective}</div>
-                  </div>
+              /* ── Summary view with generate button on top ── */
+              <div className={styles.flowExtSummary} onClick={(e) => e.stopPropagation()}>
+                {/* Generate Question button — FIRST */}
+                <button
+                  className={styles.flowGenerateBtn}
+                  onClick={fetchNextQuestion}
+                  disabled={fetchingQuestion}
+                  style={{ marginTop: 0, marginBottom: 12 }}
+                >
+                  {fetchingQuestion ? "Generating…" : questionCount > 0 ? "More Questions" : "Generate Question"}
+                </button>
+
+                {hasAnswered && !noteResult && (
+                  <button
+                    className={styles.flowGenerateBtn}
+                    onClick={handleGenerateNote}
+                    disabled={generating}
+                    style={{ marginTop: 0, marginBottom: 12, background: "var(--bg-elevated)", border: "1px solid var(--accent)" }}
+                  >
+                    {generating ? "Generating Note…" : "Generate Note"}
+                  </button>
                 )}
 
                 {noteResult && (
@@ -619,30 +610,77 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                   </div>
                 )}
 
-                <button
-                  className={styles.flowGenerateBtn}
-                  onClick={(e) => { e.stopPropagation(); fetchNextQuestion(); }}
-                  disabled={fetchingQuestion}
-                >
-                  {fetchingQuestion ? "Generating…" : questionCount > 0 ? "More Questions" : "Generate Question"}
-                </button>
+                {/* Prior questions — collapsible */}
+                {diagnosticQuestions.length > 0 && (
+                  <>
+                    <button className={styles.flowSectionToggle} onClick={() => setShowPriorQuestions(!showPriorQuestions)}>
+                      <span className={`${styles.flowSectionArrow} ${showPriorQuestions ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                      Prior Questions ({diagnosticQuestions.length})
+                    </button>
+                    {showPriorQuestions && (
+                      <div className={styles.flowSectionContent}>
+                        {diagnosticQuestions.map((dq, i) => {
+                          const answerIdx = questionAnswers[i];
+                          const wasCorrect = answerIdx === dq.correct;
+                          return (
+                            <div key={i} className={styles.flowPriorQuestion}>
+                              <div className={`${styles.flowPriorQuestionDiff} ${wasCorrect ? styles.flowPriorCorrect : styles.flowPriorWrong}`}>
+                                {dq.difficulty} · {wasCorrect ? "Correct" : "Wrong"}
+                              </div>
+                              <div>{dq.question.slice(0, 100)}{dq.question.length > 100 ? "…" : ""}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
 
-                {hasAnswered && !noteResult && (
-                  <button
-                    className={styles.flowGenerateBtn}
-                    onClick={(e) => { e.stopPropagation(); handleGenerateNote(); }}
-                    disabled={generating}
-                    style={{ marginTop: 4, background: "var(--bg-elevated)", border: "1px solid var(--accent)" }}
-                  >
-                    {generating ? "Generating Note…" : "Generate Note"}
-                  </button>
+                {/* Extraction details — collapsible */}
+                <button className={styles.flowSectionToggle} onClick={() => setShowExtraction(!showExtraction)}>
+                  <span className={`${styles.flowSectionArrow} ${showExtraction ? styles.flowSectionArrowOpen : ""}`}>▶</span>
+                  Extraction Details
+                </button>
+                {showExtraction && (
+                  <div className={styles.flowSectionContent}>
+                    {ext?.question && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Question Stem</div>
+                        <div className={styles.flowExtFieldValue}>{ext.question}</div>
+                      </div>
+                    )}
+                    {ext?.choosed_alternative && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Your Answer (Wrong)</div>
+                        <div className={styles.flowExtFieldValue}>{ext.choosed_alternative}</div>
+                      </div>
+                    )}
+                    {ext?.wrong_alternative && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Correct Answer</div>
+                        <div className={styles.flowExtFieldValue}>{ext.wrong_alternative}</div>
+                      </div>
+                    )}
+                    {ext?.educational_objective && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Educational Objective</div>
+                        <div className={styles.flowExtFieldValue}>{ext.educational_objective}</div>
+                      </div>
+                    )}
+                    {ext?.full_explanation && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Explanation</div>
+                        <div className={styles.flowExtFieldValue}>{ext.full_explanation}</div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Note Editor Panel ──────────────────────────────────────── */}
+        {/* ── Note Editor Panel ── */}
         <div
           className={`${styles.flowPanel} ${focusedPanel === "editor" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
           onClick={() => setFocusedPanel(focusedPanel === "editor" ? null : "editor")}
@@ -686,15 +724,13 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
           ) : (
             <div className={styles.flowPanelBody}>
               <div className={styles.flowEmpty}>
-                {activeExtraction
-                  ? "Answer a question, then generate a note"
-                  : "Select an extraction to get started"}
+                {activeExtraction ? "Answer a question, then generate a note" : "Select an extraction to get started"}
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Anki Panel ─────────────────────────────────────────────── */}
+        {/* ── Anki Panel ── */}
         <div
           className={`${styles.flowPanel} ${focusedPanel === "anki" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
           onClick={() => setFocusedPanel(focusedPanel === "anki" ? null : "anki")}

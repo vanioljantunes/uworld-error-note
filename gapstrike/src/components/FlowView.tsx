@@ -422,17 +422,23 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
           });
           if (saveResp.ok) { setSaveMsg("Saved to vault"); }
           else {
-            await navigator.clipboard.writeText(note.note_content);
-            setSaveMsg("Copied to clipboard");
+            saveViaObsidian(note.file_path, note.note_content);
+            setSaveMsg("Saved via Obsidian");
           }
         } catch {
-          try { await navigator.clipboard.writeText(note.note_content); setSaveMsg("Copied to clipboard"); }
+          try { saveViaObsidian(note.file_path, note.note_content); setSaveMsg("Saved via Obsidian"); }
           catch { /* silent */ }
         }
         setTimeout(() => setSaveMsg(""), 4000);
       }
     } catch { /* ignore */ }
     finally { setGenerating(false); }
+  };
+
+  const saveViaObsidian = (filePath: string, content: string) => {
+    const vaultName = vaultPath.split(/[/\\]/).filter(Boolean).pop() || "";
+    const uri = `obsidian://new?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(filePath.replace(/\.md$/, ""))}&content=${encodeURIComponent(content)}&overwrite=true`;
+    window.open(uri, "_self");
   };
 
   const handleSaveNote = async () => {
@@ -447,13 +453,14 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       });
       if (resp.ok) { setSaveMsg("Saved"); }
       else {
-        // Server save failed (e.g. deployed on Vercel) — copy to clipboard instead
-        await navigator.clipboard.writeText(noteContent);
-        setSaveMsg("Copied to clipboard");
+        saveViaObsidian(notePath, noteContent);
+        setSaveMsg("Saved via Obsidian");
       }
     } catch {
-      try { await navigator.clipboard.writeText(noteContent); setSaveMsg("Copied to clipboard"); }
-      catch { setSaveMsg("Save failed"); }
+      try {
+        saveViaObsidian(notePath, noteContent);
+        setSaveMsg("Saved via Obsidian");
+      } catch { setSaveMsg("Save failed"); }
     }
     finally {
       setSavingNote(false);

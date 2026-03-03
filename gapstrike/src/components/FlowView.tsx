@@ -122,13 +122,9 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const uploadRef = useRef<HTMLInputElement>(null);
   const [extracting, setExtracting] = useState(false);
 
-  // Collapsible sections (all collapsed by default)
-  const [showQuestion, setShowQuestion] = useState(false);
-  const [showChosenAlt, setShowChosenAlt] = useState(false);
-  const [showCorrectAlt, setShowCorrectAlt] = useState(false);
-  const [showEduObj, setShowEduObj] = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [showPriorQuestions, setShowPriorQuestions] = useState(false);
+  // Active extraction tab
+  type ExtTab = "question" | "chosen" | "correct" | "educational" | "explanation";
+  const [activeExtTab, setActiveExtTab] = useState<ExtTab>("question");
 
   // ── Close dropdown on outside click ─────────────────────────────────────
 
@@ -258,12 +254,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setDiagnosticQuestions([]);
     setQuestionAnswers([]);
     setMcFeedback(null);
-    setShowQuestion(false);
-    setShowChosenAlt(false);
-    setShowCorrectAlt(false);
-    setShowEduObj(false);
-    setShowExplanation(false);
-    setShowPriorQuestions(false);
+    setActiveExtTab("question");
   };
 
   const loadNote = async (path: string) => {
@@ -618,101 +609,41 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                   </div>
                 )}
 
-                {/* Prior questions — collapsible */}
-                {diagnosticQuestions.length > 0 && (
-                  <>
-                    <button className={styles.flowSectionToggle} onClick={() => setShowPriorQuestions(!showPriorQuestions)}>
-                      <span className={`${styles.flowSectionArrow} ${showPriorQuestions ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                      Prior Questions ({diagnosticQuestions.length})
-                    </button>
-                    {showPriorQuestions && (
-                      <div className={styles.flowSectionContent}>
-                        {diagnosticQuestions.map((dq, i) => {
-                          const answerIdx = questionAnswers[i];
-                          const wasCorrect = answerIdx === dq.correct;
-                          return (
-                            <div key={i} className={styles.flowPriorQuestion}>
-                              <div className={`${styles.flowPriorQuestionDiff} ${wasCorrect ? styles.flowPriorCorrect : styles.flowPriorWrong}`}>
-                                {dq.difficulty} · {wasCorrect ? "Correct" : "Wrong"}
-                              </div>
-                              <div>{dq.question.slice(0, 100)}{dq.question.length > 100 ? "…" : ""}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
+                {/* Extraction tab navbar */}
+                <div className={styles.flowExtTabs}>
+                  <button className={`${styles.flowExtTab} ${activeExtTab === "question" ? styles.flowExtTabActive : ""}`} onClick={() => setActiveExtTab("question")}>Question</button>
+                  <button className={`${styles.flowExtTab} ${activeExtTab === "chosen" ? styles.flowExtTabActive : ""}`} onClick={() => setActiveExtTab("chosen")}>Chosen</button>
+                  <button className={`${styles.flowExtTab} ${activeExtTab === "correct" ? styles.flowExtTabActive : ""}`} onClick={() => setActiveExtTab("correct")}>Correct</button>
+                  <button className={`${styles.flowExtTab} ${activeExtTab === "educational" ? styles.flowExtTabActive : ""}`} onClick={() => setActiveExtTab("educational")}>Educational</button>
+                  <button className={`${styles.flowExtTab} ${activeExtTab === "explanation" ? styles.flowExtTabActive : ""}`} onClick={() => setActiveExtTab("explanation")}>Explanation</button>
+                </div>
 
-                {/* Individual field toggles */}
-                {ext?.question && (
-                  <>
-                    <button className={styles.flowSectionToggle} onClick={() => setShowQuestion(!showQuestion)}>
-                      <span className={`${styles.flowSectionArrow} ${showQuestion ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                      Question
-                    </button>
-                    {showQuestion && (
-                      <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldValue}>{ext.question}</div>
-                      </div>
-                    )}
-                  </>
-                )}
+                {/* Tab content — scrollable */}
+                <div className={styles.flowExtTabContent}>
+                  {activeExtTab === "question" && (ext?.question || <span className={styles.flowExtTabEmpty}>No question extracted</span>)}
+                  {activeExtTab === "chosen" && (ext?.choosed_alternative || <span className={styles.flowExtTabEmpty}>No chosen alternative extracted</span>)}
+                  {activeExtTab === "correct" && (ext?.wrong_alternative || <span className={styles.flowExtTabEmpty}>No correct alternative extracted</span>)}
+                  {activeExtTab === "educational" && (ext?.educational_objective || <span className={styles.flowExtTabEmpty}>No educational objective extracted</span>)}
+                  {activeExtTab === "explanation" && (ext?.full_explanation || <span className={styles.flowExtTabEmpty}>No explanation extracted</span>)}
+                </div>
 
-                {ext?.choosed_alternative && (
-                  <>
-                    <button className={styles.flowSectionToggle} onClick={() => setShowChosenAlt(!showChosenAlt)}>
-                      <span className={`${styles.flowSectionArrow} ${showChosenAlt ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                      Chosen Alternative
-                    </button>
-                    {showChosenAlt && (
-                      <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldValue}>{ext.choosed_alternative}</div>
+                {/* Past questions list — always visible */}
+                <div className={styles.flowPastHeader}>Past Questions ({diagnosticQuestions.length})</div>
+                {diagnosticQuestions.length === 0 ? (
+                  <div className={styles.flowPriorEmpty}>No questions generated yet</div>
+                ) : (
+                  diagnosticQuestions.map((dq, i) => {
+                    const answerIdx = questionAnswers[i];
+                    const wasCorrect = answerIdx === dq.correct;
+                    return (
+                      <div key={i} className={styles.flowPriorQuestion}>
+                        <div className={`${styles.flowPriorQuestionDiff} ${wasCorrect ? styles.flowPriorCorrect : styles.flowPriorWrong}`}>
+                          {dq.difficulty} · {wasCorrect ? "Correct" : "Wrong"}
+                        </div>
+                        <div>{dq.question.slice(0, 100)}{dq.question.length > 100 ? "…" : ""}</div>
                       </div>
-                    )}
-                  </>
-                )}
-
-                {ext?.wrong_alternative && (
-                  <>
-                    <button className={styles.flowSectionToggle} onClick={() => setShowCorrectAlt(!showCorrectAlt)}>
-                      <span className={`${styles.flowSectionArrow} ${showCorrectAlt ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                      Correct Alternative
-                    </button>
-                    {showCorrectAlt && (
-                      <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldValue}>{ext.wrong_alternative}</div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {ext?.educational_objective && (
-                  <>
-                    <button className={styles.flowSectionToggle} onClick={() => setShowEduObj(!showEduObj)}>
-                      <span className={`${styles.flowSectionArrow} ${showEduObj ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                      Educational Objective
-                    </button>
-                    {showEduObj && (
-                      <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldValue}>{ext.educational_objective}</div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {ext?.full_explanation && (
-                  <>
-                    <button className={styles.flowSectionToggle} onClick={() => setShowExplanation(!showExplanation)}>
-                      <span className={`${styles.flowSectionArrow} ${showExplanation ? styles.flowSectionArrowOpen : ""}`}>▶</span>
-                      Explanation
-                    </button>
-                    {showExplanation && (
-                      <div className={styles.flowExtField}>
-                        <div className={styles.flowExtFieldValue}>{ext.full_explanation}</div>
-                      </div>
-                    )}
-                  </>
+                    );
+                  })
                 )}
               </div>
             )}

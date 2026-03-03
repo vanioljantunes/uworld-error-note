@@ -251,6 +251,58 @@
 
 /* ── Chat History Sidebar ── */
 
+.extractionSection {
+  margin-top: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.extractionList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.extractionItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 28px 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.extractionItem:hover {
+  background: #1e1e1e;
+  border-color: #2a2a2a;
+}
+
+.extractionItem:hover .chatHistoryDeleteBtn {
+  opacity: 1;
+}
+
+.extractionQid {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-light);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.extractionTitle {
+  font-size: 12px;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
 .chatHistorySection {
   display: flex;
   flex-direction: column;

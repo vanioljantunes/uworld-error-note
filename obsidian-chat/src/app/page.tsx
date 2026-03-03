@@ -78,6 +78,14 @@ interface ChatSession {
   updatedAt: number;
 }
 
+interface SavedExtraction {
+  id: string;
+  questionId: string | null;
+  title: string;
+  extraction: any;
+  savedAt: number;
+}
+
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -235,6 +243,9 @@ export default function Home() {
   const currentSessionIdRef = useRef<string | null>(null);
   // null = loading, -1 = Anki unavailable, 0 = no cards, N = card count
 
+  // Saved extractions
+  const [savedExtractions, setSavedExtractions] = useState<SavedExtraction[]>([]);
+
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
 
@@ -341,6 +352,10 @@ export default function Home() {
     try {
       const stored = localStorage.getItem("chatSessions");
       if (stored) setChatSessions(JSON.parse(stored));
+    } catch { }
+    try {
+      const stored = localStorage.getItem("savedExtractions");
+      if (stored) setSavedExtractions(JSON.parse(stored));
     } catch { }
   }, []);
 
@@ -701,6 +716,23 @@ export default function Home() {
       const extracted = extractData.result;
       setExtractedJson(extracted);
       setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: JSON.stringify(extracted, null, 2), isJson: true }]);
+
+      // Save extraction to history
+      const qId = extracted.question_id ?? null;
+      const eduObj = extracted.educational_objective ?? extracted.question ?? "";
+      const shortTitle = eduObj.length > 50 ? eduObj.slice(0, 50) + "…" : eduObj;
+      const newExtraction: SavedExtraction = {
+        id: Date.now().toString(),
+        questionId: qId,
+        title: shortTitle,
+        extraction: extracted,
+        savedAt: Date.now(),
+      };
+      setSavedExtractions(prev => {
+        const updated = [newExtraction, ...prev];
+        localStorage.setItem("savedExtractions", JSON.stringify(updated));
+        return updated;
+      });
 
       setWorkflowStep("questioning");
       const firstQuestion = await fetchNextQuestion(extracted, [], 0);
@@ -1459,6 +1491,50 @@ export default function Home() {
         {/* Chat sidebar content */}
         {viewMode === "chat" && (
           <>
+            {/* Saved extractions */}
+            {savedExtractions.length > 0 && (
+              <div className={styles.extractionSection}>
+                <div className={styles.chatHistoryHeader}>
+                  <span className={styles.chatHistoryTitle}>Extractions</span>
+                </div>
+                <div className={styles.extractionList}>
+                  {savedExtractions.map((ext) => (
+                    <div
+                      key={ext.id}
+                      className={styles.extractionItem}
+                      onClick={() => {
+                        setExtractedJson(ext.extraction);
+                        setMessages([{
+                          id: Date.now().toString(),
+                          role: "assistant",
+                          content: JSON.stringify(ext.extraction, null, 2),
+                          isJson: true,
+                        }]);
+                      }}
+                      title={ext.title}
+                    >
+                      <span className={styles.extractionQid}>{ext.questionId ?? "—"}</span>
+                      <span className={styles.extractionTitle}>{ext.title}</span>
+                      <button
+                        className={styles.chatHistoryDeleteBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSavedExtractions(prev => {
+                            const updated = prev.filter(x => x.id !== ext.id);
+                            localStorage.setItem("savedExtractions", JSON.stringify(updated));
+                            return updated;
+                          });
+                        }}
+                        title="Delete"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Chat history */}
             <div className={styles.chatHistorySection}>
               <div className={styles.chatHistoryHeader}>

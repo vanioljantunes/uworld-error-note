@@ -185,7 +185,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setAnkiError("");
     (async () => {
       try {
-        const cardIds = (await ankiConnect("findCards", { query: `tag:${qId}` })) as number[];
+        const cardIds = (await ankiConnect("findCards", { query: `tag:*UWorld::${qId} OR tag:${qId}` })) as number[];
         if (!cardIds || cardIds.length === 0) { setAnkiCards([]); return; }
         const cardsInfo = (await ankiConnect("cardsInfo", { cards: cardIds.slice(-20).reverse() })) as any[];
         const noteIds = [...new Set(cardsInfo.map((c: any) => c.note as number))];
@@ -398,11 +398,22 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         setNoteContent(note.note_content || "");
         setNotePath(note.file_path || "");
         setFocusedPanel("editor");
-        await fetch("/api/save-note", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vaultPath, notePath: note.file_path, content: note.note_content }),
-        });
+        try {
+          const saveResp = await fetch("/api/save-note", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vaultPath, notePath: note.file_path, content: note.note_content }),
+          });
+          if (saveResp.ok) { setSaveMsg("Saved to vault"); }
+          else {
+            await navigator.clipboard.writeText(note.note_content);
+            setSaveMsg("Copied to clipboard");
+          }
+        } catch {
+          try { await navigator.clipboard.writeText(note.note_content); setSaveMsg("Copied to clipboard"); }
+          catch { /* silent */ }
+        }
+        setTimeout(() => setSaveMsg(""), 4000);
       }
     } catch { /* ignore */ }
     finally { setGenerating(false); }
@@ -418,9 +429,16 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vaultPath, notePath, content: noteContent }),
       });
-      if (resp.ok) setSaveMsg("Saved");
-      else setSaveMsg("Save failed");
-    } catch { setSaveMsg("Save failed"); }
+      if (resp.ok) { setSaveMsg("Saved"); }
+      else {
+        // Server save failed (e.g. deployed on Vercel) — copy to clipboard instead
+        await navigator.clipboard.writeText(noteContent);
+        setSaveMsg("Copied to clipboard");
+      }
+    } catch {
+      try { await navigator.clipboard.writeText(noteContent); setSaveMsg("Copied to clipboard"); }
+      catch { setSaveMsg("Save failed"); }
+    }
     finally {
       setSavingNote(false);
       setTimeout(() => setSaveMsg(""), 3000);

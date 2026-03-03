@@ -1353,11 +1353,10 @@ export default function Home() {
   };
 
   return (
-    <div className={styles.container}>
-      {/* Left Sidebar */}
-      <div className={styles.sidebar}>
-        <div className={styles.sidebarHeader}>
-          {/* GapStrike inline bolt icon */}
+    <div className={styles.appWrapper}>
+      {/* Top Navbar */}
+      <nav className={styles.navbar}>
+        <a href="/" className={styles.navBrand}>
           <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <rect width="32" height="32" rx="7" fill="#0d0618"/>
             <defs>
@@ -1372,34 +1371,39 @@ export default function Home() {
             <polygon points="18,2 7,17 14,17 12,30 23,17 16,17" fill="url(#hdrBolt)"/>
           </svg>
           <span className={styles.sidebarAppName}>GapStrike</span>
-        </div>
-
-        {/* View Toggle */}
-        <div className={styles.viewToggle}>
+        </a>
+        <div className={styles.navTabs}>
           <button
-            className={`${styles.viewToggleBtn} ${viewMode === "chat" ? styles.viewToggleActive : ""}`}
+            className={`${styles.navTab} ${viewMode === "chat" ? styles.navTabActive : ""}`}
             onClick={() => setViewMode("chat")}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
             Chat
           </button>
           <button
-            className={`${styles.viewToggleBtn} ${viewMode === "editor" ? styles.viewToggleActive : ""}`}
+            className={`${styles.navTab} ${viewMode === "editor" ? styles.navTabActive : ""}`}
             onClick={() => setViewMode("editor")}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
             Editor
           </button>
           <button
-            className={`${styles.viewToggleBtn} ${viewMode === "anki" ? styles.viewToggleActive : ""}`}
+            className={`${styles.navTab} ${viewMode === "anki" ? styles.navTabActive : ""}`}
             onClick={() => setViewMode("anki")}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
             Anki
           </button>
+          <a href="/dashboard" className={styles.navTab}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+            Dashboard
+          </a>
         </div>
-        <div className={styles.viewToggleDivider} />
+      </nav>
 
+      <div className={styles.container}>
+      {/* Left Sidebar */}
+      <div className={styles.sidebar}>
         {/* Vault Path */}
         <div className={styles.pathSection}>
           <button
@@ -2526,6 +2530,7 @@ export default function Home() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

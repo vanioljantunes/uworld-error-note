@@ -28,31 +28,46 @@
 
 .navTabs {
   display: flex;
-  gap: 2px;
-  background: var(--bg-elevated);
-  border-radius: 8px;
-  padding: 3px;
+  gap: 4px;
+  background: transparent;
+  padding: 0;
 }
 
 .navTab {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 8px 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: #888;
   background: transparent;
-  transition: all 0.2s;
+  transition: color 200ms cubic-bezier(0.16, 1, 0.3, 1);
   font-family: inherit;
   text-decoration: none;
+  position: relative;
+}
+
+.navTab::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  opacity: 0;
+  transform: scaleX(0.5);
+  transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .navTab:hover {
-  color: #ccc;
+  color: var(--text);
 }
 
 .navTab:focus-visible {
@@ -61,9 +76,12 @@
 }
 
 .navTabActive {
-  background: var(--accent);
   color: white;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.navTabActive::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 @keyframes navFadeIn {

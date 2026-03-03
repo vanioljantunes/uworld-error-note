@@ -247,6 +247,19 @@ export default function Home() {
   // Saved extractions
   const [savedExtractions, setSavedExtractions] = useState<SavedExtraction[]>([]);
 
+  // Flow view state
+  const [activeFlowExtraction, setActiveFlowExtraction] = useState<SavedExtraction | null>(null);
+  const [focusedPanel, setFocusedPanel] = useState<"questions" | "editor" | "anki" | null>(null);
+  const [flowNoteContent, setFlowNoteContent] = useState("");
+  const [flowNotePath, setFlowNotePath] = useState("");
+  const [flowAnkiCards, setFlowAnkiCards] = useState<AnkiCard[]>([]);
+  const [flowGenerating, setFlowGenerating] = useState(false);
+  const [flowSavingNote, setFlowSavingNote] = useState(false);
+  const [flowMakingCard, setFlowMakingCard] = useState(false);
+  const [showFlowIdDropdown, setShowFlowIdDropdown] = useState(false);
+  const [flowErrorPattern, setFlowErrorPattern] = useState<string>("");
+  const [flowTags, setFlowTags] = useState<string[]>([]);
+
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
 
@@ -1461,6 +1474,318 @@ export default function Home() {
         )}
       </nav>
 
+      {viewMode === "flow" ? (
+        <div className={styles.flowContainer}>
+          {/* ID Bar */}
+          <div className={styles.flowIdBar}>
+            <div className={styles.flowIdDropdown}>
+              <button
+                className={styles.flowIdBtn}
+                onClick={() => setShowFlowIdDropdown(!showFlowIdDropdown)}
+              >
+                &#9660; {activeFlowExtraction ? "Change extraction" : "Choose extraction"}
+              </button>
+              {showFlowIdDropdown && (
+                <div className={styles.flowIdDropdownMenu}>
+                  {savedExtractions.map((ext) => (
+                    <button
+                      key={ext.id}
+                      className={styles.flowIdDropdownItem}
+                      onClick={() => {
+                        setActiveFlowExtraction(ext);
+                        setShowFlowIdDropdown(false);
+                        setFlowNoteContent("");
+                        setFlowNotePath("");
+                        setFlowErrorPattern("");
+                        setFlowTags([]);
+                      }}
+                    >
+                      {ext.questionId ? `#${ext.questionId}` : ext.id.slice(0, 8)} &mdash; {ext.title}
+                      {ext.extraction?.educational_objective && (
+                        <div className={styles.flowIdDropdownItemSub}>
+                          {ext.extraction.educational_objective}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                  {savedExtractions.length === 0 && (
+                    <div className={styles.flowIdDropdownItem} style={{ color: "#666", cursor: "default" }}>
+                      No extractions yet
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.flowActiveId}>
+              {activeFlowExtraction ? (
+                <>
+                  <div className={styles.flowActiveIdTitle}>
+                    {activeFlowExtraction.questionId ? `#${activeFlowExtraction.questionId}` : activeFlowExtraction.id.slice(0, 8)} &mdash; {activeFlowExtraction.title}
+                  </div>
+                  {activeFlowExtraction.extraction?.educational_objective && (
+                    <div className={styles.flowActiveIdSub}>
+                      {activeFlowExtraction.extraction.educational_objective}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className={styles.flowActiveIdSub}>Select an extraction to begin</div>
+              )}
+            </div>
+
+            <label className={`${styles.flowIdBtn} ${styles.flowIdBtnAccent}`} style={{ cursor: "pointer" }}>
+              Upload
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  const base64Arr: string[] = [];
+                  for (const f of Array.from(files)) {
+                    const reader = new FileReader();
+                    const b64: string = await new Promise((res) => {
+                      reader.onload = () => res(reader.result as string);
+                      reader.readAsDataURL(f);
+                    });
+                    base64Arr.push(b64.split(",")[1]);
+                  }
+                  try {
+                    const resp = await fetch("/api/extract", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ images: base64Arr }),
+                    });
+                    const data = await resp.json();
+                    if (data.extraction) {
+                      const newExt: SavedExtraction = {
+                        id: Date.now().toString(),
+                        questionId: data.extraction.question_id || null,
+                        title: data.extraction.question_id
+                          ? `Q${data.extraction.question_id}`
+                          : data.extraction.educational_objective?.slice(0, 40) || "Extraction",
+                        extraction: data.extraction,
+                        savedAt: Date.now(),
+                      };
+                      setSavedExtractions((prev) => [newExt, ...prev]);
+                      setActiveFlowExtraction(newExt);
+                      setFlowNoteContent("");
+                      setFlowNotePath("");
+                    }
+                  } catch (err) {
+                    console.error("Extract failed:", err);
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+
+          {/* 3-Panel Layout */}
+          <div className={styles.flowPanels}>
+            {/* Questions Panel */}
+            <div
+              className={`${styles.flowPanel} ${focusedPanel === "questions" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
+              onClick={() => setFocusedPanel(focusedPanel === "questions" ? null : "questions")}
+            >
+              <div className={styles.flowPanelHeader}>Questions</div>
+              <div className={styles.flowPanelBody}>
+                {activeFlowExtraction ? (
+                  <div className={styles.flowExtSummary}>
+                    {activeFlowExtraction.extraction?.question_stem && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Question</div>
+                        {activeFlowExtraction.extraction.question_stem}
+                      </div>
+                    )}
+                    {activeFlowExtraction.extraction?.student_answer && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Your Answer (Wrong)</div>
+                        {activeFlowExtraction.extraction.student_answer}
+                      </div>
+                    )}
+                    {activeFlowExtraction.extraction?.correct_answer && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Correct Answer</div>
+                        {activeFlowExtraction.extraction.correct_answer}
+                      </div>
+                    )}
+                    {activeFlowExtraction.extraction?.educational_objective && (
+                      <div className={styles.flowExtField}>
+                        <div className={styles.flowExtFieldLabel}>Educational Objective</div>
+                        {activeFlowExtraction.extraction.educational_objective}
+                      </div>
+                    )}
+                    <button
+                      className={styles.flowGenerateBtn}
+                      disabled={flowGenerating}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!activeFlowExtraction) return;
+                        setFlowGenerating(true);
+                        try {
+                          const resp = await fetch("/api/generate", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              extraction: activeFlowExtraction.extraction,
+                              vault_path: vaultPath,
+                            }),
+                          });
+                          const data = await resp.json();
+                          if (data.notes && data.notes.length > 0) {
+                            const note = data.notes[0];
+                            setFlowNoteContent(note.note_content || "");
+                            setFlowNotePath(note.file_path || "");
+                            setFlowErrorPattern(note.error_pattern || "");
+                            setFlowTags(note.tags || []);
+                            setFocusedPanel("editor");
+                          }
+                        } catch (err) {
+                          console.error("Generate failed:", err);
+                        } finally {
+                          setFlowGenerating(false);
+                        }
+                      }}
+                    >
+                      {flowGenerating ? "Generating..." : "Generate Note"}
+                    </button>
+
+                    {flowErrorPattern && (
+                      <>
+                        <div className={styles.flowPatternLabel}>{flowErrorPattern}</div>
+                        <div>
+                          {flowTags.map((t) => (
+                            <span key={t} className={styles.flowTagBadge}>{t}</span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className={styles.flowEmpty}>Select an extraction to see question details</div>
+                )}
+              </div>
+            </div>
+
+            {/* Note Editor Panel */}
+            <div
+              className={`${styles.flowPanel} ${focusedPanel === "editor" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
+              onClick={() => setFocusedPanel(focusedPanel === "editor" ? null : "editor")}
+            >
+              <div className={styles.flowPanelHeader}>
+                Note Editor
+                {flowNotePath && (
+                  <button
+                    className={styles.flowSaveBtn}
+                    disabled={flowSavingNote}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!flowNotePath) return;
+                      setFlowSavingNote(true);
+                      try {
+                        await fetch("/api/save-note", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            path: flowNotePath,
+                            content: flowNoteContent,
+                            vault_path: vaultPath,
+                          }),
+                        });
+                      } catch (err) {
+                        console.error("Save failed:", err);
+                      } finally {
+                        setFlowSavingNote(false);
+                      }
+                    }}
+                  >
+                    {flowSavingNote ? "Saving..." : "Save"}
+                  </button>
+                )}
+              </div>
+              <div className={styles.flowPanelBody} style={{ padding: 0 }}>
+                {flowNoteContent ? (
+                  <textarea
+                    className={styles.flowNoteEditor}
+                    value={flowNoteContent}
+                    onChange={(e) => setFlowNoteContent(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <div className={styles.flowEmpty}>
+                    {activeFlowExtraction
+                      ? "Click \"Generate Note\" to create a note"
+                      : "Select an extraction and generate a note"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Anki Panel */}
+            <div
+              className={`${styles.flowPanel} ${focusedPanel === "anki" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
+              onClick={() => setFocusedPanel(focusedPanel === "anki" ? null : "anki")}
+            >
+              <div className={styles.flowPanelHeader}>Anki</div>
+              <div className={styles.flowPanelBody}>
+                <button
+                  className={styles.flowMakeCardBtn}
+                  disabled={!flowNoteContent || flowMakingCard}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!flowNoteContent) return;
+                    setFlowMakingCard(true);
+                    try {
+                      const resp = await fetch("/api/create-card", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          note_content: flowNoteContent,
+                          vault_path: vaultPath,
+                        }),
+                      });
+                      const data = await resp.json();
+                      if (data.success) {
+                        await refreshFlowAnkiCards();
+                      }
+                    } catch (err) {
+                      console.error("Make card failed:", err);
+                    } finally {
+                      setFlowMakingCard(false);
+                    }
+                  }}
+                >
+                  {flowMakingCard ? "Creating..." : "+ Make Card"}
+                </button>
+
+                {flowAnkiCards.length > 0 ? (
+                  flowAnkiCards.map((card) => (
+                    <div key={card.card_id} className={styles.flowAnkiCard}>
+                      <div
+                        className={styles.flowAnkiCardFront}
+                        dangerouslySetInnerHTML={{ __html: card.front }}
+                      />
+                      <div className={styles.flowAnkiCardMeta}>
+                        {card.deck} &middot; {card.tags.join(", ")}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.flowEmpty}>
+                    {activeFlowExtraction
+                      ? "No Anki cards found for this extraction"
+                      : "Select an extraction to see cards"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className={styles.container}>
       {/* Left Sidebar */}
       <div className={styles.sidebar}>
@@ -2693,6 +3018,7 @@ export default function Home() {
         </div>
       </div>
       </div>
+      )}
     </div>
   );
 }

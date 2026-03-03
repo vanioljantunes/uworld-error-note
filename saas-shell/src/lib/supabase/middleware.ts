@@ -40,5 +40,26 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
+  // Pass user info to the proxied app via cookie
+  if (user && pathname.startsWith('/app')) {
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('plan, status')
+      .eq('user_id', user.id)
+      .single()
+
+    supabaseResponse.cookies.set('__gs_user', JSON.stringify({
+      email: user.email,
+      plan: subscription?.plan ?? 'free',
+      status: subscription?.status === 'free' ? 'Active' : (subscription?.status ?? 'Active'),
+    }), {
+      path: '/',
+      httpOnly: false,
+      secure: true,
+      sameSite: 'lax' as const,
+      maxAge: 60 * 60,
+    })
+  }
+
   return supabaseResponse
 }

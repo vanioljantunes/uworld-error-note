@@ -117,7 +117,15 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [ankiError, setAnkiError] = useState("");
   const [makingCard, setMakingCard] = useState(false);
   const [makeCardMsg, setMakeCardMsg] = useState("");
-  const [expandedFlowCard, setExpandedFlowCard] = useState<number | null>(null);
+  const [editingFlowCard, setEditingFlowCard] = useState<number | null>(null);
+  const [editFront, setEditFront] = useState("");
+  const [editBack, setEditBack] = useState("");
+  const [ankiSaving, setAnkiSaving] = useState(false);
+  const [ankiFormatting, setAnkiFormatting] = useState(false);
+  const [ankiEditError, setAnkiEditError] = useState("");
+  const [expandedTagCards, setExpandedTagCards] = useState<Set<number>>(new Set());
+  const ankiFrontRef = useRef<HTMLDivElement>(null);
+  const ankiBackRef = useRef<HTMLDivElement>(null);
 
   // Upload
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -248,6 +256,14 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       } catch { /* ignore */ }
     })();
   }, [activeExtraction, vaultPath]);
+
+  // Sync contentEditable refs when editing card changes
+  useEffect(() => {
+    if (editingFlowCard !== null) {
+      if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = editFront;
+      if (ankiBackRef.current) ankiBackRef.current.innerHTML = editBack;
+    }
+  }, [editingFlowCard]);
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
@@ -478,6 +494,62 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     } finally {
       setMakingCard(false);
       setTimeout(() => setMakeCardMsg(""), 4000);
+    }
+  };
+
+  const handleSaveAnkiCard = async (card: AnkiCard) => {
+    setAnkiSaving(true);
+    setAnkiEditError("");
+    try {
+      const fields: Record<string, string> = {};
+      if (card.field_names[0]) fields[card.field_names[0]] = editFront;
+      if (card.field_names[1]) fields[card.field_names[1]] = editBack;
+      await ankiConnect("updateNoteFields", { note: { id: card.note_id, fields } });
+      setAnkiCards((prev) =>
+        prev.map((c) => c.note_id === card.note_id ? { ...c, front: editFront, back: editBack } : c)
+      );
+      setEditingFlowCard(null);
+    } catch (err: unknown) {
+      setAnkiEditError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setAnkiSaving(false);
+    }
+  };
+
+  const handleUnsuspend = async (card: AnkiCard) => {
+    try {
+      await ankiConnect("unsuspend", { cards: [card.card_id] });
+      setAnkiCards((prev) =>
+        prev.map((c) => c.note_id === card.note_id ? { ...c, suspended: false } : c)
+      );
+    } catch {
+      setAnkiEditError("Unsuspend failed — is Anki open?");
+    }
+  };
+
+  const handleFormatFlowCard = async () => {
+    setAnkiFormatting(true);
+    setAnkiEditError("");
+    try {
+      const tpl = userTemplates.find((t) => t.category === "anki")?.content || "";
+      const resp = await fetch("/api/format-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ front: editFront, back: editBack, template: tpl }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setEditFront(data.front);
+        setEditBack(data.back);
+        if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = data.front;
+        if (ankiBackRef.current) ankiBackRef.current.innerHTML = data.back;
+      } else {
+        setAnkiEditError(data.error || "Format failed");
+      }
+    } catch {
+      setAnkiEditError("Format request failed");
+    } finally {
+      setAnkiFormatting(false);
     }
   };
 
@@ -763,35 +835,110 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 ) : (
                   <>
                     {ankiCards.map((card) => {
-                      const isOpen = expandedFlowCard === card.note_id;
+                      const isEditing = editingFlowCard === card.note_id;
                       const frontText = stripHtml(card.front);
+                      const displayTags = card.tags;
+                      const tagsExpanded = expandedTagCards.has(card.note_id);
                       return (
                         <div
                           key={card.card_id}
-                          className={`${styles.ankiCard} ${isOpen ? styles.ankiCardExpanded : ""}`}
-                          onClick={(e) => { e.stopPropagation(); setExpandedFlowCard(isOpen ? null : card.note_id); }}
+                          className={`${styles.ankiCard} ${isEditing ? styles.ankiCardEditing : ""}`}
+                          onClick={isEditing ? undefined : (e) => {
+                            e.stopPropagation();
+                            setEditingFlowCard(card.note_id);
+                            setEditFront(card.front);
+                            setEditBack(card.back);
+                            setAnkiEditError("");
+                          }}
                         >
-                          <div className={styles.ankiCardHeader}>
-                            <div className={styles.ankiCardFront}>
-                              <span>{frontText || card.deck}</span>
-                            </div>
-                            <svg
-                              className={`${styles.ankiChevron} ${isOpen ? styles.ankiChevronOpen : ""}`}
-                              width="14" height="14" viewBox="0 0 24 24" fill="none"
-                              stroke="currentColor" strokeWidth="2"
-                              strokeLinecap="round" strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                          </div>
-                          {isOpen && (
-                            <>
-                              <div className={styles.ankiCardBack} dangerouslySetInnerHTML={{ __html: card.back }} />
-                              <div className={styles.ankiCardMeta}>
-                                <span className={styles.ankiMetaTag}>{card.deck}</span>
+                          {!isEditing && (
+                            <div className={styles.ankiCardHeader}>
+                              <div className={styles.ankiCardFront}>
+                                {frontText ? <span>{frontText}</span> : <span className={styles.ankiCardFrontFallback}>{card.deck}</span>}
                               </div>
-                            </>
+                              <div className={styles.ankiCardHeaderActions}>
+                                {card.suspended && <span className={styles.suspendedBadge}>suspended</span>}
+                                {card.suspended && (
+                                  <button className={styles.unsuspendBtn} onClick={(e) => { e.stopPropagation(); handleUnsuspend(card); }}>
+                                    Unsuspend ↑
+                                  </button>
+                                )}
+                                <svg className={styles.ankiChevron} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+
+                          {isEditing && (
+                            <div className={styles.ankiEditPanel} onClick={(e) => e.stopPropagation()}>
+                              <div className={styles.ankiEditPanelHeader}>
+                                <div className={styles.ankiDeckBadge}>{card.deck}</div>
+                                <button className={styles.ankiCollapseBtn} onClick={() => { setEditingFlowCard(null); setAnkiEditError(""); }} title="Collapse">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
+                                </button>
+                              </div>
+                              <div className={styles.ankiEditLabelRow}>
+                                <label className={styles.ankiEditLabel}>Front</label>
+                                <button className={styles.ankiFormatBtn} onClick={handleFormatFlowCard} disabled={ankiFormatting || ankiSaving}>
+                                  {ankiFormatting ? "Formatting…" : "Format"}
+                                </button>
+                              </div>
+                              <div
+                                ref={ankiFrontRef}
+                                className={styles.ankiEditRichText}
+                                contentEditable
+                                suppressContentEditableWarning
+                                onInput={(e) => setEditFront(e.currentTarget.innerHTML)}
+                                spellCheck={false}
+                                style={{ minHeight: "80px" }}
+                              />
+                              <label className={styles.ankiEditLabel}>Back</label>
+                              <div
+                                ref={ankiBackRef}
+                                className={styles.ankiEditRichText}
+                                contentEditable
+                                suppressContentEditableWarning
+                                onInput={(e) => setEditBack(e.currentTarget.innerHTML)}
+                                spellCheck={false}
+                                style={{ minHeight: "120px" }}
+                              />
+                              {ankiEditError && <div className={styles.ankiEditError}>{ankiEditError}</div>}
+                              <div className={styles.ankiEditButtons}>
+                                <button className={styles.ankiSaveBtn} onClick={() => handleSaveAnkiCard(card)} disabled={ankiSaving || ankiFormatting}>
+                                  {ankiSaving ? "Saving…" : "Save"}
+                                </button>
+                                <button className={styles.ankiCancelBtn} onClick={() => { setEditingFlowCard(null); setAnkiEditError(""); }} disabled={ankiSaving || ankiFormatting}>
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {isEditing && displayTags.length > 0 && (
+                            <div className={styles.ankiCardTagsFooter} onClick={(e) => e.stopPropagation()}>
+                              <div className={`${styles.ankiCardTagsRow} ${displayTags.length > 4 && !tagsExpanded ? styles.ankiCardTagsCollapsed : ""}`}>
+                                {displayTags.map((tag, i) => (
+                                  <span key={i} className={styles.resultTag}>{tag}</span>
+                                ))}
+                              </div>
+                              {displayTags.length > 4 && (
+                                <button
+                                  className={styles.ankiTagsToggleBtn}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedTagCards((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(card.note_id)) next.delete(card.note_id);
+                                      else next.add(card.note_id);
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  {tagsExpanded ? "▲" : `+${displayTags.length - 4} ▼`}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       );

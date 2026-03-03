@@ -3986,11 +3986,11 @@
 /* Extraction tab navbar */
 .flowExtTabs {
   display: flex;
+  justify-content: center;
   gap: 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
   flex-shrink: 0;
-  overflow-x: auto;
 }
 .flowExtTab {
   padding: 7px 10px;

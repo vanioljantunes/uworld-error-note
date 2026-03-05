@@ -1,7 +1,44 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import styles from "../app/page.module.css";
+import { saveUserData, getUserData } from "@/lib/user-data";
+import { renderMarkdown } from "@/lib/render-markdown";
+import TurndownService from "turndown";
+import MermaidStructEditor, { MermaidGridPreview } from "./MermaidStructEditor";
+import QuestionEditor from "./QuestionEditor";
+import TableEditor from "./TableEditor";
+
+// ── HTML → Markdown converter (singleton) ───────────────────────────────────
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  strongDelimiter: "**",
+});
+// Preserve wikilinks
+turndown.addRule("wikilinks", {
+  filter: (node) => node.nodeName === "SPAN" && node.classList.contains("wikilink"),
+  replacement: (_content, node) => {
+    const text = (node as HTMLElement).textContent || "";
+    const inner = text.replace(/\[\[\s*/, "").replace(/\s*\]\]/, "").trim();
+    return `[[${inner}]]`;
+  },
+});
+// Preserve fenced code blocks with lang
+turndown.addRule("fencedCodeBlock", {
+  filter: (node) => node.nodeName === "PRE" && !!node.querySelector("code"),
+  replacement: (_content, node) => {
+    const pre = node as HTMLElement;
+    const lang = pre.getAttribute("data-lang") || "";
+    const code = pre.querySelector("code")?.textContent || "";
+    return `\n\`\`\`${lang}\n${code}\n\`\`\`\n`;
+  },
+});
+
+type EditorMode = "cloze" | "question" | "table" | "mermaid";
+type NoteFormatMode = "original" | "error_note" | "comparison" | "mechanism";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +101,7 @@ async function ankiConnect(action: string, params: Record<string, unknown> = {})
   return data.result;
 }
 
+
 function stripHtml(html: string): string {
   const div = document.createElement("div");
   div.innerHTML = html;
@@ -75,18 +113,24 @@ function stripHtml(html: string): string {
 interface FlowViewProps {
   savedExtractions: SavedExtraction[];
   userTemplates: Template[];
-  vaultPath: string;
+  repo: string;
+  vaultName: string;
+  initialExtractionId?: string | null;
   onNewExtraction: (ext: SavedExtraction) => void;
+  onDeleteExtraction: (id: string) => void;
+  onExtractionChange?: (id: string | null) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-export default function FlowView({ savedExtractions, userTemplates, vaultPath, onNewExtraction }: FlowViewProps) {
+export default function FlowView({ savedExtractions, userTemplates, repo, vaultName, initialExtractionId, onNewExtraction, onDeleteExtraction, onExtractionChange }: FlowViewProps) {
   // ID selection
   const [activeExtraction, setActiveExtraction] = useState<SavedExtraction | null>(null);
+  const restoredRef = useRef(false);
   const [shortTitle, setShortTitle] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Panel focus
   const [focusedPanel, setFocusedPanel] = useState<"questions" | "editor" | "anki" | null>(null);
@@ -121,18 +165,185 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const [editFront, setEditFront] = useState("");
   const [editBack, setEditBack] = useState("");
   const [ankiSaving, setAnkiSaving] = useState(false);
-  const [ankiFormatting, setAnkiFormatting] = useState(false);
   const [ankiEditError, setAnkiEditError] = useState("");
+  const [selectedAnkiTemplate, setSelectedAnkiTemplate] = useState("");
+  const [availableDecks, setAvailableDecks] = useState<string[]>([]);
+  const [selectedDeck, setSelectedDeck] = useState("");
+  const [clozeModels, setClozeModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [ankiPreview, setAnkiPreview] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>("cloze");
+  const [selectingForCard, setSelectingForCard] = useState(false);
+  const [cardSelectionReady, setCardSelectionReady] = useState(false);
+  const cardSelectionRef = useRef("");
+  // Note format mode
+  const [noteFormatMode, setNoteFormatMode] = useState<NoteFormatMode>("original");
+  const [noteFormatting, setNoteFormatting] = useState(false);
+  const noteFormatCacheRef = useRef<Record<string, string>>({});
+
+  // Rewrite selection state
+  const [rewriteMode, setRewriteMode] = useState<"expand" | "condense" | null>(null);
+  const [rewriteSelectionReady, setRewriteSelectionReady] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
+  const [rewritePending, setRewritePending] = useState(false); // true after rewrite, waiting confirm/undo
+  const [rewriteHighlight, setRewriteHighlight] = useState(""); // text to highlight — state so changes trigger re-render
+  const rewriteSelectionRef = useRef("");
+  const rewriteUndoRef = useRef<{ original: string; replacement: string } | null>(null);
+  const notePreviewRef = useRef<HTMLDivElement>(null);
   const ankiFrontRef = useRef<HTMLDivElement>(null);
   const ankiBackRef = useRef<HTMLDivElement>(null);
+  const ankiPreviewRef = useRef<HTMLDivElement>(null);
+
+  // Default anki template
+  useEffect(() => {
+    if (!selectedAnkiTemplate) setSelectedAnkiTemplate("anki_cloze");
+  }, [selectedAnkiTemplate]);
+
+  // Fetch available decks and cloze-compatible models from AnkiConnect
+  useEffect(() => {
+    const fetchDecks = async () => {
+      try {
+        const decks = (await ankiConnect("deckNames")) as string[];
+        setAvailableDecks(decks);
+        const anking = decks.find((d) => d.toLowerCase().startsWith("anking"));
+        setSelectedDeck(anking || decks[0] || "Default");
+      } catch {}
+    };
+    const fetchModels = async () => {
+      try {
+        const modelNames = (await ankiConnect("modelNames")) as string[];
+        // Check each model's templates to find actual cloze-type models
+        const validCloze: string[] = [];
+        for (const name of modelNames) {
+          try {
+            const templates = (await ankiConnect("modelTemplates", { modelName: name })) as Record<string, { Front: string; Back: string }>;
+            const hasCloze = Object.values(templates).some(
+              (t) => t.Front.includes("{{cloze:") || t.Back.includes("{{cloze:")
+            );
+            if (hasCloze) validCloze.push(name);
+          } catch {}
+        }
+        console.log("[Anki] Cloze-compatible models:", validCloze);
+        setClozeModels(validCloze);
+        // Auto-select: prefer "Cloze", then first available
+        const preferred = validCloze.find((m) => m === "Cloze")
+          || validCloze.find((m) => m.toLowerCase().includes("cloze"))
+          || validCloze[0] || "";
+        setSelectedModel(preferred);
+      } catch {}
+    };
+    fetchDecks();
+    fetchModels();
+  }, []);
+
+  // Pre-process field content for preview: convert ```mermaid blocks and <div class="mermaid"> to renderable divs, strip cloze
+  const preparePreviewHtml = useCallback((fieldContent: string): string => {
+    let html = fieldContent;
+    // Strip cloze markers for display
+    html = html.replace(/\{\{c\d+::(.*?)\}\}/g, "$1");
+    // Convert ```mermaid code blocks to <div class="mermaid">
+    html = html.replace(/```mermaid\s*([\s\S]*?)```/g, (_m, code: string) => {
+      let c = code;
+      c = c.replace(/→/g, "-->").replace(/←/g, "<--");
+      c = c.replace(/((?:flowchart|graph|sequenceDiagram)(?:\s+(?:TD|TB|BT|RL|LR))?)\s+([A-Za-z])/i, "$1\n    $2");
+      c = c.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
+      c = c.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
+      c = c.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
+      return `<div class="mermaid">${c.trim()}</div>`;
+    });
+    // Also fix arrows inside existing <div class="mermaid"> blocks
+    html = html.replace(
+      /(<div class="mermaid">)([\s\S]*?)(<\/div>)/gi,
+      (_m, open: string, content: string, close: string) => {
+        let f = content;
+        f = f.replace(/→/g, "-->").replace(/←/g, "<--");
+        f = f.replace(/((?:flowchart|graph|sequenceDiagram)(?:\s+(?:TD|TB|BT|RL|LR))?)\s+([A-Za-z])/i, "$1\n    $2");
+        f = f.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
+        f = f.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
+        f = f.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
+        return open + f + close;
+      }
+    );
+    // Convert newlines to <br> OUTSIDE of mermaid divs only
+    const parts = html.split(/(<div class="mermaid">[\s\S]*?<\/div>)/gi);
+    html = parts.map((part) => {
+      if (/^<div class="mermaid">/i.test(part)) return part; // keep mermaid newlines intact
+      return part.replace(/\n/g, "<br/>");
+    }).join("");
+    return html;
+  }, []);
+
+  // Render .mermaid divs in the preview container
+  const renderMermaidInPreview = useCallback(async () => {
+    if (!ankiPreviewRef.current) return;
+    try {
+      const mermaid = (await import("mermaid")).default;
+      mermaid.initialize({ startOnLoad: false, theme: "dark", themeVariables: { primaryColor: "#7c3aed", primaryTextColor: "#fff", lineColor: "#a89cdc", secondaryColor: "#2d1b69" } });
+
+      const mermaidDivs = ankiPreviewRef.current.querySelectorAll(".mermaid:not(.mermaid-rendered)");
+      for (let i = 0; i < mermaidDivs.length; i++) {
+        const el = mermaidDivs[i] as HTMLElement;
+        // Get text, undo any <br/> that we added during preparePreviewHtml
+        const code = (el.textContent || "").trim();
+        if (!code) continue;
+        try {
+          const { svg } = await mermaid.render(`mermaid-${Date.now()}-${i}`, code);
+          el.innerHTML = svg;
+          el.classList.add("mermaid-rendered");
+        } catch (err) {
+          console.warn("[Mermaid] render error:", err, "\nCode:", code);
+          el.innerHTML = `<pre style="color:#f87171;font-size:11px;white-space:pre-wrap">${code}\n\n[Mermaid syntax error]</pre>`;
+          el.classList.add("mermaid-rendered");
+        }
+      }
+    } catch { /* mermaid not available */ }
+  }, []);
+
+  // Render mermaid in preview mode
+  useEffect(() => {
+    if (ankiPreview) {
+      const t = setTimeout(renderMermaidInPreview, 80);
+      return () => clearTimeout(t);
+    }
+  }, [ankiPreview, editFront, editBack, renderMermaidInPreview]);
+
+  // Note editor — noteRawMode toggles raw markdown textarea (escape hatch)
+  const [noteRawMode, setNoteRawMode] = useState(false);
+  const noteEditorRef = useRef<HTMLTextAreaElement>(null);
 
   // Upload
   const uploadRef = useRef<HTMLInputElement>(null);
   const [extracting, setExtracting] = useState(false);
+  const [extractStatus, setExtractStatus] = useState("");
 
   // Active extraction tab
   type ExtTab = "question" | "chosen" | "correct" | "educational" | "explanation";
   const [activeExtTab, setActiveExtTab] = useState<ExtTab>("question");
+
+  // ── Persist question history ─────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!activeExtraction) return;
+    if (diagnosticQuestions.length === 0 && questionCount === 0) return;
+    const key = `qhist_${activeExtraction.id}`;
+    saveUserData(key, {
+      diagnosticQuestions,
+      questionAnswers,
+      previousQuestions,
+      questionCount,
+    });
+  }, [activeExtraction, diagnosticQuestions, questionAnswers, previousQuestions, questionCount]);
+
+  // ── Restore last active extraction on mount ─────────────────────────────
+
+  useEffect(() => {
+    if (restoredRef.current || !initialExtractionId || savedExtractions.length === 0) return;
+    const ext = savedExtractions.find(e => e.id === initialExtractionId);
+    if (ext) {
+      selectExtraction(ext);
+      restoredRef.current = true;
+    }
+  }, [savedExtractions, initialExtractionId]);
 
   // ── Close dropdown on outside click ─────────────────────────────────────
 
@@ -152,9 +363,9 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   useEffect(() => {
     if (!activeExtraction) { setShortTitle(""); return; }
 
-    // Check localStorage cache first — avoid regenerating on every reload
+    // Check cache first — avoid regenerating on every reload
     const cacheKey = `title_${activeExtraction.id}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = getUserData<string | null>(cacheKey, null);
     if (cached) { setShortTitle(cached); return; }
 
     const eduObj = activeExtraction.extraction?.educational_objective;
@@ -174,7 +385,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
           const data = await resp.json();
           const title = data.title || activeExtraction.title;
           setShortTitle(title);
-          localStorage.setItem(cacheKey, title);
+          saveUserData(cacheKey, title);
         }
       } catch {
         setShortTitle(activeExtraction.title);
@@ -233,9 +444,9 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     })();
   }, [activeExtraction]);
 
-  // Find matching notes
+  // Find matching notes from GitHub (if auth available)
   useEffect(() => {
-    if (!activeExtraction) { setNoteContent(""); setNotePath(""); setNoteResult(null); setMatchingNotes([]); return; }
+    if (!activeExtraction) { setMatchingNotes([]); return; }
     const qId = activeExtraction.questionId || activeExtraction.extraction?.question_id;
     if (!qId) { setMatchingNotes([]); return; }
 
@@ -244,44 +455,176 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         const resp = await fetch("/api/list-notes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vaultPath }),
+          body: JSON.stringify({ repo }),
         });
         if (!resp.ok) return;
         const data = await resp.json();
         const notes = data.notes || [];
         const matches = notes.filter((n: any) => (n.tags || []).includes(qId));
         setMatchingNotes(matches.map((n: any) => ({ title: n.title, path: n.path })));
-        if (matches.length > 0) loadNote(matches[0].path);
+        // Only load from GitHub if we don't already have cached content
+        if (matches.length > 0 && !noteContent) loadNote(matches[0].path);
       } catch { /* ignore */ }
     })();
-  }, [activeExtraction, vaultPath]);
+  }, [activeExtraction, repo]);
 
-  // Sync contentEditable refs when editing card changes
+  // Sync contentEditable refs when editing card changes, switching from preview, or switching editor mode
   useEffect(() => {
-    if (editingFlowCard !== null) {
-      if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = editFront;
-      if (ankiBackRef.current) ankiBackRef.current.innerHTML = editBack;
+    if (editingFlowCard !== null && !ankiPreview) {
+      requestAnimationFrame(() => {
+        if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = editFront;
+        if (ankiBackRef.current) ankiBackRef.current.innerHTML = editBack;
+      });
     }
-  }, [editingFlowCard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingFlowCard, ankiPreview, editorMode]);
+
+  // Render note preview HTML and apply highlight via DOM tree-walk
+  // Uses ref-based rendering to avoid dangerouslySetInnerHTML wiping marks on re-render
+  const applyNotePreview = useCallback(() => {
+    const el = notePreviewRef.current;
+    if (!el) return;
+    // Only update base HTML if content changed (tracked by data attr)
+    const currentHash = noteContent.length + "_" + noteContent.slice(0, 50);
+    const hashChanged = el.getAttribute("data-hash") !== currentHash;
+    if (hashChanged) {
+      el.innerHTML = renderMarkdown(noteContent);
+      el.setAttribute("data-hash", currentHash);
+    }
+    // Determine which text to highlight: card selection OR rewrite highlight
+    const highlightTarget = rewriteHighlight
+      || (cardSelectionReady && cardSelectionRef.current ? cardSelectionRef.current : "");
+    // No highlight target → remove existing marks and return
+    if (!highlightTarget) {
+      if (!hashChanged) {
+        el.querySelectorAll("mark.cardSelMark").forEach((m) => {
+          const parent = m.parentNode;
+          if (parent) { parent.replaceChild(document.createTextNode(m.textContent || ""), m); parent.normalize(); }
+        });
+      }
+      return;
+    }
+    // If marks already exist and HTML wasn't reset, keep them (avoids fragile remove+reapply)
+    if (!hashChanged && el.querySelector("mark.cardSelMark")) return;
+    // Strip markdown formatting so selection text matches rendered HTML text nodes
+    // Note: do NOT strip [[ ]] wikilinks — they render as literal text in the preview
+    const stripMd = (s: string) => s
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\*(.*?)\*/g, "$1")
+      .replace(/`(.*?)`/g, "$1")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/^[-*+]\s+/gm, "")
+      .replace(/^\d+\.\s+/gm, "");
+    const target = stripMd(highlightTarget);
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let accumulated = "";
+    const textNodes: { node: Text; start: number }[] = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const text = node.textContent || "";
+      // Add virtual space between text nodes from different elements (e.g. table cells)
+      // so the accumulated text matches what the browser returns from Selection.toString()
+      if (accumulated.length > 0 && text.length > 0
+        && !/\s/.test(accumulated[accumulated.length - 1])
+        && !/\s/.test(text[0])) {
+        accumulated += " ";
+      }
+      textNodes.push({ node, start: accumulated.length });
+      accumulated += text;
+    }
+    const normalize = (s: string) => s.replace(/\s+/g, " ");
+    const normalizedFull = normalize(accumulated);
+    const normalizedTarget = normalize(target);
+    const matchIdx = normalizedFull.indexOf(normalizedTarget);
+    if (matchIdx === -1) {
+      console.warn("[Highlight] Text match failed. Target:", normalizedTarget.slice(0, 80), "Full:", normalizedFull.slice(0, 200));
+      return;
+    }
+    // Map normalized index → real index
+    let ni = 0, ri = 0;
+    while (ni < matchIdx && ri < accumulated.length) {
+      if (/\s/.test(accumulated[ri])) { while (ri < accumulated.length && /\s/.test(accumulated[ri])) ri++; ni++; }
+      else { ri++; ni++; }
+    }
+    const realStart = ri;
+    ni = 0; ri = realStart;
+    while (ni < normalizedTarget.length && ri < accumulated.length) {
+      if (/\s/.test(accumulated[ri])) { while (ri < accumulated.length && /\s/.test(accumulated[ri])) ri++; ni++; }
+      else { ri++; ni++; }
+    }
+    const realEnd = ri;
+    // Wrap matching range in <mark> across text nodes
+    const toWrap: { node: Text; markStart: number; markEnd: number }[] = [];
+    for (const { node, start } of textNodes) {
+      const len = node.textContent?.length || 0;
+      const end = start + len;
+      if (end <= realStart || start >= realEnd) continue;
+      toWrap.push({ node, markStart: Math.max(0, realStart - start), markEnd: Math.min(len, realEnd - start) });
+    }
+    for (const { node, markStart, markEnd } of toWrap) {
+      if (markStart >= markEnd) continue;
+      try {
+        const range = document.createRange();
+        range.setStart(node, markStart);
+        range.setEnd(node, markEnd);
+        const mark = document.createElement("mark");
+        mark.className = "cardSelMark";
+        mark.style.background = "rgba(94, 106, 210, 0.25)";
+        mark.style.borderBottom = "2px solid rgba(124, 58, 237, 0.5)";
+        mark.style.borderRadius = "2px";
+        mark.style.padding = "1px 0";
+        range.surroundContents(mark);
+      } catch { /* skip cross-element ranges */ }
+    }
+  }, [noteContent, cardSelectionReady, rewriteHighlight]);
+
+  useEffect(() => { applyNotePreview(); }, [applyNotePreview, makingCard, noteRawMode]);
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
   const selectExtraction = (ext: SavedExtraction) => {
     setActiveExtraction(ext);
+    onExtractionChange?.(ext.id);
     setDropdownOpen(false);
-    setNoteResult(null);
-    setNoteContent("");
-    setNotePath("");
     setSaveMsg("");
     setMakeCardMsg("");
     setMatchingNotes([]);
     setCurrentQuestion(null);
-    setQuestionCount(0);
-    setPreviousQuestions([]);
-    setDiagnosticQuestions([]);
-    setQuestionAnswers([]);
     setMcFeedback(null);
     setActiveExtTab("question");
+
+    // Reset note format cache
+    noteFormatCacheRef.current = {};
+    setNoteFormatMode("original");
+
+    // Restore cached note
+    const noteKey = `note_${ext.id}`;
+    const cachedNote = getUserData<{ noteContent: string; notePath: string; noteResult: any } | null>(noteKey, null);
+    if (cachedNote) {
+      setNoteContent(cachedNote.noteContent || "");
+      setNotePath(cachedNote.notePath || "");
+      setNoteResult(cachedNote.noteResult || null);
+      noteFormatCacheRef.current = { original: cachedNote.noteContent || "" };
+    } else {
+      setNoteResult(null);
+      setNoteContent("");
+      setNotePath("");
+    }
+
+    // Restore question history
+    const qKey = `qhist_${ext.id}`;
+    const savedHist = getUserData<{ diagnosticQuestions: any[]; questionAnswers: number[]; previousQuestions: string[]; questionCount: number } | null>(qKey, null);
+    if (savedHist) {
+      setDiagnosticQuestions(savedHist.diagnosticQuestions || []);
+      setQuestionAnswers(savedHist.questionAnswers || []);
+      setPreviousQuestions(savedHist.previousQuestions || []);
+      setQuestionCount(savedHist.questionCount || 0);
+    } else {
+      setDiagnosticQuestions([]);
+      setQuestionAnswers([]);
+      setPreviousQuestions([]);
+      setQuestionCount(0);
+    }
   };
 
   const loadNote = async (path: string) => {
@@ -289,14 +632,45 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       const readResp = await fetch("/api/read-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vaultPath, notePath: path }),
+        body: JSON.stringify({ notePath: path, repo }),
       });
       if (readResp.ok) {
         const readData = await readResp.json();
         setNoteContent(readData.content || "");
         setNotePath(path);
+        noteFormatCacheRef.current = { original: readData.content || "" };
+        setNoteFormatMode("original");
       }
     } catch { /* ignore */ }
+  };
+
+  // Split image into 4 quadrants using canvas
+  const splitImageQuadrants = (file: File): Promise<string[]> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const hw = Math.ceil(img.width / 2);
+        const hh = Math.ceil(img.height / 2);
+        const quadrants: string[] = [];
+        // A=top-left, B=top-right, C=bottom-left, D=bottom-right
+        const regions = [
+          { x: 0, y: 0 },
+          { x: hw, y: 0 },
+          { x: 0, y: hh },
+          { x: hw, y: hh },
+        ];
+        for (const r of regions) {
+          const c = document.createElement("canvas");
+          c.width = hw;
+          c.height = hh;
+          const ctx = c.getContext("2d")!;
+          ctx.drawImage(img, r.x, r.y, hw, hh, 0, 0, hw, hh);
+          quadrants.push(c.toDataURL("image/jpeg", 0.85));
+        }
+        resolve(quadrants);
+      };
+      img.src = URL.createObjectURL(file);
+    });
   };
 
   const handleUpload = async (files: FileList | null) => {
@@ -306,21 +680,33 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
 
     setExtracting(true);
     try {
-      const images: string[] = [];
-      for (const file of imageFiles) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-        images.push(base64);
+      // Step 1: OCR + split into quadrants
+      setExtractStatus("Reading image…");
+      const Tesseract = await import("tesseract.js");
+      const textParts: string[] = [];
+      const allQuadrants: string[][] = [];
+      for (let i = 0; i < imageFiles.length; i++) {
+        if (imageFiles.length > 1) setExtractStatus(`Reading image ${i + 1}/${imageFiles.length}…`);
+        const [ocrResult, quadrants] = await Promise.all([
+          Tesseract.recognize(imageFiles[i], "eng"),
+          splitImageQuadrants(imageFiles[i]),
+        ]);
+        textParts.push(ocrResult.data.text);
+        allQuadrants.push(quadrants);
       }
+      const ocrText = textParts.join("\n\n---\n\n");
+
+      // Step 2: Send OCR text + quadrant images
+      setExtractStatus("Analyzing…");
       const resp = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images }),
+        body: JSON.stringify({ text: ocrText, quadrants: allQuadrants }),
       });
-      if (!resp.ok) throw new Error("Extraction failed");
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => null);
+        throw new Error(errData?.error || `Extraction failed (${resp.status})`);
+      }
       const data = await resp.json();
       const extracted = data.result || data;
       const newExt: SavedExtraction = {
@@ -332,9 +718,12 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       };
       onNewExtraction(newExt);
       selectExtraction(newExt);
-    } catch { /* ignore */ }
-    finally {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Extraction failed";
+      alert(msg);
+    } finally {
       setExtracting(false);
+      setExtractStatus("");
       if (uploadRef.current) uploadRef.current.value = "";
     }
   };
@@ -380,21 +769,28 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     setCurrentQuestion(null);
   };
 
-  const handleGenerateNote = async () => {
+  const handleGenerateNote = async (fromQuestionIndex?: number) => {
     if (!activeExtraction || generating) return;
     setGenerating(true);
     setSaveMsg("");
     setMakeCardMsg("");
     try {
       const template = userTemplates.find((t) => t.slug === "error_note_a")?.content || "";
-      const questionsPayload = diagnosticQuestions.map((q) => ({
+      // If regenerating from a specific question, use only that question
+      const questions = fromQuestionIndex !== undefined
+        ? [diagnosticQuestions[fromQuestionIndex]]
+        : diagnosticQuestions;
+      const answers = fromQuestionIndex !== undefined
+        ? [questionAnswers[fromQuestionIndex]]
+        : questionAnswers;
+      const questionsPayload = questions.map((q) => ({
         question: q.question,
         options: q.options,
         correct: q.correct,
         difficulty: q.difficulty,
       }));
-      const answersPayload = questionAnswers.map((idx, i) =>
-        diagnosticQuestions[i] ? diagnosticQuestions[i].options[idx] : ""
+      const answersPayload = answers.map((idx, i) =>
+        questions[i] ? questions[i].options[idx] : ""
       );
       const resp = await fetch("/api/generate", {
         method: "POST",
@@ -414,13 +810,21 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         setNoteContent(note.note_content || "");
         setNotePath(note.file_path || "");
         setFocusedPanel("editor");
+        noteFormatCacheRef.current = { original: note.note_content || "" };
+        setNoteFormatMode("original");
+        // Cache so it survives reload
+        saveUserData(`note_${activeExtraction.id}`, {
+          noteContent: note.note_content || "",
+          notePath: note.file_path || "",
+          noteResult: note,
+        });
         try {
           const saveResp = await fetch("/api/save-note", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vaultPath, notePath: note.file_path, content: note.note_content }),
+            body: JSON.stringify({ notePath: note.file_path, content: note.note_content, repo }),
           });
-          if (saveResp.ok) { setSaveMsg("Saved to vault"); }
+          if (saveResp.ok) { setSaveMsg("Saved"); }
           else {
             saveViaObsidian(note.file_path, note.note_content);
             setSaveMsg("Saved via Obsidian");
@@ -436,9 +840,10 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   };
 
   const saveViaObsidian = (filePath: string, content: string) => {
-    const vaultName = vaultPath.split(/[/\\]/).filter(Boolean).pop() || "";
     const uri = `obsidian://new?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(filePath.replace(/\.md$/, ""))}&content=${encodeURIComponent(content)}&overwrite=true`;
-    window.open(uri, "_self");
+    const a = document.createElement("a");
+    a.href = uri;
+    a.click();
   };
 
   const handleSaveNote = async () => {
@@ -449,7 +854,7 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       const resp = await fetch("/api/save-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vaultPath, notePath, content: noteContent }),
+        body: JSON.stringify({ notePath, content: noteContent, repo }),
       });
       if (resp.ok) { setSaveMsg("Saved"); }
       else {
@@ -463,43 +868,245 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       } catch { setSaveMsg("Save failed"); }
     }
     finally {
+      // Update cache with edited content
+      if (activeExtraction) {
+        saveUserData(`note_${activeExtraction.id}`, {
+          noteContent, notePath, noteResult,
+        });
+      }
       setSavingNote(false);
       setTimeout(() => setSaveMsg(""), 3000);
     }
   };
 
-  const handleMakeCard = async () => {
-    if (!noteContent || makingCard) return;
+  const startRewrite = (mode: "expand" | "condense") => {
+    // Cancel any card selection in progress
+    setSelectingForCard(false);
+    setCardSelectionReady(false);
+    cardSelectionRef.current = "";
+    // Clear any pending rewrite
+    setRewritePending(false);
+    setRewriteHighlight("");
+    rewriteUndoRef.current = null;
+    // Enter rewrite selection mode
+    setRewriteMode(mode);
+    setRewriteSelectionReady(false);
+    rewriteSelectionRef.current = "";
+    // Ensure we're in visual mode (not raw) so user can select rendered text
+    setNoteRawMode(false);
+  };
+
+  const cancelRewrite = () => {
+    setRewriteMode(null);
+    setRewriteSelectionReady(false);
+    setRewritePending(false);
+    rewriteSelectionRef.current = "";
+    setRewriteHighlight("");
+    rewriteUndoRef.current = null;
+  };
+
+  const confirmRewrite = () => {
+    setRewriteHighlight("");
+    rewriteUndoRef.current = null;
+    setRewritePending(false);
+    setRewriteMode(null);
+    setRewriteSelectionReady(false);
+    rewriteSelectionRef.current = "";
+  };
+
+  const undoRewrite = () => {
+    if (rewriteUndoRef.current) {
+      const { original, replacement } = rewriteUndoRef.current;
+      const idx = noteContent.indexOf(replacement);
+      if (idx !== -1) {
+        setNoteContent(noteContent.substring(0, idx) + original + noteContent.substring(idx + replacement.length));
+      }
+    }
+    setRewriteHighlight("");
+    rewriteUndoRef.current = null;
+    setRewritePending(false);
+    setRewriteMode(null);
+    setRewriteSelectionReady(false);
+    rewriteSelectionRef.current = "";
+  };
+
+  const executeRewrite = async () => {
+    if (!rewriteSelectionRef.current || !rewriteMode || rewriting) return;
+    // Highlight the selected text during API call
+    setRewriteHighlight(rewriteSelectionRef.current);
+    setRewriting(true);
+    try {
+      const resp = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          selected_text: rewriteSelectionRef.current,
+          full_note: noteContent,
+          mode: rewriteMode,
+        }),
+      });
+      const data = await resp.json();
+      if (data.success && data.rewritten) {
+        const original = rewriteSelectionRef.current;
+        const idx = noteContent.indexOf(original);
+        if (idx !== -1) {
+          const before = noteContent.substring(0, idx);
+          const after = noteContent.substring(idx + original.length);
+          setNoteContent(before + data.rewritten + after);
+          // Highlight the NEW text and store undo info
+          setRewriteHighlight(data.rewritten);
+          rewriteUndoRef.current = { original, replacement: data.rewritten };
+          setRewritePending(true);
+          setRewriteSelectionReady(false);
+        }
+      }
+    } catch (err) {
+      console.error("[Rewrite] Error:", err);
+      cancelRewrite();
+    } finally {
+      setRewriting(false);
+    }
+  };
+
+  const handleMakeCard = async (templateSlug?: string, sourceText?: string) => {
+    const content = sourceText || noteContent;
+    if (!content || makingCard) return;
+    // Keep selection for redo — don't clear cardSelectionRef
+    setSelectingForCard(false);
+    const slug = templateSlug || selectedAnkiTemplate;
+    if (templateSlug) setSelectedAnkiTemplate(templateSlug);
     setMakingCard(true);
     setMakeCardMsg("");
     try {
-      const tpl = userTemplates.find((t) => t.category === "anki")?.content || "";
+      const deck = selectedDeck || "Default";
+      const model = selectedModel || "Cloze";
+      const tpl = userTemplates.find((t) => t.slug === slug)?.content
+        || userTemplates.find((t) => t.category === "anki")?.content || "";
+      console.log("[MakeCard] Using deck:", deck, "model:", model);
+
       const resp = await fetch("/api/create-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note_content: noteContent, template: tpl }),
+        body: JSON.stringify({ note_content: content, template: tpl }),
       });
       const data = await resp.json();
-      if (data.success && data.front) {
-        await ankiConnect("addNote", {
-          note: {
-            deckName: "Default",
-            modelName: "Cloze",
-            fields: { Text: data.front, Extra: data.back || "" },
-            tags: activeExtraction?.questionId ? [activeExtraction.questionId] : [],
-            options: { allowDuplicate: false },
-          },
-        });
-        setMakeCardMsg("Card added!");
-        setActiveExtraction((prev) => prev ? { ...prev } : null);
-      } else {
-        setMakeCardMsg(data.error || "Failed");
+      console.log("[MakeCard] LLM response:", data);
+      console.log("[MakeCard] Front content:", data.front);
+
+      if (!data.success || !data.front) {
+        setMakeCardMsg(data.error || "LLM failed to generate card");
+        return;
       }
+
+      // Ensure front has cloze syntax — Anki rejects cloze notes without {{c1::}}
+      let front: string = data.front;
+      // Decode HTML entities that might hide cloze syntax
+      const decoded = front.replace(/&lbrace;/g, "{").replace(/&rbrace;/g, "}").replace(/&#123;/g, "{").replace(/&#125;/g, "}");
+      if (decoded !== front) {
+        front = decoded;
+        console.log("[MakeCard] Decoded HTML entities in front");
+      }
+      if (!/\{\{c\d+::/i.test(front)) {
+        console.warn("[MakeCard] Front has no cloze deletions, auto-wrapping first sentence");
+        // Strip HTML for clean text to wrap
+        const textOnly = front.replace(/<[^>]*>/g, "").trim();
+        const match = textOnly.match(/^(.{10,80}?[.?!])\s/);
+        if (match) {
+          front = `{{c1::${match[1]}}} ${textOnly.substring(match[0].length)}`;
+        } else {
+          front = `{{c1::${textOnly}}}`;
+        }
+        console.log("[MakeCard] Fixed front:", front);
+      }
+
+      // Try adding with selected model, then fallback to other cloze models
+      const modelsToTry = [model, ...clozeModels.filter((m) => m !== model)];
+      let noteId: unknown = null;
+      let usedModel = model;
+      const backStr = String(data.back || "");
+      // Strip cloze syntax from back — only the cloze-template field should have {{cN::}}
+      const cleanBack = backStr.replace(/\{\{c\d+::([\s\S]*?)\}\}/g, "$1");
+      console.log("[MakeCard] Back content:", backStr.substring(0, 200));
+
+      for (const tryModel of modelsToTry) {
+        try {
+          const modelFields = (await ankiConnect("modelFieldNames", { modelName: tryModel })) as string[];
+          console.log("[MakeCard] Trying model:", tryModel, "fields:", modelFields);
+
+          // Find the actual cloze field from the model template ({{cloze:FieldName}})
+          let clozeFieldName = modelFields[0];
+          try {
+            const templates = (await ankiConnect("modelTemplates", { modelName: tryModel })) as Record<string, { Front: string; Back: string }>;
+            for (const tmpl of Object.values(templates)) {
+              const clozeMatch = (tmpl.Front + " " + tmpl.Back).match(/\{\{cloze:([^}]+)\}\}/);
+              if (clozeMatch) {
+                clozeFieldName = clozeMatch[1].trim();
+                break;
+              }
+            }
+          } catch {}
+
+          // Build fields: cloze field gets front, first other field gets clean back
+          const fields: Record<string, string> = {};
+          fields[clozeFieldName] = front;
+          const backField = modelFields.find((f) => f !== clozeFieldName);
+          if (backField) fields[backField] = cleanBack;
+          console.log("[MakeCard] Cloze field:", clozeFieldName, "payload:", JSON.stringify(fields).substring(0, 500));
+
+          noteId = await ankiConnect("addNote", {
+            note: {
+              deckName: deck,
+              modelName: tryModel,
+              fields,
+              tags: activeExtraction?.questionId ? [String(activeExtraction.questionId)] : [],
+              options: { allowDuplicate: true, duplicateScope: "deck" },
+            },
+          });
+          if (noteId) {
+            usedModel = tryModel;
+            console.log("[MakeCard] Success with model:", tryModel, "noteId:", noteId);
+            break;
+          }
+        } catch (e: any) {
+          console.warn("[MakeCard] Model", tryModel, "failed:", e?.message);
+          // Continue to next model
+        }
+      }
+
+      if (noteId) {
+        setMakeCardMsg(`Card added (${usedModel})`);
+        if (usedModel !== model) {
+          setSelectedModel(usedModel);
+        }
+      } else {
+        // Fallback: open card in Anki's Add Cards dialog
+        try {
+          await ankiConnect("guiAddCards", {
+            note: {
+              deckName: deck,
+              modelName: model,
+              fields: { Text: front },
+              tags: [],
+            },
+          });
+          setMakeCardMsg("Opened in Anki — click Add to save.");
+        } catch {
+          setMakeCardMsg("All models failed — try updating AnkiConnect add-on.");
+        }
+      }
+      // Re-fetch anki cards for this extraction
+      setActiveExtraction((prev) => prev ? { ...prev } : null);
     } catch (err: any) {
-      setMakeCardMsg(err?.message || "Failed to create card.");
+      const msg = err?.message || "";
+      console.error("[MakeCard] Error:", msg, err);
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        setMakeCardMsg("Anki not running — open Anki desktop first");
+      } else {
+        setMakeCardMsg(msg || "Failed to create card");
+      }
     } finally {
       setMakingCard(false);
-      setTimeout(() => setMakeCardMsg(""), 4000);
+      setTimeout(() => setMakeCardMsg(""), 10000);
     }
   };
 
@@ -511,8 +1118,12 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
       if (card.field_names[0]) fields[card.field_names[0]] = editFront;
       if (card.field_names[1]) fields[card.field_names[1]] = editBack;
       await ankiConnect("updateNoteFields", { note: { id: card.note_id, fields } });
+      // Move to new deck if changed
+      if (selectedDeck && selectedDeck !== card.deck) {
+        await ankiConnect("changeDeck", { cards: [card.card_id], deck: selectedDeck });
+      }
       setAnkiCards((prev) =>
-        prev.map((c) => c.note_id === card.note_id ? { ...c, front: editFront, back: editBack } : c)
+        prev.map((c) => c.note_id === card.note_id ? { ...c, front: editFront, back: editBack, deck: selectedDeck || c.deck } : c)
       );
       setEditingFlowCard(null);
     } catch (err: unknown) {
@@ -522,33 +1133,88 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     }
   };
 
-  const handleUnsuspend = async (card: AnkiCard) => {
+  const handleToggleSuspend = async (card: AnkiCard) => {
     try {
-      await ankiConnect("unsuspend", { cards: [card.card_id] });
+      if (card.suspended) {
+        await ankiConnect("unsuspend", { cards: [card.card_id] });
+      } else {
+        await ankiConnect("suspend", { cards: [card.card_id] });
+      }
       setAnkiCards((prev) =>
-        prev.map((c) => c.note_id === card.note_id ? { ...c, suspended: false } : c)
+        prev.map((c) => c.note_id === card.note_id ? { ...c, suspended: !c.suspended } : c)
       );
     } catch {
-      setAnkiEditError("Unsuspend failed — is Anki open?");
+      setAnkiEditError(`${card.suspended ? "Unsuspend" : "Suspend"} failed — is Anki open?`);
     }
   };
 
-  const handleFormatFlowCard = async () => {
+  const handleDeleteAnkiCard = async (card: AnkiCard) => {
+    try {
+      await ankiConnect("deleteNotes", { notes: [card.note_id] });
+      setAnkiCards((prev) => prev.filter((c) => c.note_id !== card.note_id));
+      setEditingFlowCard(null);
+    } catch (err: unknown) {
+      setAnkiEditError(err instanceof Error ? err.message : "Delete failed.");
+    }
+  };
+
+  const [ankiFormatting, setAnkiFormatting] = useState(false);
+  // Store each mode's content independently so switching preserves all versions
+  const modeContentRef = useRef<Record<string, string>>({});
+
+  // Keep cache in sync whenever editFront changes within a mode
+  useEffect(() => {
+    modeContentRef.current[editorMode] = editFront;
+  }, [editFront, editorMode]);
+
+  /** Unified handler: switch editor mode. Question/Table/Mermaid format via API, Cloze restores original. */
+  const handleSwitchEditor = async (mode: EditorMode) => {
+    // Save current mode's content before switching (belt-and-suspenders with the effect above)
+    modeContentRef.current[editorMode] = editFront;
+
+    const targetMode = (editorMode === mode) ? "cloze" : mode;
+
+    if (targetMode === "cloze") {
+      // Always restore the exact cached cloze content
+      const clozeContent = modeContentRef.current["cloze"] || editFront;
+      setEditFront(clozeContent);
+      if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = clozeContent;
+      setEditorMode("cloze");
+      return;
+    }
+    // If we already have cached content for this mode, restore it without re-formatting
+    if (modeContentRef.current[targetMode]) {
+      setEditFront(modeContentRef.current[targetMode]);
+      if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = modeContentRef.current[targetMode];
+      setEditorMode(targetMode);
+      return;
+    }
+    // Mermaid: if cloze content already has mermaid block, use it directly
+    if (targetMode === "mermaid" && /```mermaid/i.test(modeContentRef.current["cloze"] || editFront)) {
+      const content = modeContentRef.current["cloze"] || editFront;
+      modeContentRef.current["mermaid"] = content;
+      setEditFront(content);
+      setEditorMode("mermaid");
+      return;
+    }
+    // Question / Table / Mermaid: format via API using the CLOZE content as source (never current editFront)
     setAnkiFormatting(true);
     setAnkiEditError("");
     try {
-      const tpl = userTemplates.find((t) => t.category === "anki")?.content || "";
+      const sourceContent = modeContentRef.current["cloze"] || editFront;
+      const slug = targetMode === "question" ? "anki_cloze" : targetMode === "table" ? "anki_table" : "anki_mermaid";
+      const tpl = userTemplates.find((t) => t.slug === slug)?.content || "";
       const resp = await fetch("/api/format-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ front: editFront, back: editBack, template: tpl }),
+        body: JSON.stringify({ front: sourceContent, template: tpl }),
       });
       const data = await resp.json();
       if (data.success) {
+        modeContentRef.current[targetMode] = data.front;
         setEditFront(data.front);
-        setEditBack(data.back);
         if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = data.front;
-        if (ankiBackRef.current) ankiBackRef.current.innerHTML = data.back;
+        setEditorMode(targetMode);
       } else {
         setAnkiEditError(data.error || "Format failed");
       }
@@ -559,6 +1225,18 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
     }
   };
 
+  /** Re-generate the current format from cloze source (clears cache, re-calls API). */
+  const handleRegenerate = async () => {
+    if (editorMode === "cloze") return;
+    const mode = editorMode;
+    // Clear cached content so handleSwitchEditor forces a fresh API call
+    modeContentRef.current[mode] = "";
+    // Briefly go to cloze so handleSwitchEditor doesn't toggle off
+    setEditorMode("cloze");
+    await new Promise((r) => setTimeout(r, 0));
+    await handleSwitchEditor(mode);
+  };
+
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   const ext = activeExtraction?.extraction;
@@ -566,15 +1244,167 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
   const hasAnswered = questionAnswers.length > 0;
   const displayTitle = shortTitle || activeExtraction?.title || "";
 
+  // ── Auto-focus textarea when entering edit mode ────────────────────────
+
+  useEffect(() => {
+    if (noteRawMode && noteEditorRef.current) {
+      noteEditorRef.current.focus();
+    }
+  }, [noteRawMode]);
+
+  // ── WYSIWYG toolbar helpers (execCommand on preview div) ──────────────
+
+  /** Sync preview div HTML → markdown in noteContent */
+  const syncPreviewToMarkdown = useCallback(() => {
+    const el = notePreviewRef.current;
+    if (!el) return;
+    const md = turndown.turndown(el.innerHTML);
+    setNoteContent(md);
+    noteFormatCacheRef.current[noteFormatMode] = md;
+    // Update hash so applyNotePreview doesn't overwrite DOM
+    el.setAttribute("data-hash", md.length + "_" + md.slice(0, 50));
+  }, [noteFormatMode]);
+
+  // ── Note format switching ──────────────────────────────────────────────
+  const NOTE_FORMAT_SLUGS: Record<string, string> = {
+    error_note: "error_note_a",
+    comparison: "error_note_comparison",
+    mechanism: "error_note_mechanism",
+  };
+
+  const handleSwitchNoteFormat = async (mode: NoteFormatMode) => {
+    if (mode === "original" || noteFormatting) return;
+
+    // Cache current content
+    noteFormatCacheRef.current[noteFormatMode] = noteContent;
+
+    // Toggle off if clicking active button
+    if (mode === noteFormatMode) {
+      const orig = noteFormatCacheRef.current["original"] || noteContent;
+      setNoteContent(orig);
+      setNoteFormatMode("original");
+      return;
+    }
+
+    // Cache hit — restore without API call
+    if (noteFormatCacheRef.current[mode]) {
+      setNoteContent(noteFormatCacheRef.current[mode]);
+      setNoteFormatMode(mode);
+      return;
+    }
+
+    // Cache miss — call API
+    setNoteFormatting(true);
+    setNoteFormatMode(mode);
+    try {
+      const slug = NOTE_FORMAT_SLUGS[mode];
+      const tpl = userTemplates.find((t) => t.slug === slug);
+      if (!tpl) throw new Error(`Template ${slug} not found`);
+
+      const resp = await fetch("/api/format-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          note_content: noteFormatCacheRef.current["original"] || noteContent,
+          extraction: activeExtraction?.extraction || {},
+          template: tpl.content,
+        }),
+      });
+      if (!resp.ok) throw new Error("Format failed");
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || "Format failed");
+
+      noteFormatCacheRef.current[mode] = data.content;
+      setNoteContent(data.content);
+    } catch {
+      // Revert on failure
+      setNoteFormatMode(noteFormatMode === mode ? "original" : noteFormatMode);
+    } finally {
+      setNoteFormatting(false);
+    }
+  };
+
+  const execFormat = (cmd: string, value?: string) => {
+    notePreviewRef.current?.focus();
+    document.execCommand(cmd, false, value);
+    syncPreviewToMarkdown();
+  };
+
+  const execHeading = (tag: string) => {
+    notePreviewRef.current?.focus();
+    document.execCommand("formatBlock", false, tag);
+    syncPreviewToMarkdown();
+  };
+
+  const insertHtmlBlock = (html: string) => {
+    notePreviewRef.current?.focus();
+    document.execCommand("insertHTML", false, html);
+    syncPreviewToMarkdown();
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className={styles.flowContainer}>
-      {/* ID Bar */}
-      <div className={styles.flowIdBar}>
+      {/* Sidebar toggle */}
+      <button className={styles.flowSidebarToggle} onClick={() => setSidebarOpen(true)} title="Extractions">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+
+      {/* Sidebar backdrop */}
+      {sidebarOpen && <div className={styles.flowSidebarBackdrop} onClick={() => setSidebarOpen(false)} />}
+
+      {/* Sidebar */}
+      <div className={`${styles.flowSidebar} ${sidebarOpen ? styles.flowSidebarOpen : ""}`}>
+        <div className={styles.flowSidebarHeader}>
+          <span>Extractions</span>
+          <button className={styles.flowSidebarClose} onClick={() => setSidebarOpen(false)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className={styles.flowSidebarList}>
+          {savedExtractions.length === 0 ? (
+            <div className={styles.flowSidebarEmpty}>No extractions yet</div>
+          ) : (
+            savedExtractions.map((e) => (
+              <div
+                key={e.id}
+                className={`${styles.flowSidebarItem} ${activeExtraction?.id === e.id ? styles.flowSidebarItemActive : ""}`}
+                onClick={() => { selectExtraction(e); setSidebarOpen(false); }}
+              >
+                <div className={styles.flowSidebarItemContent}>
+                  <span className={styles.flowSidebarItemQid}>{e.questionId || "?"}</span>
+                  <span className={styles.flowSidebarItemTitle}>{e.title?.slice(0, 45)}</span>
+                </div>
+                <button
+                  className={styles.flowSidebarItemDelete}
+                  onClick={(ev) => { ev.stopPropagation(); onDeleteExtraction(e.id); if (activeExtraction?.id === e.id) setActiveExtraction(null); }}
+                  title="Delete"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Top controls */}
+      <div className={styles.flowTopSection}>
+        <button className={styles.flowIdBtn} onClick={() => uploadRef.current?.click()} disabled={extracting}>
+          {extracting ? (extractStatus || "Extracting…") : "Upload Screenshot"}
+        </button>
+        <input ref={uploadRef} type="file" accept="image/*" multiple className={styles.flowUploadInput} onChange={(e) => handleUpload(e.target.files)} />
         <div className={styles.flowIdDropdown} ref={dropdownRef}>
-          <button className={styles.flowIdBtn} onClick={() => setDropdownOpen(!dropdownOpen)}>
-            ▼ Choose from extractions
+          <button
+            className={`${styles.flowSelectorBtn} ${activeExtraction ? "" : styles.flowSelectorBtnEmpty}`}
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+          >
+            <span className={styles.flowSelectorArrow}>▼</span>
+            {activeExtraction
+              ? <>{qId || "?"} — {displayTitle}</>
+              : "No extraction selected"
+            }
           </button>
           {dropdownOpen && (
             <div className={styles.flowIdDropdownMenu}>
@@ -597,23 +1427,6 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
             </div>
           )}
         </div>
-        <button className={styles.flowIdBtn} onClick={() => uploadRef.current?.click()} disabled={extracting}>
-          {extracting ? "Extracting…" : "Upload Screenshot"}
-        </button>
-        <input ref={uploadRef} type="file" accept="image/*" multiple className={styles.flowUploadInput} onChange={(e) => handleUpload(e.target.files)} />
-      </div>
-
-      {/* Active ID */}
-      <div className={styles.flowActiveId}>
-        {activeExtraction ? (
-          <div className={styles.flowActiveIdLabel}>
-            {qId || "Unknown ID"} — {displayTitle}
-          </div>
-        ) : (
-          <div className={styles.flowActiveIdLabel} style={{ color: "var(--text-subtle)" }}>
-            No extraction selected
-          </div>
-        )}
       </div>
 
       {/* Three panels */}
@@ -666,7 +1479,12 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                 </div>
                 {mcFeedback && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button className={styles.flowGenerateBtn} onClick={dismissFeedback} style={{ flex: 1, marginTop: 0 }}>
+                    <button className={styles.flowGenerateBtn} onClick={() => {
+                      const wasCorrect = mcFeedback.selected === mcFeedback.correct;
+                      dismissFeedback();
+                      if (wasCorrect) fetchNextQuestion();
+                      else handleGenerateNote();
+                    }} style={{ flex: 1, marginTop: 0 }}>
                       {mcFeedback.selected === mcFeedback.correct ? "Next Question" : "Generate Note"}
                     </button>
                     {mcFeedback.selected === mcFeedback.correct && (
@@ -694,27 +1512,15 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                   {fetchingQuestion ? "Generating…" : questionCount > 0 ? "More Questions" : "Generate Question"}
                 </button>
 
-                {hasAnswered && !noteResult && (
+                {hasAnswered && (
                   <button
                     className={styles.flowGenerateBtn}
-                    onClick={handleGenerateNote}
+                    onClick={() => handleGenerateNote()}
                     disabled={generating}
                     style={{ marginTop: 0, marginBottom: 12, background: "var(--bg-elevated)", border: "1px solid var(--accent)" }}
                   >
                     {generating ? "Generating Note…" : "Generate Note"}
                   </button>
-                )}
-
-                {noteResult && (
-                  <div className={styles.flowExtField}>
-                    <div className={styles.flowExtFieldLabel}>Generated Note</div>
-                    <div className={styles.flowExtFieldValue}>{noteResult.error_pattern}</div>
-                    <div style={{ marginTop: 6 }}>
-                      {noteResult.tags.map((t) => (
-                        <span key={t} className={styles.flowResultTag}>{t}</span>
-                      ))}
-                    </div>
-                  </div>
                 )}
 
                 {/* Extraction tab navbar */}
@@ -745,8 +1551,19 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                     const wasCorrect = answerIdx === dq.correct;
                     return (
                       <div key={i} className={styles.flowPriorQuestion}>
-                        <div className={`${styles.flowPriorQuestionDiff} ${wasCorrect ? styles.flowPriorCorrect : styles.flowPriorWrong}`}>
-                          {dq.difficulty} · {wasCorrect ? "Correct" : "Wrong"}
+                        <div className={styles.flowPriorQuestionHeader}>
+                          <div className={`${styles.flowPriorQuestionDiff} ${wasCorrect ? styles.flowPriorCorrect : styles.flowPriorWrong}`}>
+                            {dq.difficulty} · {wasCorrect ? "Correct" : "Wrong"}
+                          </div>
+                          <button
+                            className={styles.flowRemakeBtn}
+                            onClick={(e) => { e.stopPropagation(); handleGenerateNote(i); }}
+                            disabled={generating}
+                            title="Regenerate note from this question"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            Remake
+                          </button>
                         </div>
                         <div>{dq.question.slice(0, 100)}{dq.question.length > 100 ? "…" : ""}</div>
                       </div>
@@ -761,42 +1578,195 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
         {/* ── Note Editor Panel ── */}
         <div
           className={`${styles.flowPanel} ${focusedPanel === "editor" ? styles.flowPanelFocused : focusedPanel ? styles.flowPanelShrunk : ""}`}
-          onClick={() => setFocusedPanel(focusedPanel === "editor" ? null : "editor")}
+          onClick={() => { if (!selectingForCard) setFocusedPanel(focusedPanel === "editor" ? null : "editor"); }}
         >
-          <div className={styles.flowPanelHeader}>Note Editor</div>
-          {matchingNotes.length > 0 && (
-            <div className={styles.flowNotesList}>
-              {matchingNotes.map((n) => (
-                <button
-                  key={n.path}
-                  className={`${styles.flowNotesItem} ${n.path === notePath ? styles.flowNotesItemActive : ""}`}
-                  onClick={() => loadNote(n.path)}
-                >
-                  {n.title}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className={styles.flowPanelHeader}>
+            Note Editor
+            {noteContent && (
+              <button
+                className={styles.flowEditorToggle}
+                onClick={(e) => { e.stopPropagation(); setNoteRawMode(!noteRawMode); }}
+                title={noteRawMode ? "Visual editor" : "Raw markdown"}
+              >
+                {noteRawMode ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                )}
+              </button>
+            )}
+          </div>
           {noteContent ? (
             <>
-              <div className={styles.flowPanelBody}>
-                <textarea
-                  className={styles.flowNoteEditor}
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  spellCheck={false}
-                />
-              </div>
-              <div className={styles.flowNoteSaveRow}>
-                {saveMsg && <span className={styles.flowNoteSaveMsg}>{saveMsg}</span>}
+              <div className={styles.flowToolbar} onClick={(e) => e.stopPropagation()}>
+                {matchingNotes.length > 0 && (
+                  <select
+                    className={styles.flowToolbarSelect}
+                    value={notePath}
+                    onChange={(e) => { e.stopPropagation(); loadNote(e.target.value); setNoteRawMode(false); }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {matchingNotes.map((n) => (
+                      <option key={n.path} value={n.path}>{n.title}</option>
+                    ))}
+                  </select>
+                )}
+                <div className={styles.flowToolbarDivider} />
+                <button className={styles.flowToolbarBtn} onClick={() => execHeading("h2")} disabled={noteRawMode} title="Heading"><strong style={{ fontSize: 12 }}>H</strong></button>
+                <button className={styles.flowToolbarBtn} onClick={() => execFormat("bold")} disabled={noteRawMode} title="Bold"><strong>B</strong></button>
+                <button className={styles.flowToolbarBtn} onClick={() => execFormat("italic")} disabled={noteRawMode} title="Italic"><em style={{ fontFamily: "Georgia, serif" }}>I</em></button>
+                <button className={styles.flowToolbarBtn} onClick={() => execFormat("insertUnorderedList")} disabled={noteRawMode} title="Bullet list">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+                <button className={styles.flowToolbarBtn} onClick={() => { notePreviewRef.current?.focus(); const sel = window.getSelection(); if (sel && sel.rangeCount) { const range = sel.getRangeAt(0); const code = document.createElement("code"); range.surroundContents(code); syncPreviewToMarkdown(); } }} disabled={noteRawMode} title="Inline code" style={{ fontFamily: "monospace", fontSize: 11 }}>&lt;/&gt;</button>
+                <div className={styles.flowToolbarDivider} />
                 <button
-                  className={styles.flowNoteSaveBtn}
+                  className={`${styles.flowToolbarBtn} ${styles.noteFormatBtn} ${noteFormatMode === "error_note" ? styles.noteFormatBtnActive : ""}`}
+                  onClick={() => handleSwitchNoteFormat("error_note")}
+                  disabled={noteFormatting || noteRawMode}
+                  title="Error Note format"
+                >Error</button>
+                <button
+                  className={`${styles.flowToolbarBtn} ${styles.noteFormatBtn} ${noteFormatMode === "comparison" ? styles.noteFormatBtnActive : ""}`}
+                  onClick={() => handleSwitchNoteFormat("comparison")}
+                  disabled={noteFormatting || noteRawMode}
+                  title="Comparison format"
+                >Compare</button>
+                <button
+                  className={`${styles.flowToolbarBtn} ${styles.noteFormatBtn} ${noteFormatMode === "mechanism" ? styles.noteFormatBtnActive : ""}`}
+                  onClick={() => handleSwitchNoteFormat("mechanism")}
+                  disabled={noteFormatting || noteRawMode}
+                  title="Mechanism Map format"
+                >Mechanism</button>
+                <div className={styles.flowToolbarDivider} />
+                <button
+                  className={`${styles.flowToolbarBtn} ${styles.flowRewriteBtn} ${rewriteMode === "expand" ? styles.flowRewriteBtnActive : ""}`}
+                  onClick={() => rewriteMode === "expand" ? cancelRewrite() : startRewrite("expand")}
+                  disabled={rewriting}
+                  title="Expand — select text to add more detail"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <button
+                  className={`${styles.flowToolbarBtn} ${styles.flowRewriteBtn} ${rewriteMode === "condense" ? styles.flowRewriteBtnActive : ""}`}
+                  onClick={() => rewriteMode === "condense" ? cancelRewrite() : startRewrite("condense")}
+                  disabled={rewriting}
+                  title="Condense — select text to make it more concise"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <div style={{ flex: 1 }} />
+                {saveMsg && <span className={styles.flowToolbarSaveMsg}>{saveMsg}</span>}
+                <button
+                  className={styles.flowToolbarSaveBtn}
                   onClick={(e) => { e.stopPropagation(); handleSaveNote(); }}
                   disabled={savingNote}
                 >
                   {savingNote ? "Saving…" : "Save"}
                 </button>
+              </div>
+              <div className={styles.flowPanelBody} onClick={(e) => e.stopPropagation()}>
+                {selectingForCard && !cardSelectionReady && (
+                  <div className={styles.flowSelectionBanner}>
+                    Select text from the note to create a card
+                  </div>
+                )}
+                {rewriteMode && (
+                  <div className={styles.flowSelectionBanner}>
+                    {rewritePending
+                      ? `${rewriteMode === "expand" ? "Expanded" : "Condensed"} — confirm or undo?`
+                      : rewriting
+                        ? `${rewriteMode === "expand" ? "Expanding" : "Condensing"}…`
+                        : rewriteSelectionReady
+                          ? `"${rewriteSelectionRef.current.length > 50 ? rewriteSelectionRef.current.slice(0, 50) + "…" : rewriteSelectionRef.current}"`
+                          : `Select text to ${rewriteMode}`}
+                  </div>
+                )}
+                {rewriteMode && !rewriting && rewriteSelectionReady && !rewritePending && (
+                  <div className={styles.flowRewriteActions}>
+                    <button className={styles.flowRewriteConfirmBtn} onClick={executeRewrite}>
+                      {rewriteMode === "expand" ? "Expand Selection" : "Condense Selection"}
+                    </button>
+                    <button className={styles.flowRewriteCancelBtn} onClick={cancelRewrite}>Cancel</button>
+                  </div>
+                )}
+                {rewritePending && (
+                  <div className={styles.flowRewriteActions}>
+                    <button className={styles.flowRewriteConfirmBtn} onClick={confirmRewrite}>Confirm</button>
+                    <button className={styles.flowRewriteCancelBtn} onClick={undoRewrite}>Undo</button>
+                  </div>
+                )}
+                {noteRawMode && !selectingForCard && !rewriteMode ? (
+                  <textarea
+                    ref={noteEditorRef}
+                    className={styles.flowNoteEditor}
+                    value={noteContent}
+                    onChange={(e) => { setNoteContent(e.target.value); noteFormatCacheRef.current[noteFormatMode] = e.target.value; }}
+                    spellCheck={false}
+                    onKeyDown={(e) => { if (e.key === "Escape") setNoteRawMode(false); }}
+                  />
+                ) : (
+                  <div
+                    ref={notePreviewRef}
+                    className={`${styles.flowNotePreview} ${selectingForCard || cardSelectionReady || rewriteMode ? styles.flowNotePreviewSelecting : ""}`}
+                    contentEditable={!selectingForCard && !cardSelectionReady && !rewriteMode}
+                    suppressContentEditableWarning
+                    onInput={() => { if (!selectingForCard && !rewriteMode) syncPreviewToMarkdown(); }}
+                    onMouseUp={() => {
+                      if (!selectingForCard && !rewriteMode) return;
+                      setTimeout(() => {
+                        const sel = window.getSelection();
+                        const text = sel?.toString().trim() || "";
+                        if (!text || !sel || sel.rangeCount === 0) return;
+                        if (rewriteMode) {
+                          rewriteSelectionRef.current = text;
+                          setRewriteHighlight(text);
+                          setRewriteSelectionReady(true);
+                        } else {
+                          // Remove any existing card selection marks first
+                          const el = notePreviewRef.current;
+                          if (el) {
+                            el.querySelectorAll("mark.cardSelMark").forEach((m) => {
+                              const p = m.parentNode;
+                              if (p) { p.replaceChild(document.createTextNode(m.textContent || ""), m); p.normalize(); }
+                            });
+                          }
+                          // Apply marks directly from browser selection range
+                          const range = sel.getRangeAt(0);
+                          if (el && el.contains(range.commonAncestorContainer)) {
+                            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+                            const nodesToMark: { node: Text; start: number; end: number }[] = [];
+                            while (walker.nextNode()) {
+                              const node = walker.currentNode as Text;
+                              if (!range.intersectsNode(node)) continue;
+                              let s = 0, e = (node.textContent || "").length;
+                              if (node === range.startContainer) s = range.startOffset;
+                              if (node === range.endContainer) e = range.endOffset;
+                              if (s < e) nodesToMark.push({ node, start: s, end: e });
+                            }
+                            for (const { node, start, end } of nodesToMark.reverse()) {
+                              try {
+                                const r = document.createRange();
+                                r.setStart(node, start);
+                                r.setEnd(node, end);
+                                const mark = document.createElement("mark");
+                                mark.className = "cardSelMark";
+                                mark.style.background = "rgba(94, 106, 210, 0.25)";
+                                mark.style.borderBottom = "2px solid rgba(124, 58, 237, 0.5)";
+                                mark.style.borderRadius = "2px";
+                                mark.style.padding = "1px 0";
+                                r.surroundContents(mark);
+                              } catch { /* skip cross-element edge cases */ }
+                            }
+                          }
+                          sel.removeAllRanges();
+                          cardSelectionRef.current = text;
+                          setCardSelectionReady(true);
+                        }
+                      }, 0);
+                    }}
+                  />
+                )}
               </div>
             </>
           ) : (
@@ -821,14 +1791,73 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
               <>
                 <button
                   className={styles.flowMakeCardBtn}
-                  onClick={(e) => { e.stopPropagation(); handleMakeCard(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (selectingForCard) {
+                      setSelectingForCard(false);
+                      setCardSelectionReady(false);
+                      cardSelectionRef.current = "";
+                    } else {
+                      setSelectingForCard(true);
+                      setCardSelectionReady(false);
+                      cardSelectionRef.current = "";
+                      setNoteRawMode(false);
+                      setFocusedPanel("editor");
+                    }
+                  }}
                   disabled={makingCard || !noteContent}
                 >
-                  {makingCard ? "Creating…" : "+ Make Card"}
+                  {makingCard ? "Creating…" : selectingForCard ? "Cancel Selection" : "+ Make Card"}
                 </button>
+                <div className={styles.flowAnkiSelectors}>
+                  <select
+                    className={styles.flowAnkiSelect}
+                    value={selectedDeck}
+                    onChange={(e) => { e.stopPropagation(); setSelectedDeck(e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {availableDecks.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <select
+                    className={styles.flowAnkiSelect}
+                    value={selectedModel}
+                    onChange={(e) => { e.stopPropagation(); setSelectedModel(e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {clozeModels.length > 0 ? (
+                      clozeModels.map((m) => <option key={m} value={m}>{m}</option>)
+                    ) : (
+                      <option value="Cloze">Cloze</option>
+                    )}
+                  </select>
+                </div>
+                {selectingForCard && cardSelectionReady && (
+                  <button
+                    className={styles.flowMakeCardConfirmBtn}
+                    onClick={(e) => { e.stopPropagation(); handleMakeCard(undefined, cardSelectionRef.current); }}
+                  >
+                    Create Card from Selection
+                  </button>
+                )}
                 {makeCardMsg && (
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, textAlign: "center" }}>
                     {makeCardMsg}
+                  </div>
+                )}
+                {!selectingForCard && cardSelectionReady && !makingCard && (
+                  <div className={styles.flowCardSelActions}>
+                    <button
+                      className={styles.flowCardRedoBtn}
+                      onClick={(e) => { e.stopPropagation(); handleMakeCard(undefined, cardSelectionRef.current); }}
+                    >
+                      Redo with Same Selection
+                    </button>
+                    <button
+                      className={styles.flowCardClearBtn}
+                      onClick={(e) => { e.stopPropagation(); setCardSelectionReady(false); cardSelectionRef.current = ""; }}
+                    >
+                      Clear Selection
+                    </button>
                   </div>
                 )}
 
@@ -853,6 +1882,13 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                             setEditFront(card.front);
                             setEditBack(card.back);
                             setAnkiEditError("");
+                            // Reset mode cache — start fresh for this card
+                            modeContentRef.current = { cloze: card.front };
+                            // Auto-detect editor mode
+                            if (/```mermaid/i.test(card.front)) { modeContentRef.current["mermaid"] = card.front; setEditorMode("mermaid"); }
+                            else if (/<table/i.test(card.front)) { modeContentRef.current["table"] = card.front; setEditorMode("table"); }
+                            else if (/Answer:<\/b>|Key clues:<\/b>/i.test(card.front)) { modeContentRef.current["question"] = card.front; setEditorMode("question"); }
+                            else setEditorMode("cloze");
                           }}
                         >
                           {!isEditing && (
@@ -862,11 +1898,9 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                               </div>
                               <div className={styles.ankiCardHeaderActions}>
                                 {card.suspended && <span className={styles.suspendedBadge}>suspended</span>}
-                                {card.suspended && (
-                                  <button className={styles.unsuspendBtn} onClick={(e) => { e.stopPropagation(); handleUnsuspend(card); }}>
-                                    Unsuspend ↑
-                                  </button>
-                                )}
+                                <button className={card.suspended ? styles.unsuspendBtn : styles.suspendBtn} onClick={(e) => { e.stopPropagation(); handleToggleSuspend(card); }}>
+                                  {card.suspended ? "Unsuspend ↑" : "Suspend ↓"}
+                                </button>
                                 <svg className={styles.ankiChevron} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                   <polyline points="6 9 12 15 18 9" />
                                 </svg>
@@ -877,43 +1911,133 @@ export default function FlowView({ savedExtractions, userTemplates, vaultPath, o
                           {isEditing && (
                             <div className={styles.ankiEditPanel} onClick={(e) => e.stopPropagation()}>
                               <div className={styles.ankiEditPanelHeader}>
-                                <div className={styles.ankiDeckBadge}>{card.deck}</div>
+                                <select
+                                  className={styles.ankiDeckSelect}
+                                  value={selectedDeck}
+                                  onChange={(e) => setSelectedDeck(e.target.value)}
+                                >
+                                  {availableDecks.length > 0 ? (
+                                    availableDecks.map((d) => <option key={d} value={d}>{d}</option>)
+                                  ) : (
+                                    <option value={card.deck}>{card.deck}</option>
+                                  )}
+                                </select>
                                 <button className={styles.ankiCollapseBtn} onClick={() => { setEditingFlowCard(null); setAnkiEditError(""); }} title="Collapse">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
                                 </button>
                               </div>
                               <div className={styles.ankiEditLabelRow}>
                                 <label className={styles.ankiEditLabel}>Front</label>
-                                <button className={styles.ankiFormatBtn} onClick={handleFormatFlowCard} disabled={ankiFormatting || ankiSaving}>
-                                  {ankiFormatting ? "Formatting…" : "Format"}
-                                </button>
+                                <div className={styles.ankiFormatRow}>
+                                  <button className={`${styles.ankiFormatBtn} ${editorMode === "cloze" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("cloze")} disabled={ankiFormatting}>
+                                    Cloze
+                                  </button>
+                                  <button className={`${styles.ankiFormatBtn} ${editorMode === "question" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("question")} disabled={ankiFormatting}>
+                                    {ankiFormatting && editorMode !== "question" ? "…" : "Q&A"}
+                                  </button>
+                                  <button className={`${styles.ankiFormatBtn} ${editorMode === "table" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("table")} disabled={ankiFormatting}>
+                                    {ankiFormatting && editorMode !== "table" ? "…" : "Table"}
+                                  </button>
+                                  <button className={`${styles.ankiFormatBtn} ${styles.ankiFormatBtnMermaid} ${editorMode === "mermaid" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("mermaid")} disabled={ankiFormatting}>
+                                    Mermaid
+                                  </button>
+                                  <button
+                                    className={`${styles.ankiPreviewBtn} ${ankiPreview ? styles.ankiPreviewBtnActive : ""}`}
+                                    onClick={() => setAnkiPreview((p) => !p)}
+                                    title={ankiPreview ? "Hide preview" : "Show preview"}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                  </button>
+                                  {editorMode !== "cloze" && (
+                                    <button
+                                      className={styles.ankiRegenBtn}
+                                      onClick={handleRegenerate}
+                                      disabled={ankiFormatting}
+                                      title="Regenerate — re-format from original content"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div
-                                ref={ankiFrontRef}
-                                className={styles.ankiEditRichText}
-                                contentEditable
-                                suppressContentEditableWarning
-                                onInput={(e) => setEditFront(e.currentTarget.innerHTML)}
-                                spellCheck={false}
-                                style={{ minHeight: "80px" }}
-                              />
-                              <label className={styles.ankiEditLabel}>Back</label>
-                              <div
-                                ref={ankiBackRef}
-                                className={styles.ankiEditRichText}
-                                contentEditable
-                                suppressContentEditableWarning
-                                onInput={(e) => setEditBack(e.currentTarget.innerHTML)}
-                                spellCheck={false}
-                                style={{ minHeight: "120px" }}
-                              />
+                              {ankiPreview ? (
+                                <div ref={ankiPreviewRef} className={styles.ankiPreviewContent}>
+                                  <div className={styles.ankiPreviewSection}>
+                                    <div className={styles.ankiPreviewSectionLabel}>Front</div>
+                                    {editorMode === "mermaid" ? (
+                                      <MermaidGridPreview value={editFront} />
+                                    ) : (
+                                      <div dangerouslySetInnerHTML={{ __html: preparePreviewHtml(editFront) }} />
+                                    )}
+                                  </div>
+                                  <hr className={styles.ankiPreviewDivider} />
+                                  <div className={styles.ankiPreviewSection}>
+                                    <div className={styles.ankiPreviewSectionLabel}>Back</div>
+                                    <div dangerouslySetInnerHTML={{ __html: preparePreviewHtml(editBack) }} />
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  {editorMode === "mermaid" && (
+                                    <MermaidStructEditor
+                                      value={editFront}
+                                      onChange={(val) => {
+                                        setEditFront(val);
+                                        if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = val;
+                                      }}
+                                    />
+                                  )}
+                                  {editorMode === "question" && (
+                                    <QuestionEditor
+                                      value={editFront}
+                                      onChange={(val) => {
+                                        setEditFront(val);
+                                        if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = val;
+                                      }}
+                                    />
+                                  )}
+                                  {editorMode === "table" && (
+                                    <TableEditor
+                                      value={editFront}
+                                      onChange={(val) => {
+                                        setEditFront(val);
+                                        if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = val;
+                                      }}
+                                    />
+                                  )}
+                                  {editorMode === "cloze" && (
+                                    <div
+                                      ref={ankiFrontRef}
+                                      className={styles.ankiEditRichText}
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      onInput={(e) => setEditFront(e.currentTarget.innerHTML)}
+                                      spellCheck={false}
+                                      style={{ minHeight: "80px" }}
+                                    />
+                                  )}
+                                  <label className={styles.ankiEditLabel}>Back</label>
+                                  <div
+                                    ref={ankiBackRef}
+                                    className={styles.ankiEditRichText}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onInput={(e) => setEditBack(e.currentTarget.innerHTML)}
+                                    spellCheck={false}
+                                    style={{ minHeight: "120px" }}
+                                  />
+                                </>
+                              )}
                               {ankiEditError && <div className={styles.ankiEditError}>{ankiEditError}</div>}
                               <div className={styles.ankiEditButtons}>
-                                <button className={styles.ankiSaveBtn} onClick={() => handleSaveAnkiCard(card)} disabled={ankiSaving || ankiFormatting}>
+                                <button className={styles.ankiSaveBtn} onClick={() => handleSaveAnkiCard(card)} disabled={ankiSaving}>
                                   {ankiSaving ? "Saving…" : "Save"}
                                 </button>
-                                <button className={styles.ankiCancelBtn} onClick={() => { setEditingFlowCard(null); setAnkiEditError(""); }} disabled={ankiSaving || ankiFormatting}>
+                                <button className={styles.ankiCancelBtn} onClick={() => { setEditingFlowCard(null); setAnkiEditError(""); }} disabled={ankiSaving}>
                                   Cancel
+                                </button>
+                                <button className={styles.ankiDeleteBtn} onClick={() => handleDeleteAnkiCard(card)} disabled={ankiSaving} title="Delete this card from Anki">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                               </div>
                             </div>

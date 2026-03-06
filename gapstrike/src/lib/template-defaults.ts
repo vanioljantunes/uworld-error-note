@@ -5,6 +5,13 @@ export interface TemplateDefault {
   content: string;
 }
 
+/** Hashes of previous default content for each template slug.
+ *  When the API detects a user's Supabase template matches one of these hashes
+ *  (meaning they never customized it), it auto-updates to the new default. */
+export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
+  anki_mermaid: ["d2343b1e21aa9df1"],
+};
+
 export const TEMPLATE_DEFAULTS: TemplateDefault[] = [
   {
     slug: "error_note_a",
@@ -267,6 +274,22 @@ Your job is to ANALYZE medical content and produce a flowchart that captures the
 - GOOD: Arrow labels explain the RELATIONSHIP (e.g., "inhibits", "activates", "results in")
 - BAD: Arrow labels are generic (e.g., "leads to", "causes", "then")
 
+## CRITICAL: Sibling nodes MUST branch from the same parent
+
+When one structure/process produces MULTIPLE outcomes, derivatives, or effects, they MUST ALL connect from the SAME parent node so they render side-by-side on the same row.
+
+WRONG (linear chain — puts siblings on different rows):
+    A[Ureteric bud] -->|forms| B[Collecting ducts]
+    B -->|forms| C[Renal pelvis]
+    C -->|forms| D[Calyces]
+
+CORRECT (branching — siblings on the same row):
+    A[Ureteric bud] -->|forms| B[Collecting ducts]
+    A -->|forms| C[Renal pelvis]
+    A -->|forms| D[Calyces]
+
+The test: if items share the same relationship to a parent (e.g., "X forms A, B, and C"), they ALL get edges FROM X. Never chain them A→B→C.
+
 ## Cloze selection rules
 
 - The TITLE LINE must NEVER contain a cloze. It is a plain-text subject label (e.g. "Wernicke Encephalopathy Mechanism"). It must NOT reveal the answer to any clozed node in the flowchart.
@@ -302,6 +325,8 @@ Based on your analysis, produce:
 - Every arrow MUST have a specific mechanistic label (not "leads to" or "causes" — use "inhibits", "activates", "phosphorylates", "blocks", etc.)
 
 <!-- section: Card Structure -->
+Example 1 — Branching from mechanism to multiple effects (siblings D and E share parent C):
+
 Alcohol-Related Neurological Damage Mechanism
 
 \`\`\`mermaid
@@ -313,9 +338,24 @@ flowchart TD
     B -->|if untreated| F[Korsakoff syndrome]
 \`\`\`
 
+Example 2 — Siblings from one parent + GROUPING derivatives (max 3 siblings per parent, 7 nodes total):
+
+Embryologic Kidney Development
+
+\`\`\`mermaid
+flowchart TD
+    A[Intermediate mesoderm] -->|induces| B[{{c1::Ureteric bud}}]
+    A -->|differentiates into| C[{{c2::Metanephric blastema}}]
+    B -->|forms| D[Collecting system (ducts, pelvis, calyces)]
+    B -->|forms| E[Ureters]
+    C -->|forms| F[Nephron components (glomeruli, tubules)]
+\`\`\`
+
+Note: D groups 3 derivatives into ONE node instead of 3 separate nodes. Max 3 siblings from any parent. 5 nodes total — clean grid.
+
 <!-- section: Rules -->
 1. Output ONLY a clozed title line + one \`\`\`mermaid code block. Nothing else after. No explanation, no commentary.
-2. 5–7 nodes. Branch where biology branches — do NOT force a linear chain.
+2. HARD LIMIT: 5–7 nodes MAXIMUM. NEVER exceed 7 nodes. If a parent has many derivatives (e.g., "forms collecting ducts, renal pelvis, calyces, ureters"), GROUP them into ONE node: "Collecting system (ducts, pelvis, calyces, ureters)". Do NOT create a separate node for each item — that causes grid overflow. Max 3 siblings from any single parent.
 3. Cloze exactly 2–3 FLOWCHART NODES only (c1, c2, optionally c3). NEVER put a cloze in the title line. The title must be a plain subject label that does NOT reveal any clozed answer.
 4. Arrow labels MUST be specific mechanisms: "inhibits", "activates", "depletes", "phosphorylates", "blocks reuptake". NEVER use "leads to", "causes", "then".
 5. Node text: 1–5 words. Each connection on its own line, 4-space indent.
@@ -324,9 +364,10 @@ flowchart TD
 8. Wrap mermaid in \`\`\`mermaid ... \`\`\` code block.
 9. ALWAYS expand abbreviations on first use in each node: write "Distal Convoluted Tubule (DCT)" not just "DCT". After first use, the abbreviation alone is fine.
 10. Every node in the flowchart MUST be connected by at least one edge. No floating/disconnected nodes.
-11. Use sequential single-letter node IDs: A, B, C, D, E, F, G. Always start with A as the trigger node.
+11. Use sequential single-letter node IDs: A, B, C, D, E, F, G. Always start with A as the trigger node. If you reach H or beyond, you have too many nodes — go back and GROUP.
 12. Always use \`flowchart TD\` (top-down direction). Never use LR, BT, or RL.
 13. The FIRST node (A) is always the trigger/cause. The LAST nodes are always the clinical outcomes. Middle nodes are the mechanism.
-14. When branching, connect multiple edges FROM the same source node — e.g. C -->|label| D and C -->|label| E on separate lines.`,
+14. SIBLING RULE: When one node produces/forms/causes multiple things, ALL of them MUST connect FROM that same parent node. Example: if B forms X, Y, and Z, write "B --> X", "B --> Y", "B --> Z" — NEVER chain them as "B --> X", "X --> Y", "Y --> Z". Siblings sharing a parent appear side-by-side; chains put them on separate rows.
+15. ANTI-PATTERN CHECK: Before outputting, verify: are any consecutive nodes (e.g. D→E→F) actually siblings of the same parent? If node D, E, F are all "products of B" or "effects of B", they must ALL branch from B directly.`,
   },
 ];

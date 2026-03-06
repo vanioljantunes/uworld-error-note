@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { supabase } from "@/lib/supabase";
-import { TEMPLATE_DEFAULTS } from "@/lib/template-defaults";
+import { TEMPLATE_DEFAULTS, TEMPLATE_PREV_HASHES } from "@/lib/template-defaults";
 import { getGithubUserId } from "@/lib/auth";
+
+/** Short hash of template content — used to detect if user customized a template */
+function contentHash(content: string): string {
+  return createHash("sha256").update(content).digest("hex").slice(0, 16);
+}
 
 function buildDefaults() {
   return TEMPLATE_DEFAULTS.map((t, i) => ({
@@ -103,8 +109,36 @@ export async function GET(request: NextRequest) {
         if (insErr) console.error("[Templates] Insert error:", insErr.message);
       }
 
+      // Auto-update stale templates: if user's content matches a known previous default
+      // (they never customized it), silently update to the new default.
+      const staleUpdates: { slug: string; content: string }[] = [];
+      for (const def of TEMPLATE_DEFAULTS) {
+        const existing = templates!.find((t: any) => t.slug === def.slug);
+        if (!existing) continue;
+        const currentDefault = contentHash(def.content);
+        const userHash = contentHash(existing.content);
+        // Skip if already up to date
+        if (userHash === currentDefault) continue;
+        // Check if the user's content matches any known previous version
+        const prevHashes = TEMPLATE_PREV_HASHES[def.slug] || [];
+        if (prevHashes.includes(userHash)) {
+          staleUpdates.push({ slug: def.slug, content: def.content });
+        }
+      }
+      if (staleUpdates.length > 0) {
+        console.log("[Templates] Auto-updating stale:", staleUpdates.map((u) => u.slug));
+        for (const upd of staleUpdates) {
+          const { error: updErr } = await supabase
+            .from("templates")
+            .update({ content: upd.content, updated_at: new Date().toISOString() })
+            .eq("user_id", userId)
+            .eq("slug", upd.slug);
+          if (updErr) console.error("[Templates] Auto-update error:", updErr.message);
+        }
+      }
+
       // Re-fetch if anything changed
-      if (deprecated.length > 0 || missing.length > 0) {
+      if (deprecated.length > 0 || missing.length > 0 || staleUpdates.length > 0) {
         const { data: updated } = await supabase
           .from("templates")
           .select("*")

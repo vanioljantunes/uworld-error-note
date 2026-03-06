@@ -108,6 +108,88 @@ function stripHtml(html: string): string {
   return div.textContent || "";
 }
 
+/** Render mermaid code blocks in a card front to inline SVG for Anki.
+ *  Cloze markers ({{c1::text}}) conflict with mermaid's {{ hexagon syntax,
+ *  so we strip them before rendering and re-inject into SVG text nodes after. */
+async function renderMermaidToSvg(html: string): Promise<string> {
+  const codeBlockRe = /```mermaid\s*\n?([\s\S]*?)```/g;
+  const mermaidDivRe = /<div class="mermaid">\s*([\s\S]*?)\s*<\/div>/gi;
+
+  // Normalize code blocks to div wrappers
+  let normalized = html.replace(codeBlockRe, (_m, code: string) =>
+    `<div class="mermaid">${code.trim()}</div>`
+  );
+
+  const matches = [...normalized.matchAll(mermaidDivRe)];
+  if (matches.length === 0) return html;
+
+  try {
+    const mermaid = (await import("mermaid")).default;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      themeVariables: {
+        primaryColor: "#7c3aed",
+        primaryTextColor: "#fff",
+        lineColor: "#a89cdc",
+        secondaryColor: "#2d1b69",
+        background: "#1a1a2e",
+        mainBkg: "#2d1b69",
+        nodeBorder: "#7c3aed",
+      },
+    });
+
+    for (let i = 0; i < matches.length; i++) {
+      const fullMatch = matches[i][0];
+      const code = matches[i][1].trim();
+      if (!code) continue;
+
+      // Collect cloze markers and replace with placeholder text for mermaid
+      const clozeMap: { placeholder: string; clozeNum: string; text: string }[] = [];
+      let cleanCode = code.replace(/\{\{c(\d+)::([\s\S]*?)\}\}/g, (_m, num: string, text: string) => {
+        const placeholder = `CLOZE${num}X${clozeMap.length}`;
+        clozeMap.push({ placeholder, clozeNum: num, text });
+        return text; // render with plain text
+      });
+
+      // Fix common mermaid syntax issues
+      cleanCode = cleanCode.replace(/→/g, "-->").replace(/←/g, "<--");
+      // Ensure flowchart declaration is on its own line
+      cleanCode = cleanCode.replace(/((?:flowchart|graph)\s+(?:TD|TB|BT|RL|LR))\s+([A-Za-z])/i, "$1\n    $2");
+      // Ensure each node connection is on its own line
+      cleanCode = cleanCode.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
+      cleanCode = cleanCode.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
+      // Fix label pipes that might have been mangled
+      cleanCode = cleanCode.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
+
+      try {
+        const { svg } = await mermaid.render(`anki-mermaid-${Date.now()}-${i}`, cleanCode);
+
+        // Re-inject cloze syntax: find the plain text in SVG and wrap with cloze markers
+        let fixedSvg = svg;
+        for (const { clozeNum, text } of clozeMap) {
+          // The text appears in SVG <text>/<tspan> elements — replace the plain text with clozed version
+          // Use a function to only replace the first occurrence
+          const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const re = new RegExp(`(>)([^<]*?)(${escaped})([^<]*?<)`, "");
+          if (re.test(fixedSvg)) {
+            fixedSvg = fixedSvg.replace(re, `$1$2{{c${clozeNum}::${text}}}$4`);
+          }
+        }
+
+        normalized = normalized.replace(fullMatch, fixedSvg);
+      } catch (err) {
+        console.warn("[MakeCard] Mermaid render failed, keeping raw code.", err);
+        console.warn("[MakeCard] Attempted to render:\n", cleanCode);
+      }
+    }
+  } catch {
+    console.warn("[MakeCard] Mermaid import failed");
+  }
+
+  return normalized;
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────
 
 interface FlowViewProps {
@@ -1017,6 +1099,12 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
           front = `{{c1::${textOnly}}}`;
         }
         console.log("[MakeCard] Fixed front:", front);
+      }
+
+      // Render mermaid to inline SVG for Anki (Anki can't run mermaid.js)
+      if (/mermaid|flowchart\s+TD/i.test(front)) {
+        console.log("[MakeCard] Rendering mermaid to SVG for Anki...");
+        front = await renderMermaidToSvg(front);
       }
 
       // Try adding with selected model, then fallback to other cloze models

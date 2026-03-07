@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Design System - Framer</title>
+    <script src="assets/resource_3fa48481346f.js"></script>
+    <script src="assets/iconify-icon_d39ffc6e4c56.js"></script>
+    <link href="assets/css2_19fd9cc6b396.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #FFFFFF;
+            overflow-x: hidden;
+        }
+
+        /* Base Reveal Animation (Scroll triggered) */
+        .reveal {
+            opacity: 0;
+            transform: translateY(2rem);
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Masked Text Reveal (For Hero Title) */
+        .text-reveal-wrapper {
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: bottom;
+        }
+
+        .text-reveal-content {
+            transform: translateY(110%);
+            opacity: 0;
+            transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.2s ease;
+            display: block;
+        }
+
+        .reveal-active .text-reveal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Stagger Delays */
+        .delay-100 { transition-delay: 0.1s; }
+        .delay-200 { transition-delay: 0.2s; }
+        .delay-300 { transition-delay: 0.3s; }
+        .delay-500 { transition-delay: 0.5s; }
+        .delay-700 { transition-delay: 0.7s; }
+
+        /* Marquee Animation */
+        .marquee-container {
+            display: flex;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .marquee-content {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            min-width: 100%;
+            animation: scroll 40s linear infinite;
+        }
+
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
+        }
+
+        /* Nav Load Animation */
+        .nav-load {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.8s ease-out;
+        }
+
+        .nav-load.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Icon Alignment Fix */
+        iconify-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+
+        /* Utilities */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .parallax-element {
+            will-change: transform;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-4px) scale(1.02);
+        }
+
+        /* Gradient Text */
+        .gradient-text {
+            background: linear-gradient(135deg, #0066FF, #9933FF, #0066FF);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient-shift 6s ease infinite;
+        }
+
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333333;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555555;
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen selection:bg-blue-600 selection:text-white">
+    <!-- Main Container -->
+    <div class="max-w-[1200px] mx-auto relative bg-black">
+
+        <!-- Vertical Grid Guide Lines -->
+        <div class="absolute inset-0 pointer-events-none grid grid-cols-1 md:grid-cols-12 gap-0 z-0 h-full w-full">
+            <div class="hidden md:block md:col-span-3 border-r border-white/[0.04] h-full"></div>
+            <div class="hidden md:block md:col-span-6 border-r border-white/[0.04] h-full"></div>
+            <div class="hidden md:block md:col-span-3 h-full"></div>
+        </div>
+
+        <!-- Navigation (System Nav) -->
+        <header class="relative z-50 sticky top-0 nav-load border-b border-white/[0.08]" style="background: rgba(0,0,0,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
+            <div class="flex justify-between items-center px-4 md:px-6 py-4">
+                <div class="flex items-center gap-6">
+                    <a class="text-xs font-medium tracking-widest uppercase text-white/60 hover:text-white transition-colors" href="#typography">Typography</a>
+                    <a class="text-xs font-medium tracking-widest uppercase text-white/60 hover:text-white transition-colors" href="#colors">Colors</a>
+                    <a class="text-xs font-medium tracking-widest uppercase text-white/60 hover:text-white transition-colors hidden md:block" href="#components">Components</a>
+                </div>
+                <div class="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 group cursor-pointer">
+                    <iconify-icon class="text-xl text-white group-hover:rotate-180 transition-transform duration-700" icon="solar:stars-minimalistic-linear"></iconify-icon>
+                    <span class="font-bold tracking-tighter text-lg text-white">SYSTEM</span>
+                </div>
+                <div class="flex items-center gap-6">
+                    <a class="text-xs font-medium tracking-widest uppercase text-white/60 hover:text-white transition-colors hidden md:block" href="#layout">Layout</a>
+                    <a class="text-xs font-medium tracking-widest uppercase text-white/60 hover:text-white transition-colors" href="#motion">Motion</a>
+                    <a class="text-xs font-medium tracking-widest uppercase text-white/60 hover:text-white transition-colors" href="index.html">Back to Site</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- 0) Hero -->
+        <section class="relative z-10 grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] min-h-[600px]">
+            <!-- Hero Area -->
+            <div class="col-span-1 md:col-span-9 border-b md:border-b-0 md:border-r border-white/[0.08] relative group overflow-hidden bg-[#0A0A0A]">
+                <div class="w-full h-full relative flex items-end">
+                    <!-- Gradient bg -->
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#0066FF]/10 via-transparent to-purple-500/10"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    <!-- Hero Text -->
+                    <div class="relative z-20 p-6 md:p-10">
+                        <h1 class="text-6xl md:text-8xl font-semibold tracking-tighter leading-none mb-2" id="hero-title">
+                            <span class="text-reveal-wrapper"><span class="text-reveal-content delay-200 text-white">Design</span></span>
+                            <span class="text-reveal-wrapper"><span class="text-reveal-content delay-300 gradient-text">System</span></span>
+                        </h1>
+                        <div class="mt-6 flex items-center gap-4 reveal delay-500 hero-badge">
+                            <span class="px-3 py-1 border border-white/20 rounded-full text-xs font-mono uppercase backdrop-blur-md text-white/70">v1.0</span>
+                            <span class="px-3 py-1 border border-white/20 rounded-full text-xs font-mono uppercase backdrop-blur-md text-white/70">2024</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Stats Column -->
+            <div class="col-span-1 md:col-span-3 grid grid-rows-2 h-full min-h-[400px]">
+                <!-- Stat 1 -->
+                <div class="row-span-1 border-b border-white/[0.08] p-8 flex flex-col justify-between reveal delay-500 hero-stat group hover:bg-white/[0.02] transition-colors">
+                    <iconify-icon class="text-3xl text-white/20 group-hover:text-[#0066FF] transition-colors" icon="solar:layers-minimalistic-linear"></iconify-icon>
+                    <div>
+                        <h2 class="text-5xl font-medium tracking-tighter text-white">16</h2>
+                        <span class="text-xs font-mono text-white/30 mt-1 block">COMPONENTS</span>
+                    </div>
+                </div>
+                <!-- Stat 2 -->
+                <div class="row-span-1 p-8 flex flex-col justify-between reveal delay-700 hero-stat group hover:bg-white/[0.02] transition-colors relative overflow-hidden">
+                    <iconify-icon class="text-3xl text-white/20 group-hover:text-purple-400 transition-colors" icon="solar:palette-linear"></iconify-icon>
+                    <div>
+                        <h2 class="text-5xl font-medium tracking-tighter text-white">08</h2>
+                        <span class="text-xs font-mono text-white/30 mt-1 block">COLOR TOKENS</span>
+                    </div>
+                    <div class="absolute top-4 right-4">
+                        <iconify-icon class="text-white/5 text-6xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" icon="solar:star-fall-linear"></iconify-icon>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 1) Typography -->
+        <section id="typography" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-white/[0.02]">
+                <span class="text-xs font-mono uppercase text-white/30 block mb-2">01 / Foundations</span>
+                <h2 class="text-4xl font-medium tracking-tight text-white">Typography</h2>
+            </div>
+
+            <div class="grid grid-cols-1">
+                <!-- Display H1 -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-xs font-mono text-white/30 uppercase tracking-widest mb-4 md:mb-0">Display H1</div>
+                    <div class="col-span-7">
+                        <h1 class="text-6xl md:text-[5rem] font-semibold tracking-tighter leading-none text-white">
+                            Design your website
+                        </h1>
+                    </div>
+                    <div class="col-span-2 text-right text-xs font-mono text-white/30">
+                        72-80px / 600 / -0.04em
+                    </div>
+                </div>
+
+                <!-- Heading H2 -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-xs font-mono text-white/30 uppercase tracking-widest mb-4 md:mb-0">Heading H2</div>
+                    <div class="col-span-7">
+                        <h2 class="text-4xl md:text-[3.5rem] font-semibold tracking-tight text-white">
+                            Build without limits
+                        </h2>
+                    </div>
+                    <div class="col-span-2 text-right text-xs font-mono text-white/30">
+                        48-56px / 600 / -0.02em
+                    </div>
+                </div>
+
+                <!-- Heading H3 -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-xs font-mono text-white/30 uppercase tracking-widest mb-4 md:mb-0">Heading H3</div>
+                    <div class="col-span-7">
+                        <h3 class="text-[2rem] md:text-[2.25rem] font-medium tracking-tight text-white">
+                            Visual Canvas
+                        </h3>
+                    </div>
+                    <div class="col-span-2 text-right text-xs font-mono text-white/30">
+                        32-36px / 500 / -0.02em
+                    </div>
+                </div>
+
+                <!-- Body Large -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-xs font-mono text-white/30 uppercase tracking-widest mb-4 md:mb-0">Body Large</div>
+                    <div class="col-span-7">
+                        <p class="text-lg leading-relaxed text-white/60">
+                            Build stunning sites with the power of creative tools, AI, CMS, and a hosting platform. Design directly on a flexible canvas with real components.
+                        </p>
+                    </div>
+                    <div class="col-span-2 text-right text-xs font-mono text-white/30">
+                        16-18px / 400 / Relaxed
+                    </div>
+                </div>
+
+                <!-- Label / Mono -->
+                <div class="grid grid-cols-1 md:grid-cols-12 p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-xs font-mono text-white/30 uppercase tracking-widest mb-4 md:mb-0">Label / Mono</div>
+                    <div class="col-span-7">
+                        <span class="text-xs font-mono uppercase tracking-widest text-white/40">
+                            Design at the speed of thought
+                        </span>
+                    </div>
+                    <div class="col-span-2 text-right text-xs font-mono text-white/30">
+                        12px / Uppercase / Widest
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2) Colors & Surfaces -->
+        <section id="colors" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-white/[0.02]">
+                <span class="text-xs font-mono uppercase text-white/30 block mb-2">02 / Foundations</span>
+                <h2 class="text-4xl font-medium tracking-tight text-white">Colors & Surfaces</h2>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4">
+                <!-- Black (Primary BG) -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-black flex flex-col justify-between aspect-square">
+                    <div class="text-white font-bold">Black</div>
+                    <div class="font-mono text-xs text-white/30">#000000</div>
+                </div>
+                <!-- Framer Blue -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#0066FF] flex flex-col justify-between aspect-square">
+                    <div class="text-white font-bold">Framer Blue</div>
+                    <div class="font-mono text-xs text-white/70">#0066FF</div>
+                </div>
+                <!-- Card BG -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#111111] flex flex-col justify-between aspect-square">
+                    <div class="text-white font-bold">Card BG</div>
+                    <div class="font-mono text-xs text-white/30">#111111</div>
+                </div>
+                <!-- Surface Dark -->
+                <div class="col-span-1 p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A] flex flex-col justify-between aspect-square">
+                    <div class="text-white font-bold">Surface</div>
+                    <div class="font-mono text-xs text-white/30">#0A0A0A</div>
+                </div>
+                <!-- White -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-white flex flex-col justify-between aspect-square">
+                    <div class="text-black font-bold">White</div>
+                    <div class="font-mono text-xs text-black/50">#FFFFFF</div>
+                </div>
+                <!-- Gray 666 -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#666666] flex flex-col justify-between aspect-square">
+                    <div class="text-white font-bold">Secondary</div>
+                    <div class="font-mono text-xs text-white/70">#666666</div>
+                </div>
+                <!-- Gray 999 -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#999999] flex flex-col justify-between aspect-square">
+                    <div class="text-white font-bold">Tertiary</div>
+                    <div class="font-mono text-xs text-white/70">#999999</div>
+                </div>
+                <!-- Border / Glass -->
+                <div class="col-span-1 p-8 md:p-12 border-b border-white/[0.08] flex flex-col justify-between aspect-square" style="background: rgba(255,255,255,0.05); backdrop-filter: blur(20px);">
+                    <div class="text-white font-bold">Glass</div>
+                    <div class="font-mono text-xs text-white/30">rgba(255,255,255,0.1)</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3) UI Components -->
+        <section id="components" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-white/[0.02]">
+                <span class="text-xs font-mono uppercase text-white/30 block mb-2">03 / UI Elements</span>
+                <h2 class="text-4xl font-medium tracking-tight text-white">Components</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2">
+                <!-- Buttons & Links -->
+                <div class="p-8 md:p-12 border-b md:border-b-0 md:border-r border-white/[0.08]">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-white mb-8">Buttons & Actions</h3>
+                    <div class="space-y-8">
+                        <!-- Primary Blue Button -->
+                        <div class="flex items-center gap-4">
+                            <button class="px-6 py-3 bg-[#0066FF] text-white rounded-lg text-sm font-medium hover:bg-[#0077FF] transition-all flex items-center gap-2 group">
+                                Primary Action
+                                <iconify-icon class="text-lg group-hover:translate-x-1 transition-transform" icon="solar:arrow-right-linear"></iconify-icon>
+                            </button>
+                            <span class="text-xs font-mono text-white/30">Primary</span>
+                        </div>
+
+                        <!-- Outline Button -->
+                        <div class="flex items-center gap-4">
+                            <a class="inline-flex items-center gap-2 text-sm font-medium border border-white/20 rounded-lg px-6 py-3 text-white/80 hover:bg-white/10 hover:border-white/30 transition-all" href="#">
+                                Secondary Action
+                                <iconify-icon class="text-lg" icon="solar:play-circle-linear"></iconify-icon>
+                            </a>
+                            <span class="text-xs font-mono text-white/30">Outline</span>
+                        </div>
+
+                        <!-- Text Link -->
+                        <div class="flex items-center gap-4">
+                            <a class="text-sm font-medium text-[#0066FF] hover:text-[#3388FF] border-b border-[#0066FF]/30 hover:border-[#0066FF] pb-0.5 transition-colors flex items-center gap-1" href="#">
+                                Text Link
+                                <iconify-icon class="text-sm" icon="solar:arrow-right-up-linear"></iconify-icon>
+                            </a>
+                            <span class="text-xs font-mono text-white/30">Inline Link</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Badges & Lists -->
+                <div class="p-8 md:p-12">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-white mb-8">Badges & Lists</h3>
+                    <div class="space-y-8">
+                        <!-- Glass Badge -->
+                        <div class="flex items-center gap-4">
+                            <span class="px-4 py-1.5 border border-white/20 rounded-full text-xs font-mono uppercase backdrop-blur-md text-white/70">Glass Badge</span>
+                            <span class="text-xs font-mono text-white/30">Glass</span>
+                        </div>
+
+                        <!-- Colored Badge -->
+                        <div class="flex items-center gap-4">
+                            <span class="px-3 py-1 bg-[#0066FF]/10 border border-[#0066FF]/20 rounded-full text-xs font-medium text-[#0066FF]">Feature Badge</span>
+                            <span class="text-xs font-mono text-white/30">Accent</span>
+                        </div>
+
+                        <!-- Check List Item -->
+                        <div class="max-w-xs">
+                            <div class="flex items-center justify-between border-b border-white/[0.08] pb-2">
+                                <span class="text-sm text-white/50">List Item</span>
+                                <iconify-icon class="text-[#0066FF] text-lg" icon="solar:check-circle-linear"></iconify-icon>
+                            </div>
+                        </div>
+
+                        <!-- Hoverable List -->
+                        <div class="max-w-xs">
+                            <a class="group flex items-start justify-between border-b border-white/[0.08] pb-4" href="#">
+                                <div>
+                                    <span class="text-xs text-white/30 mb-1 block">Label</span>
+                                    <h4 class="text-lg font-medium text-white/80 group-hover:text-white transition-colors">Hoverable List Title</h4>
+                                </div>
+                                <iconify-icon class="text-white/20 text-xl group-hover:text-[#0066FF] transition-all" icon="solar:arrow-right-up-linear"></iconify-icon>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cards -->
+            <div class="border-t border-white/[0.08]">
+                <div class="p-8 md:p-12">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-white mb-8">Feature Card</h3>
+
+                    <!-- Card Instance -->
+                    <div class="glass-card rounded-2xl overflow-hidden max-w-3xl cursor-pointer group">
+                        <div class="grid grid-cols-1 md:grid-cols-2 min-h-[250px]">
+                            <div class="col-span-1 p-8 flex flex-col justify-center">
+                                <div class="w-10 h-10 rounded-xl bg-[#0066FF]/10 border border-[#0066FF]/20 flex items-center justify-center mb-6 group-hover:bg-[#0066FF]/20 transition-colors">
+                                    <iconify-icon class="text-xl text-[#0066FF]" icon="solar:pen-new-square-linear"></iconify-icon>
+                                </div>
+                                <h4 class="text-xl font-semibold tracking-tight mb-3 text-white group-hover:translate-x-1 transition-transform duration-500">Feature Name</h4>
+                                <p class="text-white/40 text-sm leading-relaxed">Description of the feature showing hover states and glass-morphism styling.</p>
+                                <div class="mt-6 flex items-center gap-2 text-[#0066FF] text-sm font-medium group-hover:gap-3 transition-all">
+                                    Learn more
+                                    <iconify-icon class="text-lg" icon="solar:arrow-right-linear"></iconify-icon>
+                                </div>
+                            </div>
+                            <div class="col-span-1 relative overflow-hidden bg-white/[0.02]">
+                                <div class="absolute inset-0 flex items-center justify-center p-8">
+                                    <div class="w-full h-full bg-white/[0.03] rounded-lg border border-white/[0.06] flex items-center justify-center text-white/20 text-sm font-mono">
+                                        Image Area
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4) Layout & Grid -->
+        <section id="layout" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-white/[0.02]">
+                <span class="text-xs font-mono uppercase text-white/30 block mb-2">04 / Foundations</span>
+                <h2 class="text-4xl font-medium tracking-tight text-white">Layout & Grid</h2>
+            </div>
+
+            <div class="p-8 md:p-12 grid grid-cols-12 gap-4 h-[200px] relative">
+                <div class="col-span-12 text-center text-xs font-mono text-white/30 mb-4 absolute top-4 left-0 w-full">
+                    12 Column Grid System &mdash; max-width: 1200px</div>
+
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+                <div class="col-span-1 bg-white/[0.04] h-full rounded border border-white/[0.06]"></div>
+            </div>
+
+            <!-- Spacing tokens -->
+            <div class="p-8 md:p-12 border-t border-white/[0.08]">
+                <h3 class="text-sm font-bold uppercase tracking-widest text-white mb-8">Section Spacing</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="w-20 h-20 bg-[#0066FF]/10 border border-[#0066FF]/20 rounded-lg flex items-center justify-center">
+                            <span class="text-xs font-mono text-[#0066FF]">80px</span>
+                        </div>
+                        <div>
+                            <div class="text-sm text-white">Section Padding</div>
+                            <div class="text-xs font-mono text-white/30">py-20</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="w-20 h-20 bg-purple-500/10 border border-purple-500/20 rounded-lg flex items-center justify-center">
+                            <span class="text-xs font-mono text-purple-400">120px</span>
+                        </div>
+                        <div>
+                            <div class="text-sm text-white">Hero Padding</div>
+                            <div class="text-xs font-mono text-white/30">py-32</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center justify-center">
+                            <span class="text-xs font-mono text-emerald-400">24px</span>
+                        </div>
+                        <div>
+                            <div class="text-sm text-white">Card Gap</div>
+                            <div class="text-xs font-mono text-white/30">gap-6</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5) Motion & Animation -->
+        <section id="motion" class="relative z-10 border-b border-white/[0.08] overflow-hidden">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-white/[0.02]">
+                <span class="text-xs font-mono uppercase text-white/30 block mb-2">05 / Interaction</span>
+                <h2 class="text-4xl font-medium tracking-tight text-white">Motion & Animation</h2>
+            </div>
+
+            <!-- Marquee -->
+            <div class="py-12 border-b border-white/[0.08] bg-white/[0.01]">
+                <div class="text-center text-xs font-mono text-white/30 mb-4">Infinite Marquee</div>
+                <div class="marquee-container">
+                    <div class="marquee-content">
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">Motion System</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">&bull;</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">Easing: cubic-bezier(0.16, 1, 0.3, 1)</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">&bull;</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">Duration: 300ms-1.2s</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">&bull;</span>
+                    </div>
+                    <!-- Duplicate -->
+                    <div class="marquee-content">
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">Motion System</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">&bull;</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">Easing: cubic-bezier(0.16, 1, 0.3, 1)</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">&bull;</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">Duration: 300ms-1.2s</span>
+                        <span class="text-sm font-mono uppercase tracking-widest text-white/20 mx-8">&bull;</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reveal Examples -->
+            <div class="p-8 md:p-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="p-6 rounded-xl glass-card reveal" style="transform: translateY(2rem);">
+                    <span class="text-xs font-mono text-white/30 block mb-2">.reveal</span>
+                    <h4 class="text-xl font-medium text-white">Scroll Reveal</h4>
+                </div>
+                <div class="p-6 rounded-xl glass-card reveal delay-200" style="transform: translateY(2rem);">
+                    <span class="text-xs font-mono text-white/30 block mb-2">.reveal .delay-200</span>
+                    <h4 class="text-xl font-medium text-white">Staggered Reveal</h4>
+                </div>
+                <div class="p-6 rounded-xl glass-card reveal delay-500" style="transform: translateY(2rem);">
+                    <span class="text-xs font-mono text-white/30 block mb-2">.reveal .delay-500</span>
+                    <h4 class="text-xl font-medium text-white">Long Delay</h4>
+                </div>
+            </div>
+
+            <!-- Text Reveal -->
+            <div class="p-8 md:p-12 border-t border-white/[0.08] text-center">
+                <span class="text-xs font-mono text-white/30 block mb-8">Masked Text Reveal</span>
+                <h2 class="text-6xl md:text-8xl font-semibold tracking-tighter leading-none text-white">
+                    <span class="text-reveal-wrapper"><span class="text-reveal-content">Animation</span></span>
+                </h2>
+            </div>
+        </section>
+
+        <!-- 6) Iconography -->
+        <section class="relative z-10 border-b border-white/[0.08] pb-24">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-white/[0.02]">
+                <span class="text-xs font-mono uppercase text-white/30 block mb-2">06 / Assets</span>
+                <h2 class="text-4xl font-medium tracking-tight text-white">Iconography</h2>
+            </div>
+
+            <div class="p-8 md:p-12 grid grid-cols-2 md:grid-cols-6 gap-8 justify-items-center">
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:stars-minimalistic-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:stars</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:pen-new-square-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:pen</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:magic-stick-3-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:magic</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:bolt-circle-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:bolt</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:arrow-right-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:arrow</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:layers-minimalistic-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:layers</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:play-circle-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:play</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:globe-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:globe</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:graph-up-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:graph</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:check-circle-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:check</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:arrow-right-up-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:arrow-up</span>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <iconify-icon class="text-3xl text-white/60" icon="solar:widget-linear"></iconify-icon>
+                    <span class="text-xs font-mono text-white/30">solar:widget</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="relative z-10 bg-black text-white/30 py-12 text-center border-t border-white/[0.08]">
+            <span class="text-xs font-mono uppercase">Design System Generated for Framer</span>
+        </footer>
+
+    </div>
+
+    <script>
+        // Intersection Observer for Reveals
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // 1. Initial Hero Animations
+            setTimeout(() => {
+                document.querySelector('header').classList.add('loaded');
+            }, 100);
+
+            setTimeout(() => {
+                const heroTitle = document.getElementById('hero-title');
+                if (heroTitle) heroTitle.classList.add('reveal-active');
+            }, 500);
+
+            setTimeout(() => {
+                document.querySelectorAll('.hero-badge, .hero-stat').forEach(el => {
+                    el.classList.add('active');
+                });
+            }, 500);
+
+            // 2. Scroll Observer
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        const textWrappers = entry.target.querySelectorAll('.text-reveal-wrapper');
+                        if (textWrappers.length > 0 || entry.target.classList.contains('text-reveal-wrapper')) {
+                            entry.target.classList.add('reveal-active');
+                        }
+                        if (entry.target.tagName === 'H2' || entry.target.tagName === 'H1') {
+                            entry.target.classList.add('reveal-active');
+                        }
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+            // Observe text reveal sections
+            document.querySelectorAll('h1, h2').forEach(el => {
+                if (el.querySelector('.text-reveal-content')) observer.observe(el);
+            });
+
+            // 3. Parallax Logic
+            window.addEventListener('scroll', () => {
+                const scrolled = window.scrollY;
+                document.querySelectorAll('.parallax-img').forEach((el) => {
+                    const speed = el.dataset.speed || 0.1;
+                    el.style.transform = `translateY(${scrolled * speed}px)`;
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

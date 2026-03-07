@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Design System - Linear</title>
+    <script src="assets/resource_3fa48481346f.js"></script>
+    <script src="assets/iconify-icon_d39ffc6e4c56.js"></script>
+    <link href="assets/css2_19fd9cc6b396.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #EDEDED;
+            overflow-x: hidden;
+        }
+
+        /* Base Reveal Animation (opacity only - Linear style) */
+        .reveal {
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        .reveal.active {
+            opacity: 1;
+        }
+
+        /* Masked Text Reveal */
+        .text-reveal-wrapper {
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: bottom;
+        }
+
+        .text-reveal-content {
+            transform: translateY(110%);
+            opacity: 0;
+            transition: transform 1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
+            display: block;
+        }
+
+        .reveal-active .text-reveal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Stagger Delays */
+        .delay-100 { transition-delay: 0.1s; }
+        .delay-200 { transition-delay: 0.2s; }
+        .delay-300 { transition-delay: 0.3s; }
+        .delay-500 { transition-delay: 0.5s; }
+        .delay-700 { transition-delay: 0.7s; }
+
+        /* Marquee Animation */
+        .marquee-container {
+            display: flex;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .marquee-content {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-around;
+            min-width: 100%;
+            animation: scroll 40s linear infinite;
+        }
+
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
+        }
+
+        /* Nav Load Animation */
+        .nav-load {
+            opacity: 0;
+            transition: opacity 0.6s ease;
+        }
+
+        .nav-load.loaded {
+            opacity: 1;
+        }
+
+        /* Icon Alignment Fix */
+        iconify-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+
+        /* Grid dot pattern */
+        .grid-dots {
+            background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #5E6AD2, #8A63D2, #C084FC);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Step-based grid dot animation */
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.03; }
+            50% { opacity: 0.08; }
+        }
+
+        .grid-dots-animated {
+            animation: gridPulse 3200ms steps(4) infinite;
+        }
+
+        /* Subtle glow */
+        .glow-line {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(94,106,210,0.4), transparent);
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen selection:bg-[#5E6AD2] selection:text-white">
+    <!-- Main Container -->
+    <div class="max-w-[1080px] mx-auto relative">
+
+        <!-- Navigation (System Nav) -->
+        <header class="relative z-50 sticky top-0 bg-black/80 backdrop-blur-xl border-b border-white/[0.08] nav-load">
+            <div class="flex justify-between items-center px-6 py-4">
+                <div class="flex items-center gap-6">
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200"
+                        href="#typography">Typography</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200"
+                        href="#colors">Colors</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200 hidden md:block"
+                        href="#components">Components</a>
+                </div>
+                <div class="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 group cursor-pointer">
+                    <iconify-icon class="text-xl text-[#EDEDED] group-hover:text-[#5E6AD2] transition-colors duration-200"
+                        icon="solar:widgets-linear"></iconify-icon>
+                    <span class="font-medium tracking-tight text-base text-[#EDEDED]">SYSTEM</span>
+                </div>
+                <div class="flex items-center gap-6">
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200 hidden md:block"
+                        href="#layout">Layout</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200"
+                        href="#motion">Motion</a>
+                    <a class="text-[13px] font-medium text-[#5E6AD2] hover:text-[#6E7AE2] transition-colors duration-200"
+                        href="index.html">Back to Site</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- 0) Hero -->
+        <section class="relative z-10 border-b border-white/[0.08] overflow-hidden">
+            <div class="grid grid-cols-1 md:grid-cols-12 min-h-[500px]">
+                <!-- Hero Content -->
+                <div class="col-span-1 md:col-span-9 border-b md:border-b-0 md:border-r border-white/[0.08] relative overflow-hidden">
+                    <!-- Grid dot background -->
+                    <div class="absolute inset-0 grid-dots grid-dots-animated pointer-events-none"></div>
+                    <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent to-black/60 pointer-events-none"></div>
+
+                    <!-- Hero Text -->
+                    <div class="absolute bottom-8 left-8 md:bottom-12 md:left-12 z-20">
+                        <h1 class="text-6xl md:text-8xl font-medium tracking-tighter leading-none mb-3" id="hero-title">
+                            <span class="text-reveal-wrapper"><span class="text-reveal-content delay-200">Design</span></span>
+                            <span class="text-reveal-wrapper"><span class="text-reveal-content delay-300">System</span></span>
+                        </h1>
+                        <div class="mt-6 flex items-center gap-4 reveal delay-500 hero-badge">
+                            <span class="px-3 py-1 border border-white/[0.12] rounded-full text-[13px] font-mono uppercase text-[#8A8F98]">v1.0</span>
+                            <span class="px-3 py-1 border border-white/[0.12] rounded-full text-[13px] font-mono uppercase text-[#8A8F98]">Linear</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Column -->
+                <div class="col-span-1 md:col-span-3 grid grid-rows-2 h-full min-h-[400px]">
+                    <!-- Stat 1 -->
+                    <div class="row-span-1 border-b border-white/[0.08] p-8 flex flex-col justify-between reveal delay-500 hero-stat group hover:bg-[#0A0A0A] transition-colors duration-200">
+                        <iconify-icon class="text-3xl text-[#5C5F66] group-hover:text-[#5E6AD2] transition-colors duration-200"
+                            icon="solar:layers-minimalistic-linear"></iconify-icon>
+                        <div>
+                            <h2 class="text-5xl font-medium tracking-tighter text-[#EDEDED]">12</h2>
+                            <span class="text-[13px] font-mono text-[#5C5F66] mt-1 block">COMPONENTS</span>
+                        </div>
+                    </div>
+                    <!-- Stat 2 -->
+                    <div class="row-span-1 p-8 flex flex-col justify-between reveal delay-700 hero-stat group hover:bg-[#0A0A0A] transition-colors duration-200 relative overflow-hidden">
+                        <iconify-icon class="text-3xl text-[#5C5F66] group-hover:text-[#5E6AD2] transition-colors duration-200"
+                            icon="solar:palette-linear"></iconify-icon>
+                        <div>
+                            <h2 class="text-5xl font-medium tracking-tighter text-[#EDEDED]">07</h2>
+                            <span class="text-[13px] font-mono text-[#5C5F66] mt-1 block">COLOR TOKENS</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 01) Typography -->
+        <section id="typography" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A]/50">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] block mb-2">01 / Foundations</span>
+                <h2 class="text-4xl font-medium tracking-tight text-[#EDEDED]">Typography</h2>
+            </div>
+
+            <div class="grid grid-cols-1">
+                <!-- Display H1 -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-4 md:mb-0">
+                        Display H1</div>
+                    <div class="col-span-7">
+                        <h1 class="text-[56px] md:text-[64px] font-medium tracking-tight leading-tight text-[#EDEDED]">
+                            Plan and build products
+                        </h1>
+                    </div>
+                    <div class="col-span-2 text-right text-[13px] font-mono text-[#5C5F66]">
+                        56-64px / 500
+                    </div>
+                </div>
+
+                <!-- Heading H2 -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-4 md:mb-0">
+                        Heading H2</div>
+                    <div class="col-span-7">
+                        <h2 class="text-[40px] md:text-[48px] font-medium tracking-tight text-[#EDEDED]">
+                            Made for modern teams
+                        </h2>
+                    </div>
+                    <div class="col-span-2 text-right text-[13px] font-mono text-[#5C5F66]">
+                        40-48px / 500
+                    </div>
+                </div>
+
+                <!-- Heading H3 -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-4 md:mb-0">
+                        Heading H3</div>
+                    <div class="col-span-7">
+                        <h3 class="text-[24px] md:text-[28px] font-medium text-[#EDEDED]">
+                            Build momentum with Cycles
+                        </h3>
+                    </div>
+                    <div class="col-span-2 text-right text-[13px] font-mono text-[#5C5F66]">
+                        24-28px / 500
+                    </div>
+                </div>
+
+                <!-- Body -->
+                <div class="grid grid-cols-1 md:grid-cols-12 border-b border-white/[0.08] p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-4 md:mb-0">
+                        Body</div>
+                    <div class="col-span-7">
+                        <p class="text-base leading-relaxed text-[#8A8F98]">
+                            Streamline issues, projects, and product roadmaps. Built for speed and designed with
+                            clarity in mind. Every interaction is fast and every pixel is intentional.
+                        </p>
+                    </div>
+                    <div class="col-span-2 text-right text-[13px] font-mono text-[#5C5F66]">
+                        16px / 400
+                    </div>
+                </div>
+
+                <!-- Label / Mono -->
+                <div class="grid grid-cols-1 md:grid-cols-12 p-8 md:p-12 items-baseline">
+                    <div class="col-span-3 text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-4 md:mb-0">
+                        Label / Mono</div>
+                    <div class="col-span-7">
+                        <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">
+                            Issue Tracking &middot; Roadmaps &middot; Cycles
+                        </span>
+                    </div>
+                    <div class="col-span-2 text-right text-[13px] font-mono text-[#5C5F66]">
+                        13px / 500 / Wide
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 02) Colors & Surfaces -->
+        <section id="colors" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A]/50">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] block mb-2">02 / Foundations</span>
+                <h2 class="text-4xl font-medium tracking-tight text-[#EDEDED]">Colors & Surfaces</h2>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4">
+                <!-- Primary Black -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#000000] flex flex-col justify-between aspect-square">
+                    <div class="text-[#EDEDED] font-medium text-[14px]">Primary BG</div>
+                    <div class="font-mono text-[13px] text-[#5C5F66]">#000000</div>
+                </div>
+                <!-- Secondary -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#0A0A0A] flex flex-col justify-between aspect-square">
+                    <div class="text-[#EDEDED] font-medium text-[14px]">Secondary BG</div>
+                    <div class="font-mono text-[13px] text-[#5C5F66]">#0A0A0A</div>
+                </div>
+                <!-- Card Surface -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#111111] flex flex-col justify-between aspect-square">
+                    <div class="text-[#EDEDED] font-medium text-[14px]">Card Surface</div>
+                    <div class="font-mono text-[13px] text-[#5C5F66]">#111111</div>
+                </div>
+                <!-- Accent -->
+                <div class="col-span-1 p-8 md:p-12 border-b border-white/[0.08] bg-[#5E6AD2] flex flex-col justify-between aspect-square">
+                    <div class="text-white font-medium text-[14px]">Accent</div>
+                    <div class="font-mono text-[13px] text-white/60">#5E6AD2</div>
+                </div>
+                <!-- Text Primary -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#EDEDED] flex flex-col justify-between aspect-square">
+                    <div class="text-[#000000] font-medium text-[14px]">Text Primary</div>
+                    <div class="font-mono text-[13px] text-[#5C5F66]">#EDEDED</div>
+                </div>
+                <!-- Text Secondary -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#8A8F98] flex flex-col justify-between aspect-square">
+                    <div class="text-[#000000] font-medium text-[14px]">Text Secondary</div>
+                    <div class="font-mono text-[13px] text-[#1a1a1a]">#8A8F98</div>
+                </div>
+                <!-- Text Tertiary -->
+                <div class="col-span-1 p-8 md:p-12 border-r border-b border-white/[0.08] bg-[#5C5F66] flex flex-col justify-between aspect-square">
+                    <div class="text-[#EDEDED] font-medium text-[14px]">Text Tertiary</div>
+                    <div class="font-mono text-[13px] text-[#EDEDED]/60">#5C5F66</div>
+                </div>
+                <!-- Border -->
+                <div class="col-span-1 p-8 md:p-12 border-b border-white/[0.08] bg-[#000000] flex flex-col justify-between aspect-square relative">
+                    <div class="absolute inset-4 border border-white/[0.08] rounded-md pointer-events-none"></div>
+                    <div class="text-[#EDEDED] font-medium text-[14px] relative z-10">Border</div>
+                    <div class="font-mono text-[13px] text-[#5C5F66] relative z-10">rgba(255,255,255,0.08)</div>
+                </div>
+            </div>
+
+            <!-- Gradient Row -->
+            <div class="p-8 md:p-12 border-b border-white/[0.08]">
+                <div class="text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-4">Gradient</div>
+                <div class="h-16 rounded-lg" style="background: linear-gradient(135deg, #5E6AD2, #8A63D2, #C084FC);"></div>
+                <div class="mt-3 font-mono text-[13px] text-[#5C5F66]">linear-gradient(135deg, #5E6AD2, #8A63D2, #C084FC)</div>
+            </div>
+
+            <!-- Status Colors -->
+            <div class="p-8 md:p-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full bg-[#3FB950]"></div>
+                    <div>
+                        <span class="text-[14px] text-[#EDEDED] block">Success</span>
+                        <span class="font-mono text-[13px] text-[#5C5F66]">#3FB950</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full bg-[#F85149]"></div>
+                    <div>
+                        <span class="text-[14px] text-[#EDEDED] block">Error</span>
+                        <span class="font-mono text-[13px] text-[#5C5F66]">#F85149</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full bg-[#5E6AD2]"></div>
+                    <div>
+                        <span class="text-[14px] text-[#EDEDED] block">Accent</span>
+                        <span class="font-mono text-[13px] text-[#5C5F66]">#5E6AD2</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full bg-[#6E7AE2]"></div>
+                    <div>
+                        <span class="text-[14px] text-[#EDEDED] block">Accent Hover</span>
+                        <span class="font-mono text-[13px] text-[#5C5F66]">#6E7AE2</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 03) UI Components -->
+        <section id="components" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A]/50">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] block mb-2">03 / UI Elements</span>
+                <h2 class="text-4xl font-medium tracking-tight text-[#EDEDED]">Components</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2">
+
+                <!-- Buttons & Links -->
+                <div class="p-8 md:p-12 border-b md:border-b-0 md:border-r border-white/[0.08]">
+                    <h3 class="text-[13px] font-medium uppercase tracking-wider text-[#EDEDED] mb-8">Buttons & Actions</h3>
+                    <div class="space-y-8">
+
+                        <!-- Primary Button -->
+                        <div class="flex items-center gap-4">
+                            <button class="px-5 py-2 bg-[#5E6AD2] hover:bg-[#6E7AE2] text-white text-[14px] font-medium rounded-md transition-colors duration-200 shadow-lg shadow-[#5E6AD2]/20 flex items-center gap-2">
+                                Primary Action
+                                <iconify-icon class="text-sm" icon="solar:arrow-right-linear"></iconify-icon>
+                            </button>
+                            <span class="text-[13px] font-mono text-[#5C5F66]">Primary</span>
+                        </div>
+
+                        <!-- Ghost Button -->
+                        <div class="flex items-center gap-4">
+                            <button class="px-5 py-2 bg-transparent border border-white/[0.08] hover:border-white/[0.16] text-[#EDEDED] text-[14px] font-medium rounded-md transition-colors duration-200 flex items-center gap-2">
+                                Ghost Action
+                                <iconify-icon class="text-sm" icon="solar:arrow-right-linear"></iconify-icon>
+                            </button>
+                            <span class="text-[13px] font-mono text-[#5C5F66]">Ghost</span>
+                        </div>
+
+                        <!-- Text Link -->
+                        <div class="flex items-center gap-4">
+                            <a class="text-[14px] font-medium text-[#5E6AD2] hover:text-[#6E7AE2] transition-colors duration-200 flex items-center gap-1" href="#">
+                                Text Link
+                                <iconify-icon class="text-xs" icon="solar:arrow-right-up-linear"></iconify-icon>
+                            </a>
+                            <span class="text-[13px] font-mono text-[#5C5F66]">Link</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Badges & List Items -->
+                <div class="p-8 md:p-12">
+                    <h3 class="text-[13px] font-medium uppercase tracking-wider text-[#EDEDED] mb-8">Badges & Lists</h3>
+
+                    <div class="space-y-8">
+                        <!-- Status Badges -->
+                        <div class="flex items-center gap-3">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 border border-white/[0.08] rounded-full text-[13px] text-[#8A8F98]">
+                                <span class="w-1.5 h-1.5 rounded-full bg-[#5E6AD2]"></span>
+                                In Progress
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 border border-white/[0.08] rounded-full text-[13px] text-[#8A8F98]">
+                                <span class="w-1.5 h-1.5 rounded-full bg-[#3FB950]"></span>
+                                Done
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 border border-white/[0.08] rounded-full text-[13px] text-[#8A8F98]">
+                                <span class="w-1.5 h-1.5 rounded-full bg-[#F85149]"></span>
+                                Cancelled
+                            </span>
+                        </div>
+
+                        <!-- List Item -->
+                        <div class="max-w-sm">
+                            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3 group cursor-pointer">
+                                <div class="flex items-center gap-3">
+                                    <iconify-icon class="text-[#5E6AD2] text-lg" icon="solar:check-circle-linear"></iconify-icon>
+                                    <span class="text-[14px] text-[#EDEDED] group-hover:text-white transition-colors duration-200">Issue list item</span>
+                                </div>
+                                <span class="text-[13px] font-mono text-[#5C5F66]">LIN-142</span>
+                            </div>
+                        </div>
+
+                        <!-- Hoverable row -->
+                        <div class="max-w-sm">
+                            <a class="group flex items-center justify-between border-b border-white/[0.08] pb-3" href="#">
+                                <div>
+                                    <span class="text-[13px] text-[#5C5F66] mb-0.5 block">Label</span>
+                                    <h4 class="text-[16px] font-medium text-[#EDEDED] group-hover:text-white transition-colors duration-200">Hoverable Row Item</h4>
+                                </div>
+                                <iconify-icon class="text-[#5C5F66] text-lg group-hover:text-[#EDEDED] transition-colors duration-200"
+                                    icon="solar:arrow-right-up-linear"></iconify-icon>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cards -->
+            <div class="border-t border-white/[0.08]">
+                <div class="p-8 md:p-12">
+                    <h3 class="text-[13px] font-medium uppercase tracking-wider text-[#EDEDED] mb-8">Subtle Card</h3>
+
+                    <!-- Card Instance -->
+                    <div class="group border border-[#1a1a1a] hover:border-white/[0.12] bg-transparent transition-all duration-200 cursor-pointer overflow-hidden max-w-2xl rounded-lg">
+                        <div class="grid grid-cols-1 md:grid-cols-2 min-h-[200px]">
+                            <div class="col-span-1 p-8 flex flex-col justify-center">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <iconify-icon class="text-[#5E6AD2] text-lg" icon="solar:bolt-circle-linear"></iconify-icon>
+                                    <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Feature</span>
+                                </div>
+                                <h4 class="text-[24px] font-medium tracking-tight text-[#EDEDED] mb-2">Card Title</h4>
+                                <p class="text-[14px] text-[#8A8F98] leading-relaxed">Description text showing the subtle border hover state on parent card.</p>
+                            </div>
+                            <div class="col-span-1 relative overflow-hidden bg-[#0A0A0A] border-l border-[#1a1a1a]">
+                                <div class="absolute inset-0 grid-dots opacity-30 flex items-center justify-center">
+                                    <iconify-icon class="text-4xl text-[#5E6AD2]/20" icon="solar:chart-square-linear"></iconify-icon>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 04) Layout & Grid -->
+        <section id="layout" class="relative z-10 border-b border-white/[0.08]">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A]/50">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] block mb-2">04 / Foundations</span>
+                <h2 class="text-4xl font-medium tracking-tight text-[#EDEDED]">Layout & Grid</h2>
+            </div>
+
+            <div class="p-8 md:p-12">
+                <div class="text-center text-[13px] font-mono text-[#5C5F66] mb-6">12 Column Grid &middot; max-width: 1080px</div>
+                <div class="grid grid-cols-12 gap-2 h-[160px]">
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">1</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">2</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">3</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">4</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">5</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">6</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">7</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">8</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">9</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">10</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">11</span>
+                    </div>
+                    <div class="col-span-1 bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 h-full rounded flex items-end justify-center pb-3">
+                        <span class="text-[11px] font-mono text-[#5C5F66]">12</span>
+                    </div>
+                </div>
+
+                <!-- Spacing tokens -->
+                <div class="mt-12">
+                    <div class="text-[13px] font-mono text-[#5C5F66] uppercase tracking-wider mb-6">Section Spacing</div>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-24 text-[13px] font-mono text-[#5C5F66]">Section</div>
+                            <div class="h-4 bg-[#5E6AD2]/20 border border-[#5E6AD2]/30 rounded" style="width: 140px;"></div>
+                            <span class="text-[13px] font-mono text-[#5C5F66]">100-140px padding</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-24 text-[13px] font-mono text-[#5C5F66]">Content</div>
+                            <div class="h-4 bg-[#5E6AD2]/20 border border-[#5E6AD2]/30 rounded" style="width: 80px;"></div>
+                            <span class="text-[13px] font-mono text-[#5C5F66]">max-w-2xl paragraphs</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-24 text-[13px] font-mono text-[#5C5F66]">Container</div>
+                            <div class="h-4 bg-[#5E6AD2]/20 border border-[#5E6AD2]/30 rounded" style="width: 108px;"></div>
+                            <span class="text-[13px] font-mono text-[#5C5F66]">max-width: 1080px</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 05) Motion & Animation -->
+        <section id="motion" class="relative z-10 border-b border-white/[0.08] overflow-hidden">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A]/50">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] block mb-2">05 / Interaction</span>
+                <h2 class="text-4xl font-medium tracking-tight text-[#EDEDED]">Motion & Animation</h2>
+            </div>
+
+            <!-- Marquee -->
+            <div class="py-10 border-b border-white/[0.08] bg-[#0A0A0A]/30">
+                <div class="text-center text-[13px] font-mono text-[#5C5F66] mb-4">Infinite Marquee</div>
+                <div class="marquee-container">
+                    <div class="marquee-content">
+                        <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Motion System</span>
+                        <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                        <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Easing: ease / 200-300ms</span>
+                        <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                        <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Opacity only reveals</span>
+                        <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    </div>
+                    <!-- Duplicate -->
+                    <div class="marquee-content">
+                        <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Motion System</span>
+                        <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                        <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Easing: ease / 200-300ms</span>
+                        <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                        <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Opacity only reveals</span>
+                        <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reveal Examples -->
+            <div class="p-8 md:p-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="p-6 border border-[#1a1a1a] rounded-lg bg-[#0A0A0A] reveal">
+                    <span class="text-[13px] font-mono text-[#5C5F66] block mb-2">.reveal (opacity)</span>
+                    <h4 class="text-lg font-medium text-[#EDEDED]">Fade Reveal</h4>
+                    <p class="text-[13px] text-[#8A8F98] mt-2">Pure opacity 0 to 1. No translateY.</p>
+                </div>
+                <div class="p-6 border border-[#1a1a1a] rounded-lg bg-[#0A0A0A] reveal delay-200">
+                    <span class="text-[13px] font-mono text-[#5C5F66] block mb-2">.reveal .delay-200</span>
+                    <h4 class="text-lg font-medium text-[#EDEDED]">Staggered Fade</h4>
+                    <p class="text-[13px] text-[#8A8F98] mt-2">200ms delay on transition start.</p>
+                </div>
+                <div class="p-6 border border-[#1a1a1a] rounded-lg bg-[#0A0A0A] reveal delay-500">
+                    <span class="text-[13px] font-mono text-[#5C5F66] block mb-2">.reveal .delay-500</span>
+                    <h4 class="text-lg font-medium text-[#EDEDED]">Long Delay</h4>
+                    <p class="text-[13px] text-[#8A8F98] mt-2">500ms delay for sequential reveals.</p>
+                </div>
+            </div>
+
+            <!-- Text Reveal -->
+            <div class="p-8 md:p-12 border-t border-white/[0.08] text-center">
+                <span class="text-[13px] font-mono text-[#5C5F66] block mb-8">Masked Text Reveal</span>
+                <h2 class="text-6xl md:text-8xl font-medium tracking-tighter leading-none text-[#EDEDED]">
+                    <span class="text-reveal-wrapper"><span class="text-reveal-content">Animation</span></span>
+                </h2>
+            </div>
+
+            <!-- Hover demo -->
+            <div class="p-8 md:p-12 border-t border-white/[0.08]">
+                <span class="text-[13px] font-mono text-[#5C5F66] block mb-6">Hover: Subtle color shifts only, no scale</span>
+                <div class="flex items-center gap-4">
+                    <button class="px-5 py-2 bg-[#5E6AD2] hover:bg-[#6E7AE2] text-white text-[14px] font-medium rounded-md transition-colors duration-200">
+                        Hover me
+                    </button>
+                    <div class="px-5 py-2 border border-[#1a1a1a] hover:border-white/[0.16] text-[#8A8F98] hover:text-[#EDEDED] text-[14px] font-medium rounded-md transition-colors duration-200 cursor-pointer">
+                        Border shift
+                    </div>
+                    <span class="text-[13px] font-mono text-[#5C5F66]">200ms ease</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 06) Iconography -->
+        <section class="relative z-10 border-b border-white/[0.08] pb-16">
+            <div class="p-8 md:p-12 border-b border-white/[0.08] bg-[#0A0A0A]/50">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] block mb-2">06 / Assets</span>
+                <h2 class="text-4xl font-medium tracking-tight text-[#EDEDED]">Iconography</h2>
+            </div>
+
+            <div class="p-8 md:p-12">
+                <div class="text-[13px] font-mono text-[#5C5F66] mb-8">Minimal linear icons &middot; Thin stroke weight</div>
+                <div class="grid grid-cols-3 md:grid-cols-6 gap-8 justify-items-center">
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:widgets-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">widgets</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:bolt-circle-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">bolt</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:route-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">route</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:layers-minimalistic-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">layers</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:check-circle-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">check</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:arrow-right-up-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">arrow-up</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:chart-square-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">chart</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:code-square-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">code</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:link-round-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">link</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:map-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">map</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:palette-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">palette</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-12 h-12 border border-[#1a1a1a] rounded-lg flex items-center justify-center hover:border-white/[0.12] transition-colors duration-200">
+                            <iconify-icon class="text-2xl text-[#EDEDED]" icon="solar:chat-square-like-linear"></iconify-icon>
+                        </div>
+                        <span class="text-[11px] font-mono text-[#5C5F66]">chat</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="relative z-10 py-12 text-center border-t border-white/[0.08]">
+            <span class="text-[13px] font-mono uppercase text-[#5C5F66]">Design System Generated for Linear</span>
+        </footer>
+
+    </div>
+
+    <script>
+        // Intersection Observer for Reveals
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // 1. Initial Hero Animations
+            setTimeout(() => {
+                document.querySelector('header').classList.add('loaded');
+            }, 100);
+
+            setTimeout(() => {
+                const heroTitle = document.getElementById('hero-title');
+                if (heroTitle) heroTitle.classList.add('reveal-active');
+            }, 400);
+
+            setTimeout(() => {
+                document.querySelectorAll('.hero-badge, .hero-stat').forEach(el => {
+                    el.classList.add('active');
+                });
+            }, 400);
+
+            // 2. Scroll Observer
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        const textWrappers = entry.target.querySelectorAll('.text-reveal-wrapper');
+                        if (textWrappers.length > 0 || entry.target.classList.contains('text-reveal-wrapper')) {
+                            entry.target.classList.add('reveal-active');
+                        }
+                        if (entry.target.tagName === 'H2' || entry.target.tagName === 'H1') {
+                            entry.target.classList.add('reveal-active');
+                        }
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+            // Observe custom text reveal sections
+            document.querySelectorAll('h1, h2').forEach(el => {
+                if (el.querySelector('.text-reveal-content')) observer.observe(el);
+            });
+        });
+    </script>
+</body>
+
+</html>

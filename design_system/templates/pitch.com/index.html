@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Pitch - Collaborative Presentation Platform</title>
+    <script src="assets/resource_3fa48481346f.js"></script>
+    <script src="assets/iconify-icon_d39ffc6e4c56.js"></script>
+    <link href="assets/css2_19fd9cc6b396.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FFFFFF;
+            color: #1A1A2E;
+            overflow-x: hidden;
+        }
+
+        /* Base Reveal Animation (Scroll triggered) */
+        .reveal {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Masked Text Reveal (For Hero Title) */
+        .text-reveal-wrapper {
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: bottom;
+        }
+
+        .text-reveal-content {
+            transform: translateY(110%);
+            opacity: 0;
+            transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.2s ease;
+            display: block;
+        }
+
+        .reveal-active .text-reveal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Stagger Delays */
+        .delay-100 { transition-delay: 0.1s; }
+        .delay-200 { transition-delay: 0.2s; }
+        .delay-300 { transition-delay: 0.3s; }
+        .delay-400 { transition-delay: 0.4s; }
+        .delay-500 { transition-delay: 0.5s; }
+        .delay-700 { transition-delay: 0.7s; }
+
+        /* Marquee Animation */
+        .marquee-container {
+            display: flex;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .marquee-content {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            min-width: 100%;
+            animation: scroll 30s linear infinite;
+        }
+
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
+        }
+
+        /* Nav Load Animation */
+        .nav-load {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.8s ease-out;
+        }
+
+        .nav-load.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Icon Alignment Fix */
+        iconify-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+
+        /* Hero gradient blob */
+        .hero-blob {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(91, 76, 255, 0.15) 0%, rgba(91, 76, 255, 0.05) 50%, transparent 70%);
+            filter: blur(60px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Card hover shadow transition */
+        .card-hover {
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+
+        .card-hover:hover {
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+            transform: translateY(-2px);
+        }
+
+        /* Template card color strips */
+        .template-preview {
+            transition: transform 0.4s ease;
+        }
+
+        .template-preview:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen selection:bg-[#5B4CFF] selection:text-white">
+
+    <!-- Navigation -->
+    <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] nav-load">
+        <div class="max-w-[1200px] mx-auto flex justify-between items-center px-6 py-4">
+            <div class="flex items-center gap-10">
+                <!-- Logo -->
+                <a href="#" class="flex items-center gap-2 group">
+                    <iconify-icon class="text-2xl text-[#5B4CFF] group-hover:rotate-12 transition-transform duration-500" icon="solar:presentation-graph-linear"></iconify-icon>
+                    <span class="font-bold tracking-tight text-xl text-[#1A1A2E]">PITCH</span>
+                </a>
+                <!-- Nav Links -->
+                <nav class="hidden md:flex items-center gap-8">
+                    <a class="text-sm font-medium text-[#6B7280] hover:text-[#1A1A2E] transition-colors" href="#">Product</a>
+                    <a class="text-sm font-medium text-[#6B7280] hover:text-[#1A1A2E] transition-colors" href="#">Templates</a>
+                    <a class="text-sm font-medium text-[#6B7280] hover:text-[#1A1A2E] transition-colors" href="#">Pricing</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-4">
+                <a class="text-sm font-medium text-[#6B7280] hover:text-[#1A1A2E] transition-colors hidden md:block" href="#">Log in</a>
+                <a class="px-5 py-2.5 bg-[#5B4CFF] text-white rounded-lg text-sm font-medium hover:bg-[#4A3CE8] transition-all shadow-sm" href="#">Sign up free</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden bg-white pt-20 pb-28 md:pt-32 md:pb-40">
+        <!-- Decorative blob -->
+        <div class="hero-blob" style="top: -200px; right: -100px;"></div>
+        <div class="hero-blob" style="bottom: -300px; left: -200px; background: radial-gradient(circle, rgba(255,107,53,0.1) 0%, transparent 70%);"></div>
+
+        <div class="max-w-[1200px] mx-auto px-6 relative z-10 text-center">
+            <h1 class="text-5xl md:text-7xl font-bold tracking-tight leading-tight text-[#1A1A2E] mb-6" id="hero-title">
+                <span class="text-reveal-wrapper"><span class="text-reveal-content">Don't just present.</span></span>
+                <br />
+                <span class="text-reveal-wrapper"><span class="text-reveal-content delay-200 text-[#5B4CFF]">Pitch.</span></span>
+            </h1>
+            <p class="text-lg md:text-xl text-[#6B7280] max-w-2xl mx-auto mb-10 reveal delay-300 hero-badge leading-relaxed">
+                The collaborative presentation platform for modern teams. Build beautiful decks, collaborate in real-time, and present with confidence.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 reveal delay-400 hero-badge">
+                <a href="#" class="px-8 py-3.5 bg-[#5B4CFF] text-white rounded-lg text-base font-medium hover:bg-[#4A3CE8] transition-all shadow-sm flex items-center gap-2 group">
+                    Sign up free
+                    <iconify-icon class="text-lg group-hover:translate-x-1 transition-transform" icon="solar:arrow-right-linear"></iconify-icon>
+                </a>
+                <a href="#" class="px-8 py-3.5 bg-white text-[#5B4CFF] border border-[#5B4CFF] rounded-lg text-base font-medium hover:bg-[#F0EEFF] transition-all">
+                    Get a demo
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trusted-by Logos Marquee -->
+    <div class="border-y border-[#E5E7EB] bg-[#F7F7F8] py-8 overflow-hidden">
+        <div class="text-center mb-6">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Trusted by teams at</span>
+        </div>
+        <div class="marquee-container">
+            <div class="marquee-content">
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:microsoft"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:slack"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:twitter"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:dropbox"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:shopify"></iconify-icon>
+            </div>
+            <div class="marquee-content">
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:microsoft"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:slack"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:twitter"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:dropbox"></iconify-icon>
+                <iconify-icon class="text-[#6B7280] mx-12 opacity-60 hover:opacity-100 transition-opacity" height="28" icon="simple-icons:shopify"></iconify-icon>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <section class="py-20 md:py-28 bg-white">
+        <div class="max-w-[1200px] mx-auto px-6">
+            <div class="text-center mb-16 reveal">
+                <span class="text-xs font-semibold uppercase tracking-wider text-[#5B4CFF] mb-3 block">Features</span>
+                <h2 class="text-3xl md:text-5xl font-bold tracking-tight text-[#1A1A2E]">Everything you need to pitch better</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Feature Card 1 -->
+                <div class="bg-white border border-[#E5E7EB] rounded-2xl p-8 card-hover reveal">
+                    <div class="w-14 h-14 bg-[#F0EEFF] rounded-xl flex items-center justify-center mb-6">
+                        <iconify-icon class="text-2xl text-[#5B4CFF]" icon="solar:users-group-rounded-linear"></iconify-icon>
+                    </div>
+                    <h3 class="text-xl font-semibold text-[#1A1A2E] mb-3">Real-time Collaboration</h3>
+                    <p class="text-[#6B7280] leading-relaxed">Work together with your team in real-time. Edit slides simultaneously, leave comments, and get feedback instantly.</p>
+                </div>
+
+                <!-- Feature Card 2 -->
+                <div class="bg-white border border-[#E5E7EB] rounded-2xl p-8 card-hover reveal delay-100">
+                    <div class="w-14 h-14 bg-[#FFF4ED] rounded-xl flex items-center justify-center mb-6">
+                        <iconify-icon class="text-2xl text-[#FF6B35]" icon="solar:pallete-2-linear"></iconify-icon>
+                    </div>
+                    <h3 class="text-xl font-semibold text-[#1A1A2E] mb-3">Beautiful Templates</h3>
+                    <p class="text-[#6B7280] leading-relaxed">Start with designer-crafted templates that look stunning. Customize colors, fonts, and layouts to match your brand.</p>
+                </div>
+
+                <!-- Feature Card 3 -->
+                <div class="bg-white border border-[#E5E7EB] rounded-2xl p-8 card-hover reveal delay-200">
+                    <div class="w-14 h-14 bg-[#ECFDF5] rounded-xl flex items-center justify-center mb-6">
+                        <iconify-icon class="text-2xl text-[#10B981]" icon="solar:chart-2-linear"></iconify-icon>
+                    </div>
+                    <h3 class="text-xl font-semibold text-[#1A1A2E] mb-3">Presentation Analytics</h3>
+                    <p class="text-[#6B7280] leading-relaxed">Track how your presentations perform. See who viewed your deck, which slides engage the most, and optimize your pitch.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonial Section -->
+    <section class="py-20 md:py-28 bg-[#F7F7F8]">
+        <div class="max-w-[1200px] mx-auto px-6">
+            <div class="max-w-3xl mx-auto reveal">
+                <div class="border-l-4 border-[#5B4CFF] pl-8 md:pl-12">
+                    <blockquote class="text-2xl md:text-3xl font-medium text-[#1A1A2E] leading-relaxed mb-8">
+                        "Pitch completely transformed how our team creates and delivers presentations. The collaboration features alone saved us hours every week."
+                    </blockquote>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-[#5B4CFF] rounded-full flex items-center justify-center">
+                            <iconify-icon class="text-xl text-white" icon="solar:user-rounded-linear"></iconify-icon>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-[#1A1A2E]">Sarah Chen</p>
+                            <p class="text-sm text-[#6B7280]">VP of Marketing, Acme Corp</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Template Showcase -->
+    <section class="py-20 md:py-28 bg-white">
+        <div class="max-w-[1200px] mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-14 reveal">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-[#5B4CFF] mb-3 block">Templates</span>
+                    <h2 class="text-3xl md:text-5xl font-bold tracking-tight text-[#1A1A2E]">Start with a template</h2>
+                </div>
+                <a href="#" class="mt-4 md:mt-0 text-sm font-medium text-[#5B4CFF] hover:text-[#4A3CE8] flex items-center gap-1 transition-colors">
+                    Browse all templates
+                    <iconify-icon class="text-lg" icon="solar:arrow-right-linear"></iconify-icon>
+                </a>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Template Card 1 -->
+                <div class="rounded-2xl overflow-hidden border border-[#E5E7EB] card-hover cursor-pointer reveal">
+                    <div class="aspect-[4/3] bg-gradient-to-br from-[#5B4CFF] to-[#7B6FFF] p-8 flex items-end template-preview">
+                        <div class="bg-white/20 backdrop-blur-sm rounded-lg p-4 w-full">
+                            <div class="w-3/4 h-3 bg-white/60 rounded mb-2"></div>
+                            <div class="w-1/2 h-2 bg-white/40 rounded"></div>
+                        </div>
+                    </div>
+                    <div class="p-5 bg-white">
+                        <h4 class="font-semibold text-[#1A1A2E] mb-1">Startup Pitch Deck</h4>
+                        <p class="text-sm text-[#6B7280]">15 slides</p>
+                    </div>
+                </div>
+
+                <!-- Template Card 2 -->
+                <div class="rounded-2xl overflow-hidden border border-[#E5E7EB] card-hover cursor-pointer reveal delay-100">
+                    <div class="aspect-[4/3] bg-gradient-to-br from-[#FF6B35] to-[#FF9F7A] p-8 flex items-end template-preview">
+                        <div class="bg-white/20 backdrop-blur-sm rounded-lg p-4 w-full">
+                            <div class="w-2/3 h-3 bg-white/60 rounded mb-2"></div>
+                            <div class="w-1/3 h-2 bg-white/40 rounded"></div>
+                        </div>
+                    </div>
+                    <div class="p-5 bg-white">
+                        <h4 class="font-semibold text-[#1A1A2E] mb-1">Quarterly Review</h4>
+                        <p class="text-sm text-[#6B7280]">12 slides</p>
+                    </div>
+                </div>
+
+                <!-- Template Card 3 -->
+                <div class="rounded-2xl overflow-hidden border border-[#E5E7EB] card-hover cursor-pointer reveal delay-200">
+                    <div class="aspect-[4/3] bg-gradient-to-br from-[#10B981] to-[#6EE7B7] p-8 flex items-end template-preview">
+                        <div class="bg-white/20 backdrop-blur-sm rounded-lg p-4 w-full">
+                            <div class="w-full h-3 bg-white/60 rounded mb-2"></div>
+                            <div class="w-2/5 h-2 bg-white/40 rounded"></div>
+                        </div>
+                    </div>
+                    <div class="p-5 bg-white">
+                        <h4 class="font-semibold text-[#1A1A2E] mb-1">Product Roadmap</h4>
+                        <p class="text-sm text-[#6B7280]">10 slides</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 md:py-28 bg-[#F0EEFF]">
+        <div class="max-w-[1200px] mx-auto px-6 text-center reveal">
+            <h2 class="text-3xl md:text-5xl font-bold tracking-tight text-[#1A1A2E] mb-6">Start presenting better</h2>
+            <p class="text-lg text-[#6B7280] max-w-xl mx-auto mb-10 leading-relaxed">
+                Join thousands of teams who use Pitch to create winning presentations. Free to get started.
+            </p>
+            <a href="#" class="inline-flex items-center gap-2 px-8 py-4 bg-[#5B4CFF] text-white rounded-lg text-base font-medium hover:bg-[#4A3CE8] transition-all shadow-md group">
+                Get started for free
+                <iconify-icon class="text-lg group-hover:translate-x-1 transition-transform" icon="solar:arrow-right-linear"></iconify-icon>
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-[#1A1A2E] text-white pt-20 pb-10">
+        <div class="max-w-[1200px] mx-auto px-6">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-0 mb-16">
+                <!-- Brand -->
+                <div class="col-span-1 md:col-span-4">
+                    <div class="flex items-center gap-2 mb-6">
+                        <iconify-icon class="text-xl text-[#5B4CFF]" icon="solar:presentation-graph-linear"></iconify-icon>
+                        <span class="font-bold tracking-tight text-lg">PITCH</span>
+                    </div>
+                    <p class="text-gray-400 text-sm leading-relaxed max-w-[280px]">
+                        The collaborative presentation platform for modern teams. Build, present, and win.
+                    </p>
+                </div>
+
+                <!-- Product -->
+                <div class="col-span-1 md:col-span-2">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-6">Product</h4>
+                    <ul class="space-y-3 text-sm">
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Features</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Templates</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Integrations</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Pricing</a></li>
+                    </ul>
+                </div>
+
+                <!-- Resources -->
+                <div class="col-span-1 md:col-span-2">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-6">Resources</h4>
+                    <ul class="space-y-3 text-sm">
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Blog</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Help Center</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Community</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Webinars</a></li>
+                    </ul>
+                </div>
+
+                <!-- Company -->
+                <div class="col-span-1 md:col-span-2">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-6">Company</h4>
+                    <ul class="space-y-3 text-sm">
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">About</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Careers</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Press</a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors" href="#">Contact</a></li>
+                    </ul>
+                </div>
+
+                <!-- Social -->
+                <div class="col-span-1 md:col-span-2">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-6">Connect</h4>
+                    <ul class="space-y-3 text-sm">
+                        <li><a class="text-gray-400 hover:text-white transition-colors flex items-center gap-2" href="#">Twitter <iconify-icon class="text-xs text-gray-600" icon="solar:arrow-right-up-linear"></iconify-icon></a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors flex items-center gap-2" href="#">LinkedIn <iconify-icon class="text-xs text-gray-600" icon="solar:arrow-right-up-linear"></iconify-icon></a></li>
+                        <li><a class="text-gray-400 hover:text-white transition-colors flex items-center gap-2" href="#">YouTube <iconify-icon class="text-xs text-gray-600" icon="solar:arrow-right-up-linear"></iconify-icon></a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Bottom -->
+            <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <span class="text-xs text-gray-500">&copy; 2026 Pitch Software GmbH. All rights reserved.</span>
+                <div class="flex items-center gap-6">
+                    <a class="text-xs text-gray-500 hover:text-gray-300 transition-colors" href="#">Privacy</a>
+                    <a class="text-xs text-gray-500 hover:text-gray-300 transition-colors" href="#">Terms</a>
+                    <a class="text-xs text-gray-500 hover:text-gray-300 transition-colors" href="#">Cookies</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // 1. Nav load animation
+            setTimeout(() => {
+                document.querySelector('header').classList.add('loaded');
+            }, 100);
+
+            // 2. Hero title text reveal
+            setTimeout(() => {
+                const heroTitle = document.getElementById('hero-title');
+                if (heroTitle) heroTitle.classList.add('reveal-active');
+            }, 400);
+
+            // 3. Hero badges (subtitle & CTA)
+            setTimeout(() => {
+                document.querySelectorAll('.hero-badge').forEach(el => {
+                    el.classList.add('active');
+                });
+            }, 600);
+
+            // 4. Scroll observer for reveals
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        const textWrappers = entry.target.querySelectorAll('.text-reveal-wrapper');
+                        if (textWrappers.length > 0 || entry.target.classList.contains('text-reveal-wrapper')) {
+                            entry.target.classList.add('reveal-active');
+                        }
+                        if (entry.target.tagName === 'H1' || entry.target.tagName === 'H2') {
+                            entry.target.classList.add('reveal-active');
+                        }
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+            document.querySelectorAll('h1, h2').forEach(el => {
+                if (el.querySelector('.text-reveal-content')) observer.observe(el);
+            });
+        });
+    </script>
+</body>
+
+</html>

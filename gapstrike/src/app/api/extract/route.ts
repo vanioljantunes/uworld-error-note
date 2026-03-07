@@ -1,29 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+export const maxDuration = 30;
 
-const SYSTEM_PROMPT = `You are a structured extraction agent.
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY?.trim();
 
-Your task is to read USMLE/UWorld-style review screenshots and extract the content into strict JSON.
+const SYSTEM_PROMPT = `You are a structured extraction agent for USMLE/UWorld-style review screenshots.
+
+You will receive:
+1. OCR text from the full screenshot
+2. Four image quadrants (A, B, C, D) with this FIXED layout:
+
+  A (top-left) | B (top-right)
+  C (bot-left) | D (bot-right)
+
+What lives where:
+- A: Question ID (top-left corner, a number like "1736") + question stem
+- B: Explanation text (first part)
+- C: Answer alternatives (A-E) + sometimes part of the question
+- D: Explanation text (continued) + Educational Objective
 
 Output Rules
 
-Output ONLY valid JSON.
+Output ONLY valid JSON. No markdown. No explanations. No extra keys.
 
-No markdown.
-
-No explanations.
-
-No extra keys.
-
-If a field is not visible, return null.
-
-If multiple screenshots belong to the same question, merge them.
-
-If multiple questions are present, return an array of objects.
-
-Otherwise return a single object.
+If a field is not found, return null.
+Merge multiple screenshots into one object if same question.
+Return array only if multiple distinct questions.
 
 Required Schema
 
@@ -39,37 +42,46 @@ Required Schema
 Extraction Rules
 
 question_id
-Extract the ID if visible (e.g., "Question ID: 12345", "QID 12345").
-Otherwise null.
+MUST come from QUADRANT A ONLY. Ignore all numbers from quadrants B, C, D.
+The ID is a standalone number displayed near the top-left of the screen (e.g., "1736", "2513", "483921").
+It is NOT:
+- A time like "3:08" or "12:45" (these contain colons)
+- A percentage like "73%"
+- A page number like "1 of 40"
+- A score or countdown
+If you cannot find a clear standalone numeric ID in QUADRANT A, return null.
 
 question
-Extract only the full question stem (vignette + lead-in).
+Extract the full question stem (vignette + lead-in) from QUADRANT A and possibly C.
 Do NOT include answer choices.
 
 choosed_alternative
-CRITICAL: Return the FULL text of the option selected by the student — letter AND complete text.
-Returning only the letter (e.g. "D") is WRONG. You MUST find the actual answer text.
-Look in the answer choices, the explanation, or the educational objective to find the full text.
-Format example: "D. Inhibition of acetylcholine release at the neuromuscular junction"
-If the screenshot shows highlighted/selected answers, extract the full text of the highlighted one.
+The student's selected answer — letter AND full text.
+Look in QUADRANT C for the answer choices. The selected answer may have a red X or highlight.
+Cross-reference with the OCR text. Never return just a letter.
+Format: "D. Full answer text here"
 
 wrong_alternative
-CRITICAL: Return the FULL text of the correct answer — letter AND complete text.
-This is the answer the student SHOULD have picked. Only return if the student got it wrong.
-Returning only the letter is WRONG. Find the full answer text from choices or explanation.
-Format example: "E. Mammillary bodies"
-If the chosen answer was correct, return null.
+The correct answer — letter AND full text. Only if the student got it wrong.
+To find the correct answer, check ALL of these sources:
+1. QUADRANT C: look for a green checkmark or highlight on one of the alternatives
+2. QUADRANTS B and D (explanation): the explanation almost always states the correct answer explicitly (e.g., "The correct answer is...", "The answer is...", or names the correct concept)
+3. OCR text: search for phrases like "correct answer", "the answer is", or the answer that matches the explanation
+If choosed_alternative is different from the correct answer found in the explanation, return the correct one here.
+If the chosen answer was correct (matches what the explanation says), return null.
+Format: "E. Full answer text here"
 
 full_explanation
-Extract the entire explanation text shown on the screen.
+Extract from QUADRANTS B and D. The explanation is usually the longest block of text.
 
 educational_objective
-Extract the Educational Objective section verbatim.
+Extract verbatim from QUADRANT D. Usually starts with "Educational Objective" as a header.
 
 Validate JSON before returning.`;
 
 interface ExtractRequest {
-  images: string[];
+  text: string;
+  quadrants?: string[][];
 }
 
 export async function POST(request: NextRequest) {
@@ -82,37 +94,56 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as ExtractRequest;
-    const { images } = body;
+    const { text, quadrants } = body;
 
-    if (!images || images.length === 0) {
+    if ((!text || text.trim().length === 0) && (!quadrants || quadrants.length === 0)) {
       return NextResponse.json(
-        { error: "No images provided. Please upload at least one screenshot." },
+        { error: "No text or images provided." },
         { status: 400 }
       );
     }
 
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-    // Build the message content with all images
-    const imageMessages: OpenAI.Chat.Completions.ChatCompletionContentPart[] =
-      images.map((img) => ({
-        type: "image_url" as const,
-        image_url: {
-          url: img,
-          detail: "high" as const,
-        },
-      }));
-
-    const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-      ...imageMessages,
-      {
-        type: "text" as const,
-        text: "Extract the structured data from these USMLE/UWorld screenshot(s). Return ONLY valid JSON.",
-      },
+    const labels = [
+      "QUADRANT A (top-left): Question ID + question stem",
+      "QUADRANT B (top-right): Explanation text (first part)",
+      "QUADRANT C (bottom-left): Answer alternatives + sometimes more question",
+      "QUADRANT D (bottom-right): Explanation (continued) + Educational Objective",
     ];
 
+    // Build multimodal content
+    const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+    if (text && text.trim().length > 0) {
+      userContent.push({
+        type: "text" as const,
+        text: `OCR text from the full screenshot:\n\n${text}\n\nBelow are 4 quadrant images from the same screenshot. Use BOTH the OCR text and the images to extract all fields. Return ONLY valid JSON.`,
+      });
+    }
+
+    if (quadrants && quadrants.length > 0) {
+      // Send quadrants for each screenshot
+      for (let s = 0; s < quadrants.length; s++) {
+        const quads = quadrants[s];
+        for (let q = 0; q < quads.length && q < 4; q++) {
+          userContent.push({
+            type: "text" as const,
+            text: labels[q],
+          });
+          userContent.push({
+            type: "image_url" as const,
+            image_url: {
+              url: quads[q],
+              detail: "low" as const,
+            },
+          });
+        }
+      }
+    }
+
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userContent },
@@ -124,12 +155,10 @@ export async function POST(request: NextRequest) {
     const rawAnswer =
       response.choices[0].message.content || '{"error": "No response"}';
 
-    // Try to parse the JSON to validate it
     let parsed;
     try {
       parsed = JSON.parse(rawAnswer);
     } catch {
-      // If the model wrapped it in markdown code fences, strip them
       const cleaned = rawAnswer
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
@@ -138,7 +167,6 @@ export async function POST(request: NextRequest) {
       try {
         parsed = JSON.parse(cleaned);
       } catch {
-        // Return raw text if we still can't parse
         return NextResponse.json(
           { result: rawAnswer, parseError: true },
           { status: 200 }
@@ -146,70 +174,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Post-process: fix letter-only alternatives using explanation ──
-    const isLetterOnly = (val: string | null) => {
-      if (!val) return false;
-      const trimmed = val.trim();
-      // Matches patterns like "D", "D.", "D. D", "C. C", single letter answers
-      return /^[A-F]\.?\s*[A-F]?\.?$/i.test(trimmed) || trimmed.length <= 4;
-    };
-
     const obj = Array.isArray(parsed) ? parsed[0] : parsed;
-    const needsFix =
-      obj &&
-      (isLetterOnly(obj.choosed_alternative) || isLetterOnly(obj.wrong_alternative)) &&
-      (obj.full_explanation || obj.educational_objective || obj.question);
-
-    if (needsFix) {
-      try {
-        const context = [
-          obj.full_explanation ? `Explanation: ${obj.full_explanation}` : "",
-          obj.educational_objective ? `Educational Objective: ${obj.educational_objective}` : "",
-          obj.question ? `Question: ${obj.question}` : "",
-        ].filter(Boolean).join("\n\n");
-
-        const fixPrompt = `Given this USMLE question context, identify the FULL text of these answer choices.
-
-${context}
-
-Student's chosen answer letter: ${obj.choosed_alternative || "unknown"}
-Correct answer letter: ${obj.wrong_alternative || "unknown"}
-
-Return ONLY valid JSON with these two fields:
-{
-  "choosed_alternative": "LETTER. Full text of the student's chosen answer",
-  "wrong_alternative": "LETTER. Full text of the correct answer"
-}
-
-Find the answer text from the explanation or context. If you cannot determine the full text, return the best description based on context.`;
-
-        const fixResp = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: fixPrompt }],
-          temperature: 0,
-          max_tokens: 300,
-        });
-
-        const fixRaw = fixResp.choices[0].message.content || "";
-        const fixCleaned = fixRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-        const fixParsed = JSON.parse(fixCleaned);
-
-        if (fixParsed.choosed_alternative && fixParsed.choosed_alternative.length > 5) {
-          obj.choosed_alternative = fixParsed.choosed_alternative;
-        }
-        if (fixParsed.wrong_alternative && fixParsed.wrong_alternative.length > 5) {
-          obj.wrong_alternative = fixParsed.wrong_alternative;
-        }
-      } catch {
-        // If fix fails, keep original values
-      }
-    }
-
     return NextResponse.json({ result: Array.isArray(parsed) ? parsed : obj }, { status: 200 });
   } catch (error) {
     console.error("Extract API error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
+    let errorMessage = "Unknown error occurred";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
     return NextResponse.json(
       { error: `Extraction failed: ${errorMessage}` },
       { status: 500 }

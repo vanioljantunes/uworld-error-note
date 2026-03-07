@@ -1,44 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as fs from "fs";
-import * as path from "path";
+import { readFile, getTokenFromCookies, DEFAULT_REPO } from "@/lib/github";
 
 export async function POST(req: NextRequest) {
-    try {
-        const { vaultPath, notePath } = await req.json();
-
-        if (!vaultPath || !notePath) {
-            return NextResponse.json(
-                { error: "Missing vaultPath or notePath" },
-                { status: 400 }
-            );
-        }
-
-        const fullPath = path.join(vaultPath, notePath);
-
-        // Security: ensure the resolved path is inside the vault
-        const resolvedVault = path.resolve(vaultPath);
-        const resolvedFile = path.resolve(fullPath);
-        if (!resolvedFile.startsWith(resolvedVault)) {
-            return NextResponse.json(
-                { error: "Path traversal not allowed" },
-                { status: 403 }
-            );
-        }
-
-        if (!fs.existsSync(resolvedFile)) {
-            return NextResponse.json(
-                { error: "File not found" },
-                { status: 404 }
-            );
-        }
-
-        const content = fs.readFileSync(resolvedFile, "utf-8");
-        return NextResponse.json({ content });
-    } catch (error) {
-        console.error("Read note error:", error);
-        return NextResponse.json(
-            { error: "Failed to read note" },
-            { status: 500 }
-        );
+  try {
+    const token = getTokenFromCookies(req.cookies);
+    if (!token) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
+
+    const { notePath, repo } = await req.json();
+    if (!notePath) {
+      return NextResponse.json({ error: "Missing notePath" }, { status: 400 });
+    }
+
+    const { content, sha } = await readFile(token, repo || DEFAULT_REPO, notePath);
+    return NextResponse.json({ content, sha });
+  } catch (error: any) {
+    console.error("Read note error:", error);
+    const status = error.message?.includes("not found") ? 404 : 500;
+    return NextResponse.json({ error: "Failed to read note" }, { status });
+  }
 }

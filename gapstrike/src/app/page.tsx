@@ -4,6 +4,17 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./page.module.css";
 import TemplatesView, { Template } from "../components/TemplatesView";
 import FlowView from "../components/FlowView";
+import NoteGraph from "../components/NoteGraph";
+import {
+  fetchAllUserData,
+  saveUserData,
+  saveUserDataDebounced,
+  deleteUserData,
+  getUserData,
+  migrateLocalStorageToSupabase,
+} from "@/lib/user-data";
+import { TEMPLATE_DEFAULTS } from "@/lib/template-defaults";
+import { renderMarkdown } from "@/lib/render-markdown";
 
 type ViewMode = "flow" | "chat" | "editor" | "anki" | "templates";
 type WorkflowStep = "idle" | "extracting" | "questioning" | "answering" | "generating" | "done";
@@ -164,7 +175,7 @@ async function ankiConnect(action: string, params: Record<string, unknown> = {})
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_MESSAGES = [
-  "Searching through your vault",
+  "Searching through your notes",
   "Analyzing note connections",
   "Cross-referencing concepts",
   "Reading relevant notes",
@@ -179,22 +190,44 @@ const STATUS_MESSAGES = [
 const WORKFLOW_STATUS_MESSAGES: Record<string, string[]> = {
   extracting: ["Analyzing screenshots", "Extracting question data", "Reading the image", "Parsing UWorld content"],
   questioning: ["Identifying cognitive gaps", "Crafting diagnostic questions", "Analyzing your mistake pattern"],
-  generating: ["Inferring error pattern", "Composing your note", "Writing to vault", "Formatting with templates"],
+  generating: ["Inferring error pattern", "Composing your note", "Saving your note", "Formatting with templates"],
 };
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("flow");
+  const [viewReady, setViewReady] = useState(false);
+  const [activeFlowId, setActiveFlowId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("activeFlowExtractionId");
+    return null;
+  });
+
+  // Read ?view= param on mount to avoid SSR flash
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("view");
+    if (v && ["flow", "editor", "anki", "templates"].includes(v)) {
+      setViewMode(v as ViewMode);
+    }
+    // Clean URL so ?view= doesn't persist on refresh
+    if (v) window.history.replaceState({}, "", "/");
+    setViewReady(true);
+  }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sources, setSources] = useState<Source[]>([]);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [tagFilter, setTagFilter] = useState("");
-  const [vaultPath, setVaultPath] = useState(
-    "C:\\Users\\vanio\\OneDrive\\Documentos\\vaults\\USMLE vault"
-  );
-  const [showPathSettings, setShowPathSettings] = useState(false);
-  const [tempPath, setTempPath] = useState(vaultPath);
+  const [vaultPath] = useState("USMLE vault"); // for Obsidian URI fallback only
+  const [repo, setRepo] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("github_repo") || "";
+    return "";
+  });
+  const [ghAuth, setGhAuth] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("gh_authenticated") === "true";
+    return false;
+  });
+  const [noteShas, setNoteShas] = useState<Record<string, string>>({});
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -218,6 +251,7 @@ export default function Home() {
 
   // Editor mode
   const [noteSearch, setNoteSearch] = useState("");
+  const [showGraphLabels, setShowGraphLabels] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [noteContent, setNoteContent] = useState<string>("");
   const [loadingNote, setLoadingNote] = useState(false);
@@ -311,6 +345,75 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  // ── Check GitHub auth + load user data from Supabase ─────────────────────
+  const [dataLoading, setDataLoading] = useState(true);
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const authResp = await fetch("/api/auth/me");
+        const authData = await authResp.json();
+        if (authData.authenticated) {
+          setGhAuth(true);
+          localStorage.setItem("gh_authenticated", "true");
+          if (authData.login) localStorage.setItem("gh_user", authData.login);
+          if (authData.avatar_url) localStorage.setItem("gh_avatar", authData.avatar_url);
+          const data = await fetchAllUserData();
+          // First login migration: if Supabase is empty, push localStorage data
+          if (Object.keys(data).length === 0) {
+            await migrateLocalStorageToSupabase();
+            await fetchAllUserData();
+          }
+          // Hydrate state from Supabase cache
+          const sessions = getUserData<ChatSession[]>("chatSessions", []);
+          if (sessions.length) setChatSessions(sessions);
+          const extractions = getUserData<SavedExtraction[]>("savedExtractions", []);
+          if (extractions.length) setSavedExtractions(extractions);
+          const activity = getUserData<ActivityItem[]>("obsidianChatActivity", []);
+          if (activity.length) {
+            const seen = new Set<string>();
+            const deduped = activity.filter((item) => {
+              const k = `${item.type}:${item.notePath ?? item.noteId ?? item.questionId}`;
+              if (seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            });
+            setActivityHistory(deduped);
+          }
+          const savedRepo = getUserData<string>("github_repo", "");
+          if (savedRepo) setRepo(savedRepo);
+        } else {
+          // Not authenticated — load from localStorage
+          try { const s = localStorage.getItem("chatSessions"); if (s) setChatSessions(JSON.parse(s)); } catch {}
+          try { const s = localStorage.getItem("savedExtractions"); if (s) setSavedExtractions(JSON.parse(s)); } catch {}
+          try {
+            const s = localStorage.getItem("obsidianChatActivity");
+            if (s) {
+              const items: ActivityItem[] = JSON.parse(s);
+              const seen = new Set<string>();
+              const deduped = items.filter(item => {
+                const k = `${item.type}:${item.notePath ?? item.noteId ?? item.questionId}`;
+                if (seen.has(k)) return false;
+                seen.add(k);
+                return true;
+              });
+              setActivityHistory(deduped);
+            }
+          } catch {}
+          try { const r = localStorage.getItem("github_repo"); if (r) setRepo(r); } catch {}
+        }
+      } catch {
+        // Full localStorage fallback
+        try { const s = localStorage.getItem("chatSessions"); if (s) setChatSessions(JSON.parse(s)); } catch {}
+        try { const s = localStorage.getItem("savedExtractions"); if (s) setSavedExtractions(JSON.parse(s)); } catch {}
+        try { const s = localStorage.getItem("obsidianChatActivity"); if (s) setActivityHistory(JSON.parse(s)); } catch {}
+        try { const r = localStorage.getItem("github_repo"); if (r) setRepo(r); } catch {}
+      } finally {
+        setDataLoading(false);
+      }
+    };
+    init();
+  }, []);
+
   // ── Progressive loading effect ─────────────────────────────────────────
   useEffect(() => {
     // Clear any existing interval first (prevents duplicates)
@@ -350,37 +453,32 @@ export default function Home() {
     };
   }, [loading, formatting, workflowStep]);
 
-  // Load notes
+  // Load notes — also re-fetch when switching away from flow (note may have been saved)
   useEffect(() => {
+    if (!ghAuth) return;
     const loadNotes = async () => {
       try {
         const response = await fetch("/api/list-notes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vaultPath }),
+          body: JSON.stringify({ repo }),
         });
         if (response.ok) {
           const data = await response.json();
-          setAllNotes(data.notes || []);
+          const notes = data.notes || [];
+          setAllNotes(notes);
+          const shas: Record<string, string> = {};
+          for (const n of notes) { if (n.sha) shas[n.path] = n.sha; }
+          setNoteShas(shas);
         }
       } catch (error) {
         console.error("Failed to load notes:", error);
       }
     };
     loadNotes();
-  }, [vaultPath]);
+  }, [ghAuth, repo, viewMode]);
 
-  // Load chat sessions from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("chatSessions");
-      if (stored) setChatSessions(JSON.parse(stored));
-    } catch { }
-    try {
-      const stored = localStorage.getItem("savedExtractions");
-      if (stored) setSavedExtractions(JSON.parse(stored));
-    } catch { }
-  }, []);
+  // (chatSessions + savedExtractions now loaded in the unified init effect above)
 
   // Auto-save messages + workflow to current session whenever they change
   useEffect(() => {
@@ -415,30 +513,13 @@ export default function Home() {
         },
       };
       const newSessions = [updated, ...prev.filter((s) => s.id !== sessionId)];
-      localStorage.setItem("chatSessions", JSON.stringify(newSessions));
+      saveUserDataDebounced("chatSessions", newSessions);
       return newSessions;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, workflowStep, showPostGenChoice, showCreateNoteChoice, showQuestionPrompt, currentQuestion]);
 
-  // Load activity history from localStorage on mount, deduplicating legacy data
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("obsidianChatActivity");
-      if (stored) {
-        const items: ActivityItem[] = JSON.parse(stored);
-        // Keep only the first (most-recent) occurrence of each unique item
-        const seen = new Set<string>();
-        const deduped = items.filter(item => {
-          const key = `${item.type}:${item.notePath ?? item.noteId ?? item.questionId}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        setActivityHistory(deduped);
-      }
-    } catch { }
-  }, []);
+  // (activity history now loaded in the unified init effect above)
 
   // Card-detection: query AnkiConnect for each numeric tag in the selected note
   useEffect(() => {
@@ -465,42 +546,101 @@ export default function Home() {
     });
   }, [selectedNote]);
 
-  // Legacy template loading removed — now uses Supabase via /api/templates
-
-  // Fetch user templates from Supabase on mount (needed for Templates tab + generate)
+  // Load templates from Supabase via API, with localStorage fallback
   useEffect(() => {
+    // Build client-side defaults (always available as baseline)
+    const clientDefaults: Template[] = TEMPLATE_DEFAULTS.map((t, i) => ({
+      id: String(i + 1),
+      slug: t.slug,
+      category: t.category,
+      title: t.title,
+      content: t.content,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const applyLocalEdits = (base: Template[]): Template[] => {
+      try {
+        const raw = localStorage.getItem("template_edits");
+        if (raw) {
+          const edits: Record<string, string> = JSON.parse(raw);
+          return base.map((t) => edits[t.slug] ? { ...t, content: edits[t.slug] } : t);
+        }
+      } catch {}
+      return base;
+    };
+
     const loadUserTemplates = async () => {
       try {
         const resp = await fetch("/api/templates");
         if (resp.ok) {
           const data = await resp.json();
-          setUserTemplates(data.templates || []);
-          setTemplatesLoaded(true);
+          const apiTemplates = (data.templates || []) as Template[];
+          const source = data.source; // "supabase" or "defaults"
+          if (data.dbError) console.warn("Templates DB error:", data.dbError);
+          if (source === "supabase") {
+            // DB is source of truth — clear any localStorage edits
+            try { localStorage.removeItem("template_edits"); } catch {}
+            setUserTemplates(apiTemplates);
+          } else {
+            // Defaults returned — overlay localStorage edits
+            setUserTemplates(applyLocalEdits(apiTemplates));
+          }
         } else {
           console.error("Templates fetch failed:", resp.status);
+          // API failed — use client defaults + localStorage edits
+          setUserTemplates(applyLocalEdits(clientDefaults));
         }
       } catch (error) {
         console.error("Failed to load user templates:", error);
+        // Network error — use client defaults + localStorage edits
+        setUserTemplates(applyLocalEdits(clientDefaults));
       }
+      setTemplatesLoaded(true);
     };
     loadUserTemplates();
   }, []);
 
   const handleTemplateUpdate = async (slug: string, content: string) => {
+    // Optimistic update
+    setUserTemplates((prev) =>
+      prev.map((t) => (t.slug === slug ? { ...t, content, updated_at: new Date().toISOString() } : t))
+    );
+    // Always persist to localStorage as reliable fallback
+    try {
+      const raw = localStorage.getItem("template_edits");
+      const edits: Record<string, string> = raw ? JSON.parse(raw) : {};
+      edits[slug] = content;
+      localStorage.setItem("template_edits", JSON.stringify(edits));
+    } catch {}
+    // Also persist to Supabase
     const resp = await fetch("/api/templates", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ slug, content }),
     });
     if (resp.ok) {
-      const { template } = await resp.json();
-      setUserTemplates((prev) =>
-        prev.map((t) => (t.slug === slug ? { ...t, content: template.content, updated_at: template.updated_at } : t))
-      );
+      // Supabase saved successfully — clear localStorage for this slug
+      try {
+        const raw = localStorage.getItem("template_edits");
+        const edits: Record<string, string> = raw ? JSON.parse(raw) : {};
+        delete edits[slug];
+        if (Object.keys(edits).length === 0) localStorage.removeItem("template_edits");
+        else localStorage.setItem("template_edits", JSON.stringify(edits));
+      } catch {}
+    } else {
+      console.error("Template save to Supabase failed:", resp.status, "— using localStorage fallback");
     }
   };
 
   const handleTemplateReset = async (slug: string) => {
+    // Clear localStorage edit for this slug
+    try {
+      const raw = localStorage.getItem("template_edits");
+      const edits: Record<string, string> = raw ? JSON.parse(raw) : {};
+      delete edits[slug];
+      if (Object.keys(edits).length === 0) localStorage.removeItem("template_edits");
+      else localStorage.setItem("template_edits", JSON.stringify(edits));
+    } catch {}
     const resp = await fetch("/api/templates/reset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -574,7 +714,7 @@ export default function Home() {
       const noteResp = await fetch("/api/read-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vaultPath, notePath: ankiCreateNote }),
+        body: JSON.stringify({ notePath: ankiCreateNote, repo }),
       });
       if (!noteResp.ok) throw new Error("Failed to read note.");
       const noteData = await noteResp.json();
@@ -702,7 +842,7 @@ export default function Home() {
       const response = await fetch(`/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, tag: tagFilter || undefined, vaultPath }),
+        body: JSON.stringify({ message: input, tag: tagFilter || undefined, repo }),
       });
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       const data: ChatResponse = await response.json();
@@ -750,7 +890,7 @@ export default function Home() {
   const handleFlowNewExtraction = (ext: SavedExtraction) => {
     setSavedExtractions((prev) => {
       const updated = [ext, ...prev];
-      localStorage.setItem("savedExtractions", JSON.stringify(updated));
+      saveUserData("savedExtractions", updated);
       return updated;
     });
   };
@@ -785,7 +925,7 @@ export default function Home() {
       };
       setSavedExtractions(prev => {
         const updated = [newExtraction, ...prev];
-        localStorage.setItem("savedExtractions", JSON.stringify(updated));
+        saveUserData("savedExtractions", updated);
         return updated;
       });
 
@@ -884,7 +1024,7 @@ export default function Home() {
 
       // Refresh notes list
       try {
-        const notesResp = await fetch("/api/list-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vaultPath }) });
+        const notesResp = await fetch("/api/list-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo }) });
         if (notesResp.ok) { const d = await notesResp.json(); setAllNotes(d.notes || []); }
       } catch { }
     } catch (error) {
@@ -946,7 +1086,7 @@ export default function Home() {
     e.stopPropagation();
     setChatSessions((prev) => {
       const newSessions = prev.filter((s) => s.id !== sessionId);
-      localStorage.setItem("chatSessions", JSON.stringify(newSessions));
+      saveUserData("chatSessions", newSessions);
       return newSessions;
     });
     if (currentSessionIdRef.current === sessionId) {
@@ -966,11 +1106,12 @@ export default function Home() {
       const resp = await fetch("/api/read-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vaultPath, notePath: note.path }),
+        body: JSON.stringify({ notePath: note.path, repo }),
       });
       if (resp.ok) {
         const data = await resp.json();
         setNoteContent(data.content || "");
+        if (data.sha) setNoteShas((prev) => ({ ...prev, [note.path]: data.sha }));
         // Track note open (dedup: skip if the most recent item is the same open)
         const qId = (note.tags || []).find((t) => /^\d+$/.test(t)) || "";
         addActivity({
@@ -1090,7 +1231,7 @@ export default function Home() {
       const resp = await fetch("/api/delete-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vaultPath, notePath: selectedNote.path }),
+        body: JSON.stringify({ notePath: selectedNote.path, sha: noteShas[selectedNote.path], repo }),
       });
       const data = await resp.json();
       if (!data.success) {
@@ -1117,12 +1258,14 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vaultPath,
           notePath: selectedNote.path,
           content: noteContent,
+          sha: noteShas[selectedNote.path],
+          repo,
         }),
       });
       const data = await resp.json();
+      if (data.sha) setNoteShas((prev) => ({ ...prev, [selectedNote.path]: data.sha }));
       if (!data.success) {
         alert(`Save failed: ${data.error}`);
       } else {
@@ -1330,14 +1473,6 @@ export default function Home() {
     finally { setLoading(false); }
   };
 
-  const handleSavePath = () => {
-    if (tempPath.trim()) {
-      setVaultPath(tempPath);
-      setShowPathSettings(false);
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: `Vault path updated to: ${tempPath}` }]);
-    }
-  };
-
   const handleCopyJson = (text: string) => { navigator.clipboard.writeText(text); };
 
   // Workflow stepper data
@@ -1386,48 +1521,13 @@ export default function Home() {
       // Remove any existing entry for this item, then prepend (most-recently-used order)
       const deduped = prev.filter(existing => !isSameItem(existing, item));
       const next = [{ ...item, savedAt: Date.now() }, ...deduped].slice(0, 50);
-      try { localStorage.setItem("obsidianChatActivity", JSON.stringify(next)); } catch { }
+      saveUserData("obsidianChatActivity", next);
       return next;
     });
   };
 
   // Simple markdown renderer for note viewer
-  const renderMarkdown = (md: string) => {
-    // Strip YAML frontmatter
-    let body = md.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "");
-    // Headers
-    body = body.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    body = body.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    body = body.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    // Bold & italic
-    body = body.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    body = body.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Wiki links - preserve the brackets and apply purple inline styling
-    body = body.replace(/\[\[(.+?)\]\]/g, '<span style="color: #a855f7; background: rgba(147, 51, 234, 0.2); border-radius: 4px; padding: 0 4px; cursor: pointer; transition: all 0.2s;">[[&nbsp;$1&nbsp;]]</span>');
-    // Markdown Tables
-    body = body.replace(/(?:^[ \t]*\|.*\|[ \t]*(?:\r?\n|$))+/gm, (match) => {
-      const rows = match.trim().split(/\r?\n/);
-      if (rows.length < 2) return match;
-      let html = '<table class="md-table" style="width: 100%; border-collapse: collapse; margin: 16px 0;">';
-      rows.forEach((row, i) => {
-        if (row.match(/^\|?\s*:?-+:?\s*\|/)) return; // Skip separator row (e.g., |---|)
-        const cells = row.replace(/^\||\|$/g, '').split('|');
-        html += '<tr>';
-        cells.forEach(cell => {
-          const content = cell.trim();
-          html += i === 0
-            ? `<th style="padding: 8px 12px; border: 1px solid #2a2a2a; background: #111; font-weight: 600;">${content}</th>`
-            : `<td style="padding: 8px 12px; border: 1px solid #2a2a2a;">${content}</td>`;
-        });
-        html += '</tr>';
-      });
-      html += '</table>';
-      return html;
-    });
-    // Line breaks
-    body = body.replace(/\n/g, '<br/>');
-    return body;
-  };
+  // renderMarkdown imported from @/lib/render-markdown
 
   // Extract tags from frontmatter via regex
   const getNoteTags = (content: string): string[] => {
@@ -1478,18 +1578,11 @@ export default function Home() {
             Flow
           </button>
           <button
-            className={`${styles.navTab} ${viewMode === "chat" ? styles.navTabActive : ""}`}
-            onClick={() => setViewMode("chat")}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-            Chat
-          </button>
-          <button
             className={`${styles.navTab} ${viewMode === "editor" ? styles.navTabActive : ""}`}
             onClick={() => setViewMode("editor")}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-            Editor
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z" /><path d="M9 4v16" /><path d="M4 9h5" /><path d="M4 14h5" /></svg>
+            Obsidian
           </button>
           <button
             className={`${styles.navTab} ${viewMode === "anki" ? styles.navTabActive : ""}`}
@@ -1505,9 +1598,9 @@ export default function Home() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
             Templates
           </button>
-          <a href="/dashboard" className={styles.navTab}>
+          <a href="/integrations" className={styles.navTab}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-            Dashboard
+            Integrations
           </a>
         </div>
         {gsUser && (
@@ -1522,48 +1615,43 @@ export default function Home() {
       </nav>
 
       <div className={styles.container}>
-      {viewMode === "flow" ? (
+      {!viewReady ? null : viewMode === "flow" ? (
         <FlowView
           savedExtractions={savedExtractions}
           userTemplates={userTemplates}
-          vaultPath={vaultPath}
+          repo={repo}
+          vaultName={vaultPath}
+          initialExtractionId={activeFlowId}
           onNewExtraction={handleFlowNewExtraction}
+          onDeleteExtraction={(id) => {
+            setSavedExtractions(prev => {
+              const updated = prev.filter(x => x.id !== id);
+              saveUserData("savedExtractions", updated);
+              return updated;
+            });
+            if (activeFlowId === id) {
+              setActiveFlowId(null);
+              localStorage.setItem("activeFlowExtractionId", "");
+            }
+          }}
+          onExtractionChange={(id) => {
+            setActiveFlowId(id);
+            localStorage.setItem("activeFlowExtractionId", id || "");
+          }}
         />
       ) : (
         <>
       {/* Left Sidebar */}
       <div className={styles.sidebar}>
-        {/* Vault Path */}
-        <div className={styles.pathSection}>
-          <button
-            onClick={() => setShowPathSettings(!showPathSettings)}
-            className={styles.settingsBtn}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-            {vaultPath.split("\\").pop() || "Select Folder"}
-          </button>
-          {showPathSettings && (
-            <div className={styles.pathSettings}>
-              <label className={styles.pathLabel}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-                Vault Folder
-              </label>
-              <div className={styles.pathManualInput}>
-                <input type="text" value={tempPath} onChange={(e) => setTempPath(e.target.value)} placeholder="C:\Users\...\VaultFolder" className={styles.pathInput} />
-              </div>
-              <div className={styles.pathButtonsGroup}>
-                <button onClick={handleSavePath} className={styles.pathSaveBtn}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                  Save
-                </button>
-                <button onClick={() => { setTempPath(vaultPath); setShowPathSettings(false); }} className={styles.pathCancelBtn}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Connect prompt when no repo */}
+        {!repo && (
+          <div className={styles.pathSection}>
+            <a href="/integrations" className={styles.settingsBtn} style={{ textDecoration: "none" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              Connect repository
+            </a>
+          </div>
+        )}
 
         {/* Chat sidebar content */}
         {viewMode === "chat" && (
@@ -1609,7 +1697,7 @@ export default function Home() {
                           e.stopPropagation();
                           setSavedExtractions(prev => {
                             const updated = prev.filter(x => x.id !== ext.id);
-                            localStorage.setItem("savedExtractions", JSON.stringify(updated));
+                            saveUserData("savedExtractions", updated);
                             return updated;
                           });
                         }}
@@ -1972,6 +2060,9 @@ export default function Home() {
           {selectedNote ? (
             <>
               <div className={styles.editorHeader}>
+                <button className={styles.backToGraphBtn} onClick={() => { setSelectedNote(null); setNoteContent(""); }} title="Back to graph">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
                 <div className={styles.editorTitleSection}>
                   <h2 className={styles.editorTitle}>{selectedNote.title}</h2>
                   <span className={styles.editorPath}>{selectedNote.path}</span>
@@ -2254,9 +2345,42 @@ export default function Home() {
               </div>
             </>
           ) : (
-            <div className={styles.editorEmpty}>
-              <h2>Select a note</h2>
-              <p>Choose a note from the sidebar to view it here</p>
+            <div className={styles.graphView}>
+              <div className={styles.graphTopBar}>
+                <div className={styles.graphSearchWrap}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                  <input
+                    type="text"
+                    placeholder="Search notes..."
+                    value={noteSearch}
+                    onChange={(e) => setNoteSearch(e.target.value)}
+                    className={styles.graphSearchInput}
+                  />
+                  {noteSearch && filteredNotes.length > 0 && (
+                    <div className={styles.graphSearchResults}>
+                      {filteredNotes.slice(0, 8).map((note, i) => (
+                        <button key={i} className={styles.graphSearchItem} onClick={() => { openNote(note); setNoteSearch(""); }}>
+                          <span className={styles.graphSearchItemTitle}>{note.title}</span>
+                          {note.tags && note.tags.length > 0 && (
+                            <span className={styles.graphSearchItemTags}>{note.tags.slice(0, 3).join(", ")}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className={`${styles.graphLabelToggle} ${showGraphLabels ? styles.graphLabelToggleActive : ""}`}
+                  onClick={() => setShowGraphLabels((v) => !v)}
+                  title={showGraphLabels ? "Hide labels" : "Show labels"}
+                  aria-label={showGraphLabels ? "Hide labels" : "Show labels"}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" /></svg>
+                  <span>Labels</span>
+                </button>
+                <span className={styles.graphNoteCount}>{allNotes.length} notes</span>
+              </div>
+              <NoteGraph notes={allNotes} onSelectNote={(note) => openNote(note)} showLabels={showGraphLabels} />
             </div>
           )}
         </div>
@@ -2270,12 +2394,46 @@ export default function Home() {
       ) : (
         /* ── Anki View ──────────────────────────────────────────────── */
         <div className={styles.ankiContainer}>
-          {ankiLoading && (
-            <div className={styles.ankiCenterMsg}>
-              <div className={styles.spinner} />
-              <span>Searching Anki collection...</span>
+          {/* Filter bar */}
+          <div className={styles.ankiFilterBar}>
+            <div className={styles.ankiFilterSearchWrap}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <input
+                type="text"
+                placeholder="Search cards... e.g. 2513, deck:MyDeck"
+                value={ankiQuery}
+                onChange={(e) => setAnkiQuery(e.target.value)}
+                className={styles.ankiFilterInput}
+              />
+              {ankiQuery && (
+                <button className={styles.ankiFilterClear} onClick={() => setAnkiQuery("")} aria-label="Clear search">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              )}
             </div>
-          )}
+            <div className={styles.ankiFilterHints}>
+              <span>2513 → tag::2513</span>
+              <span>tag:neurology</span>
+              <span>deck:MyDeck</span>
+            </div>
+            {allNotesTags.length > 0 && (
+              <div className={styles.ankiFilterTags}>
+                {allNotesTags.map((tag) => (
+                  <button
+                    key={tag}
+                    className={`${styles.ankiFilterTag} ${ankiQuery === tag ? styles.ankiFilterTagActive : ""}`}
+                    onClick={() => setAnkiQuery(ankiQuery === tag ? "" : tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
+            {ankiCards.length > 0 && !ankiLoading && (
+              <span className={styles.ankiFilterCount}>{ankiCards.length} cards</span>
+            )}
+          </div>
+
           {ankiError && (
             <div className={styles.ankiErrorBanner}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
@@ -2283,182 +2441,7 @@ export default function Home() {
             </div>
           )}
 
-          <div className={styles.ankiCreatePanel}>
-            <h2 className={styles.ankiCreateTitle}>Create Anki Card</h2>
-            <p className={styles.ankiCreateSubtitle}>Select an Obsidian note and template to generate a new card.</p>
-
-            <div className={styles.ankiCreateForm}>
-              {/* Note selector combobox */}
-              <div className={styles.ankiCreateField}>
-                <label className={styles.ankiCreateLabel}>Source Note</label>
-
-                {/* Tag filter chips — always visible in the main panel */}
-                {allNotesTags.length > 0 && (
-                  <div className={styles.comboboxTagRow}>
-                    {allNotesTags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        className={`${styles.comboboxTagChip} ${ankiCreateTagFilter === tag ? styles.comboboxTagChipActive : ""}`}
-                        onClick={() => setAnkiCreateTagFilter((f) => f === tag ? "" : tag)}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className={styles.comboboxWrap} ref={comboboxRef}>
-                  <button
-                    type="button"
-                    className={styles.comboboxToggle}
-                    onClick={() => setAnkiCreateDropdownOpen((o) => !o)}
-                  >
-                    <span className={styles.comboboxToggleText}>
-                      {ankiCreateNote
-                        ? (allNotes.find((n) => n.path === ankiCreateNote)?.title || ankiCreateNote)
-                        : "Select a note..."}
-                    </span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, transform: ankiCreateDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}><polyline points="6 9 12 15 18 9" /></svg>
-                  </button>
-
-                  {ankiCreateDropdownOpen && (
-                    <div className={styles.comboboxDropdown}>
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="Search notes..."
-                        value={ankiCreateNoteSearch}
-                        onChange={(e) => setAnkiCreateNoteSearch(e.target.value)}
-                        className={styles.comboboxSearch}
-                      />
-                      <div className={styles.comboboxList}>
-                        {filteredCreateNotes.length === 0 ? (
-                          <div className={styles.comboboxEmpty}>No notes found</div>
-                        ) : (
-                          filteredCreateNotes.map((note, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              className={`${styles.comboboxOption} ${ankiCreateNote === note.path ? styles.comboboxOptionActive : ""}`}
-                              onClick={() => {
-                                setAnkiCreateNote(note.path);
-                                setAnkiCreateDropdownOpen(false);
-                                setAnkiCreateNoteSearch("");
-                              }}
-                            >
-                              <span className={styles.comboboxOptionTitle}>{note.title}</span>
-                              {note.tags && note.tags.length > 0 && (
-                                <span className={styles.comboboxOptionTags}>{note.tags.slice(0, 3).join(", ")}</span>
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Template selector */}
-              <div className={styles.ankiCreateField}>
-                <label className={styles.ankiCreateLabel}>Card Template</label>
-                <select
-                  className={styles.ankiCreateTemplateSelect}
-                  value={selectedCardTemplate}
-                  onChange={(e) => setSelectedCardTemplate(e.target.value)}
-                >
-                  {ankiCardTemplates.map((t) => (
-                    <option key={t.filename} value={t.filename}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                className={styles.ankiGenerateBtn}
-                onClick={handleCreateCard}
-                disabled={ankiCreating || !ankiCreateNote}
-              >
-                {ankiCreating ? (
-                  <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.spinIcon} aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" /></svg>
-                    Generating...
-                  </>
-                ) : "Generate Card"}
-              </button>
-            </div>
-
-            {ankiCreateError && (
-              <div className={styles.ankiEditError} style={{ marginTop: "12px" }}>{ankiCreateError}</div>
-            )}
-            {ankiCreateSuccess && (
-              <div className={styles.ankiCreateSuccessMsg}>{ankiCreateSuccess}</div>
-            )}
-
-            {/* Generated preview */}
-            {(ankiCreateFront || ankiCreateBack) && (
-              <div className={styles.ankiCreatePreview}>
-                <div className={styles.ankiCreatePreviewDivider} />
-                <div className={styles.ankiCreatePreviewTitle}>Generated Card Preview</div>
-
-                <label className={styles.ankiEditLabel}>Front</label>
-                <div
-                  ref={ankiCreateFrontRef}
-                  className={styles.ankiEditRichText}
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) => setAnkiCreateFront(e.currentTarget.innerHTML)}
-                  spellCheck={false}
-                  style={{ minHeight: "70px" }}
-                />
-
-                <label className={styles.ankiEditLabel} style={{ marginTop: "10px" }}>Back</label>
-                <div
-                  ref={ankiCreateBackRef}
-                  className={styles.ankiEditRichText}
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) => setAnkiCreateBack(e.currentTarget.innerHTML)}
-                  spellCheck={false}
-                  style={{ minHeight: "100px" }}
-                />
-
-                <div className={styles.ankiCreateSaveRow}>
-                  <div className={styles.ankiCreateField} style={{ marginBottom: 0, flex: 1 }}>
-                    <label className={styles.ankiCreateLabel}>Deck</label>
-                    {ankiDecks.length > 0 ? (
-                      <select
-                        className={styles.ankiCreateTemplateSelect}
-                        value={ankiCreateDeck}
-                        onChange={(e) => setAnkiCreateDeck(e.target.value)}
-                      >
-                        {ankiDecks.map((d) => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        className={styles.ankiCreateSearch}
-                        value={ankiCreateDeck}
-                        onChange={(e) => setAnkiCreateDeck(e.target.value)}
-                        placeholder="Deck name (e.g. Default)"
-                      />
-                    )}
-                  </div>
-                  <button
-                    className={styles.ankiSaveBtn}
-                    onClick={handleAddNote}
-                    disabled={ankiAddingNote || !ankiCreateFront}
-                    style={{ alignSelf: "flex-end" }}
-                  >
-                    {ankiAddingNote ? "Saving…" : "Save to Anki"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* List of cards (View/Edit) */}
-            <div className={styles.ankiCardList} style={{ marginTop: "24px", paddingTop: "24px", borderTop: "1px solid #333" }}>
-              <h2 className={styles.ankiCreateTitle}>Anki Cards</h2>
+            <div className={styles.ankiCardList}>
               {ankiLoading ? (
                 <div className={styles.ankiCenterMsg}>
                   <div className={styles.spinner} />
@@ -2626,7 +2609,6 @@ export default function Home() {
                 })
               )}
             </div>
-          </div>
         </div>
       )}
 
@@ -2716,7 +2698,7 @@ export default function Home() {
                 className={styles.clearHistoryBtn}
                 onClick={() => {
                   setActivityHistory([]);
-                  try { localStorage.removeItem("obsidianChatActivity"); } catch { }
+                  deleteUserData("obsidianChatActivity");
                 }}
               >
                 Clear

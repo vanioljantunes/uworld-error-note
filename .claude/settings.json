@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo view nextlevelbuilder/ui-ux-pro-max-skill --json name,description,defaultBranchRef)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm --version)",
+      "Bash(node --version)",
+      "Bash(powershell -Command \"Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force\")",
+      "Bash(npm install -g uipro-cli)",
+      "Bash(uipro init --ai claude)",
+      "Read(//c/Users/vanio/.claude/skills/**)",
+      "Read(//c/Users/vanio/.claude/projects/c--Users-vanio-OneDrive--rea-de-Trabalho-python-crewAI/memory/**)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/kepano/obsidian-skills/main/skills/json-canvas/SKILL.md\")",
+      "Read(//c/Users/vanio/.claude/**)",
+      "Read(//c/Users/vanio/AppData/Roaming/**)",
+      "Bash(claude mcp list)",
+      "Bash(npx --version)",
+      "Bash(claude mcp add anki-mcp --env ANKI_CONNECT_URL=http://localhost:8765 -- npx -y @ankimcp/anki-mcp-server --stdio)",
+      "Read(//c/Users/vanio/**)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(claude mcp get anki-mcp)",
+      "Bash(curl -s http://localhost:8765)",
+      "Bash(curl -s -X POST http://localhost:8765 -H \"Content-Type: application/json\" -d '{\"\"action\"\":\"\"version\"\",\"\"version\"\":6}')",
+      "Bash(python -c \"from tools import anki_search_notes, anki_get_decks; print\\(''OK''\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\(''config/agents.yaml''\\)\\); print\\(''agents OK''\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\(''config/tasks.yaml''\\)\\); print\\(''tasks OK''\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\(''config/agents.yaml'', encoding=''utf-8''\\)\\); print\\(''agents OK''\\)\")",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\(''config/tasks.yaml'', encoding=''utf-8''\\)\\); print\\(''tasks OK''\\)\")",
+      "Bash(python -c \"from models import AnkiCard, AnkiSearchRequest, AnkiSearchResponse; print\\(''OK''\\)\")",
+      "Bash(python -c \"from crew import build_anki_crew; print\\(''OK''\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\vanio\\OneDrive\\Área de Trabalho\\python\\crewAI\\.claude\\skills",
+      "c:\\Users\\vanio\\OneDrive\\Área de Trabalho\\python\\crewAI\\docs\\plans"
+    ]
+  }
+}

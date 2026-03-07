@@ -1,79 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import {
+  listAllFiles,
+  readBlob,
+  parseFrontmatterTags,
+  getTokenFromCookies,
+  DEFAULT_REPO,
+} from "@/lib/github";
 
 interface Note {
   title: string;
   path: string;
   tags: string[];
+  sha: string;
 }
 
-function parseFrontmatterTags(content: string): string[] {
-  const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!match) return [];
-  const lines = match[1].split("\n");
-  const tags: string[] = [];
-  let inTags = false;
-  for (const line of lines) {
-    if (line.trim() === "tags:") { inTags = true; continue; }
-    if (inTags && line.trim().startsWith("- ")) {
-      tags.push(line.trim().replace(/^- /, "").replace(/^['"]|['"]$/g, ""));
-    } else if (inTags && !line.trim().startsWith("- ")) {
-      inTags = false;
-    }
-  }
-  return tags;
-}
-
-async function listNotesFromDirectory(vaultPath: string): Promise<Note[]> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const token = getTokenFromCookies(request.cookies);
+    if (!token) {
+      return NextResponse.json({ notes: [], error: "Not authenticated" }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const repo = body.repo || DEFAULT_REPO;
+
+    const files = await listAllFiles(token, repo);
+
+    // Batch-fetch blob content for frontmatter tag parsing
+    const BATCH = 15;
     const notes: Note[] = [];
 
-    async function walkDir(dir: string, baseDir: string) {
-      const files = await fs.readdir(dir);
-
-      for (const file of files) {
-        if (file.startsWith(".")) continue;
-
-        const fullPath = path.join(dir, file);
-        const stat = await fs.stat(fullPath);
-
-        if (stat.isDirectory()) {
-          await walkDir(fullPath, baseDir);
-        } else if (file.endsWith(".md")) {
-          const relativePath = path.relative(baseDir, fullPath);
-          const title = file.replace(".md", "");
-          let tags: string[] = [];
-          try {
-            const content = await fs.readFile(fullPath, "utf-8");
-            tags = parseFrontmatterTags(content);
-          } catch {
-            // ignore read errors, leave tags empty
-          }
-          notes.push({ title, path: relativePath, tags });
-        }
-      }
+    for (let i = 0; i < files.length; i += BATCH) {
+      const batch = files.slice(i, i + BATCH);
+      const results = await Promise.all(
+        batch.map(async (file) => {
+          const content = await readBlob(token, repo, file.sha);
+          const tags = parseFrontmatterTags(content);
+          const title = file.path.split("/").pop()?.replace(".md", "") || "";
+          return { title, path: file.path, tags, sha: file.sha } as Note;
+        })
+      );
+      notes.push(...results);
     }
 
-    await walkDir(vaultPath, vaultPath);
-    return notes;
-  } catch (error) {
-    console.error("List notes error:", error);
-    return [];
-  }
-}
-
-export async function POST(request: NextRequest): Promise<NextResponse<{ notes: Note[] }>> {
-  try {
-    const body = await request.json() as { vaultPath?: string };
-    const { vaultPath } = body;
-
-    if (!vaultPath) {
-      return NextResponse.json({ notes: [] }, { status: 400 });
-    }
-
-    const notes = await listNotesFromDirectory(vaultPath);
-    return NextResponse.json({ notes }, { status: 200 });
+    return NextResponse.json({ notes });
   } catch (error) {
     console.error("List notes API error:", error);
     return NextResponse.json({ notes: [] }, { status: 200 });

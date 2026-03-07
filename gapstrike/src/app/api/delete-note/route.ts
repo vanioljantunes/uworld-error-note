@@ -1,17 +1,42 @@
-import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { NextRequest, NextResponse } from "next/server";
+import { deleteFile, readFile, getTokenFromCookies, DEFAULT_REPO } from "@/lib/github";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { vaultPath, notePath } = await request.json();
-    if (!vaultPath || !notePath) {
-      return NextResponse.json({ success: false, error: "Missing vaultPath or notePath" }, { status: 400 });
+    const token = getTokenFromCookies(request.cookies);
+    if (!token) {
+      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
     }
-    const fullPath = path.join(vaultPath, notePath);
-    fs.unlinkSync(fullPath);
+
+    const { notePath, sha, repo } = await request.json();
+    if (!notePath) {
+      return NextResponse.json(
+        { success: false, error: "Missing notePath" },
+        { status: 400 }
+      );
+    }
+
+    const targetRepo = repo || DEFAULT_REPO;
+
+    // If no SHA provided, fetch it
+    let fileSha = sha;
+    if (!fileSha) {
+      const existing = await readFile(token, targetRepo, notePath);
+      fileSha = existing.sha;
+    }
+
+    await deleteFile(
+      token,
+      targetRepo,
+      notePath,
+      fileSha,
+      `Delete ${notePath.split("/").pop()}`
+    );
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message || "Unknown error" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message || "Unknown error" },
+      { status: 500 }
+    );
   }
 }

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Linear - Plan and build products</title>
+    <script src="assets/resource_3fa48481346f.js"></script>
+    <script src="assets/iconify-icon_d39ffc6e4c56.js"></script>
+    <link href="assets/css2_19fd9cc6b396.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #EDEDED;
+            overflow-x: hidden;
+        }
+
+        /* Base Reveal Animation (opacity only, no translateY - Linear style) */
+        .reveal {
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        .reveal.active {
+            opacity: 1;
+        }
+
+        /* Masked Text Reveal */
+        .text-reveal-wrapper {
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: bottom;
+        }
+
+        .text-reveal-content {
+            transform: translateY(110%);
+            opacity: 0;
+            transition: transform 1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
+            display: block;
+        }
+
+        .reveal-active .text-reveal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Stagger Delays */
+        .delay-100 { transition-delay: 0.1s; }
+        .delay-200 { transition-delay: 0.2s; }
+        .delay-300 { transition-delay: 0.3s; }
+        .delay-500 { transition-delay: 0.5s; }
+        .delay-700 { transition-delay: 0.7s; }
+
+        /* Marquee Animation */
+        .marquee-container {
+            display: flex;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .marquee-content {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-around;
+            min-width: 100%;
+            animation: scroll 40s linear infinite;
+        }
+
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
+        }
+
+        /* Nav Load Animation */
+        .nav-load {
+            opacity: 0;
+            transition: opacity 0.6s ease;
+        }
+
+        .nav-load.loaded {
+            opacity: 1;
+        }
+
+        /* Icon Alignment Fix */
+        iconify-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+
+        /* Grid dot pattern */
+        .grid-dots {
+            background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #5E6AD2, #8A63D2, #C084FC);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Feature image placeholder */
+        .feature-image {
+            background: linear-gradient(135deg, rgba(94,106,210,0.08), rgba(138,99,210,0.04));
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        /* Subtle glow */
+        .glow-line {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(94,106,210,0.4), transparent);
+        }
+
+        /* Step-based grid dot animation */
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.03; }
+            50% { opacity: 0.08; }
+        }
+
+        .grid-dots-animated {
+            animation: gridPulse 3200ms steps(4) infinite;
+        }
+    </style>
+</head>
+
+<body class="antialiased min-h-screen selection:bg-[#5E6AD2] selection:text-white">
+    <!-- Main Container -->
+    <div class="max-w-[1080px] mx-auto relative">
+
+        <!-- Navigation -->
+        <header class="relative z-50 sticky top-0 bg-black/80 backdrop-blur-xl border-b border-white/[0.08] nav-load">
+            <div class="flex justify-between items-center px-6 py-4">
+                <div class="flex items-center gap-2 group cursor-pointer">
+                    <iconify-icon class="text-xl text-[#EDEDED] group-hover:text-[#5E6AD2] transition-colors duration-200" icon="solar:widgets-linear"></iconify-icon>
+                    <span class="font-medium tracking-tight text-base text-[#EDEDED]">Linear</span>
+                </div>
+                <div class="flex items-center gap-8">
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200" href="#">Features</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200 hidden md:block" href="#">Method</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200 hidden md:block" href="#">Customers</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200 hidden md:block" href="#">Changelog</a>
+                    <a class="text-[13px] font-medium text-[#8A8F98] hover:text-[#EDEDED] transition-colors duration-200" href="#">Pricing</a>
+                    <a class="text-[13px] font-medium text-[#EDEDED] hover:text-white transition-colors duration-200" href="#">Log in</a>
+                    <button class="px-4 py-1.5 bg-[#5E6AD2] hover:bg-[#6E7AE2] text-white text-[13px] font-medium rounded-md transition-colors duration-200">
+                        Sign up
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="relative z-10 pt-32 pb-36 px-6 text-center overflow-hidden">
+            <!-- Grid dot background -->
+            <div class="absolute inset-0 grid-dots grid-dots-animated pointer-events-none"></div>
+
+            <div class="relative z-10">
+                <div class="reveal hero-badge mb-8">
+                    <span class="inline-flex items-center gap-2 px-3 py-1 border border-white/[0.08] rounded-full text-[13px] font-medium text-[#8A8F98]">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#5E6AD2]"></span>
+                        Introducing Linear Insights
+                    </span>
+                </div>
+
+                <h1 class="text-5xl md:text-[64px] font-medium tracking-tight leading-[1.1] text-[#EDEDED] max-w-3xl mx-auto mb-6" id="hero-title">
+                    <span class="text-reveal-wrapper"><span class="text-reveal-content delay-100">Linear is a purpose-built</span></span>
+                    <span class="text-reveal-wrapper"><span class="text-reveal-content delay-200">tool for planning and</span></span>
+                    <span class="text-reveal-wrapper"><span class="text-reveal-content delay-300">building products</span></span>
+                </h1>
+
+                <p class="text-base md:text-lg leading-relaxed text-[#8A8F98] max-w-xl mx-auto mb-10 reveal delay-500">
+                    Streamline issues, projects, and product roadmaps.
+                    <span class="gradient-text font-medium">Built for speed and designed for clarity.</span>
+                </p>
+
+                <div class="flex items-center justify-center gap-4 reveal delay-700">
+                    <button class="px-6 py-2.5 bg-[#5E6AD2] hover:bg-[#6E7AE2] text-white text-[14px] font-medium rounded-md transition-colors duration-200 shadow-lg shadow-[#5E6AD2]/20">
+                        Get started
+                        <iconify-icon class="ml-1 text-sm" icon="solar:arrow-right-linear"></iconify-icon>
+                    </button>
+                    <button class="px-6 py-2.5 bg-transparent border border-white/[0.08] hover:border-white/[0.16] text-[#EDEDED] text-[14px] font-medium rounded-md transition-colors duration-200">
+                        Watch demo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Subtle glow line below hero -->
+            <div class="absolute bottom-0 left-0 right-0 glow-line"></div>
+        </section>
+
+        <!-- Feature Sections -->
+        <section class="relative z-10 py-24 px-6">
+            <div class="mb-20 reveal">
+                <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66] block mb-3">Purpose-built</span>
+                <h2 class="text-[40px] md:text-[48px] font-medium tracking-tight leading-tight text-[#EDEDED]">Made for modern<br/>product teams</h2>
+            </div>
+
+            <!-- Feature 1: Text Left, Image Right -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center mb-28 reveal">
+                <div>
+                    <div class="flex items-center gap-3 mb-5">
+                        <iconify-icon class="text-[#5E6AD2] text-xl" icon="solar:bolt-circle-linear"></iconify-icon>
+                        <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Issue Tracking</span>
+                    </div>
+                    <h3 class="text-[24px] md:text-[28px] font-medium tracking-tight text-[#EDEDED] mb-4">
+                        Build momentum with Cycles
+                    </h3>
+                    <p class="text-base leading-relaxed text-[#8A8F98] max-w-md">
+                        Create automated sprints with clear scope. Work progresses automatically, keeping your team in flow without constant management overhead.
+                    </p>
+                </div>
+                <div class="feature-image rounded-lg h-[320px] flex items-center justify-center relative overflow-hidden">
+                    <div class="grid-dots absolute inset-0 opacity-40"></div>
+                    <div class="relative z-10 flex flex-col items-center gap-3">
+                        <iconify-icon class="text-5xl text-[#5E6AD2]/40" icon="solar:chart-square-linear"></iconify-icon>
+                        <span class="text-[13px] font-mono text-[#5C5F66]">Cycle Burndown</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature 2: Image Left, Text Right -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center mb-28 reveal">
+                <div class="feature-image rounded-lg h-[320px] flex items-center justify-center relative overflow-hidden order-2 md:order-1">
+                    <div class="grid-dots absolute inset-0 opacity-40"></div>
+                    <div class="relative z-10 flex flex-col items-center gap-3">
+                        <iconify-icon class="text-5xl text-[#5E6AD2]/40" icon="solar:map-linear"></iconify-icon>
+                        <span class="text-[13px] font-mono text-[#5C5F66]">Roadmap View</span>
+                    </div>
+                </div>
+                <div class="order-1 md:order-2">
+                    <div class="flex items-center gap-3 mb-5">
+                        <iconify-icon class="text-[#5E6AD2] text-xl" icon="solar:route-linear"></iconify-icon>
+                        <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Roadmaps</span>
+                    </div>
+                    <h3 class="text-[24px] md:text-[28px] font-medium tracking-tight text-[#EDEDED] mb-4">
+                        Set direction with Roadmaps
+                    </h3>
+                    <p class="text-base leading-relaxed text-[#8A8F98] max-w-md">
+                        Plan and communicate your product strategy. Connect daily work to larger goals so your team always understands the bigger picture.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Feature 3: Text Left, Image Right -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center reveal">
+                <div>
+                    <div class="flex items-center gap-3 mb-5">
+                        <iconify-icon class="text-[#5E6AD2] text-xl" icon="solar:code-square-linear"></iconify-icon>
+                        <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Integrations</span>
+                    </div>
+                    <h3 class="text-[24px] md:text-[28px] font-medium tracking-tight text-[#EDEDED] mb-4">
+                        Integrate with your workflow
+                    </h3>
+                    <p class="text-base leading-relaxed text-[#8A8F98] max-w-md">
+                        Connect with GitHub, Slack, Figma, and the tools your team already uses. Keep everything synced without switching contexts.
+                    </p>
+                </div>
+                <div class="feature-image rounded-lg h-[320px] flex items-center justify-center relative overflow-hidden">
+                    <div class="grid-dots absolute inset-0 opacity-40"></div>
+                    <div class="relative z-10 flex flex-col items-center gap-3">
+                        <iconify-icon class="text-5xl text-[#5E6AD2]/40" icon="solar:link-round-linear"></iconify-icon>
+                        <span class="text-[13px] font-mono text-[#5C5F66]">GitHub Sync</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Row -->
+        <section class="relative z-10 border-y border-white/[0.08] py-20 px-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-center reveal">
+                <div>
+                    <h2 class="text-[48px] font-medium tracking-tight text-[#EDEDED] mb-2">10,000+</h2>
+                    <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Teams worldwide</span>
+                </div>
+                <div class="md:border-x md:border-white/[0.08]">
+                    <h2 class="text-[48px] font-medium tracking-tight text-[#EDEDED] mb-2">50M+</h2>
+                    <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Issues managed</span>
+                </div>
+                <div>
+                    <h2 class="text-[48px] font-medium tracking-tight text-[#EDEDED] mb-2">99.99%</h2>
+                    <span class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66]">Uptime SLA</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Marquee Divider -->
+        <div class="border-b border-white/[0.08] overflow-hidden py-5">
+            <div class="marquee-container">
+                <div class="marquee-content">
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Built for speed</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Keyboard-first design</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Real-time sync</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Offline support</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                </div>
+                <!-- Duplicate for seamless loop -->
+                <div class="marquee-content">
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Built for speed</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Keyboard-first design</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Real-time sync</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                    <span class="text-[13px] font-mono uppercase tracking-wider text-[#5C5F66] mx-8">Offline support</span>
+                    <span class="text-[13px] font-mono text-[#5C5F66] mx-4">&#x2022;</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Testimonial / Quote -->
+        <section class="relative z-10 py-28 px-6 text-center">
+            <div class="reveal max-w-2xl mx-auto">
+                <iconify-icon class="text-3xl text-[#5E6AD2]/40 mb-8 block mx-auto" icon="solar:chat-square-like-linear"></iconify-icon>
+                <blockquote class="text-[24px] md:text-[32px] font-medium tracking-tight leading-snug text-[#EDEDED] italic mb-8">
+                    "Linear has transformed how we build software. We ship faster, with more clarity, and the entire team stays aligned."
+                </blockquote>
+                <div class="flex items-center justify-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#0A0A0A] border border-white/[0.08] flex items-center justify-center">
+                        <iconify-icon class="text-sm text-[#8A8F98]" icon="solar:user-linear"></iconify-icon>
+                    </div>
+                    <div class="text-left">
+                        <span class="text-[14px] font-medium text-[#EDEDED] block">Katie Johnson</span>
+                        <span class="text-[13px] text-[#5C5F66]">VP Engineering, Ramp</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Client Logos -->
+        <section class="relative z-10 border-y border-white/[0.08] py-20 px-6">
+            <div class="text-center mb-12">
+                <span class="text-[13px] font-mono uppercase text-[#5C5F66] tracking-wider">Trusted by leading teams</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-12 md:gap-16 justify-items-center items-center">
+                <div class="reveal opacity-40 hover:opacity-80 transition-opacity duration-300">
+                    <iconify-icon class="text-[#EDEDED]" height="28" icon="simple-icons:vercel"></iconify-icon>
+                </div>
+                <div class="reveal delay-100 opacity-40 hover:opacity-80 transition-opacity duration-300">
+                    <iconify-icon class="text-[#EDEDED]" height="28" icon="simple-icons:figma"></iconify-icon>
+                </div>
+                <div class="reveal delay-200 opacity-40 hover:opacity-80 transition-opacity duration-300">
+                    <iconify-icon class="text-[#EDEDED]" height="28" icon="simple-icons:ramp"></iconify-icon>
+                </div>
+                <div class="reveal delay-300 opacity-40 hover:opacity-80 transition-opacity duration-300">
+                    <iconify-icon class="text-[#EDEDED]" height="28" icon="simple-icons:cashapp"></iconify-icon>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Footer Section -->
+        <section class="relative z-10 py-32 px-6 text-center overflow-hidden">
+            <div class="absolute inset-0 grid-dots grid-dots-animated pointer-events-none"></div>
+            <div class="relative z-10 reveal">
+                <h2 class="text-[40px] md:text-[56px] font-medium tracking-tight leading-tight text-[#EDEDED] mb-4">
+                    Start building with Linear
+                </h2>
+                <p class="text-base leading-relaxed text-[#8A8F98] max-w-md mx-auto mb-10">
+                    Free for small teams. Upgrade anytime as you grow.
+                </p>
+                <button class="px-8 py-3 bg-[#5E6AD2] hover:bg-[#6E7AE2] text-white text-[14px] font-medium rounded-md transition-colors duration-200 shadow-lg shadow-[#5E6AD2]/20">
+                    Get started for free
+                    <iconify-icon class="ml-1 text-sm" icon="solar:arrow-right-linear"></iconify-icon>
+                </button>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="relative z-10 border-t border-white/[0.08] pt-16 pb-12 px-6">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-0 mb-16">
+                <!-- Brand -->
+                <div class="col-span-1 md:col-span-3">
+                    <div class="flex items-center gap-2 mb-4">
+                        <iconify-icon class="text-lg text-[#EDEDED]" icon="solar:widgets-linear"></iconify-icon>
+                        <span class="font-medium tracking-tight text-base text-[#EDEDED]">Linear</span>
+                    </div>
+                    <p class="text-[14px] text-[#5C5F66] leading-relaxed max-w-[200px]">
+                        Purpose-built for modern product development. Plan, build, ship.
+                    </p>
+                </div>
+                <!-- Product -->
+                <div class="col-span-1 md:col-span-3">
+                    <h4 class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66] mb-5">Product</h4>
+                    <ul class="space-y-3 text-[14px] text-[#8A8F98]">
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Features</a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Integrations</a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Pricing</a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Changelog</a></li>
+                    </ul>
+                </div>
+                <!-- Company -->
+                <div class="col-span-1 md:col-span-3">
+                    <h4 class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66] mb-5">Company</h4>
+                    <ul class="space-y-3 text-[14px] text-[#8A8F98]">
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">About</a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Blog</a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Careers</a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200" href="#">Contact</a></li>
+                    </ul>
+                </div>
+                <!-- Connect -->
+                <div class="col-span-1 md:col-span-3">
+                    <h4 class="text-[13px] font-medium uppercase tracking-wider text-[#5C5F66] mb-5">Connect</h4>
+                    <ul class="space-y-3 text-[14px] text-[#8A8F98]">
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200 flex items-center gap-2" href="#">Twitter <iconify-icon class="text-xs text-[#5C5F66]" icon="solar:arrow-right-up-linear"></iconify-icon></a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200 flex items-center gap-2" href="#">GitHub <iconify-icon class="text-xs text-[#5C5F66]" icon="solar:arrow-right-up-linear"></iconify-icon></a></li>
+                        <li><a class="hover:text-[#EDEDED] transition-colors duration-200 flex items-center gap-2" href="#">Discord <iconify-icon class="text-xs text-[#5C5F66]" icon="solar:arrow-right-up-linear"></iconify-icon></a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="border-t border-white/[0.08] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <span class="text-[13px] text-[#5C5F66]">&copy; 2024 Linear. All rights reserved.</span>
+                <div class="flex items-center gap-6">
+                    <a class="text-[13px] text-[#5C5F66] hover:text-[#8A8F98] transition-colors duration-200" href="#">Privacy</a>
+                    <a class="text-[13px] text-[#5C5F66] hover:text-[#8A8F98] transition-colors duration-200" href="#">Terms</a>
+                    <a class="text-[13px] text-[#5C5F66] hover:text-[#8A8F98] transition-colors duration-200" href="design-system.html">Design System</a>
+                </div>
+            </div>
+
+            <!-- Big ghost text -->
+            <div class="mt-20 text-center opacity-[0.03] pointer-events-none select-none overflow-hidden">
+                <span class="text-[10rem] md:text-[16rem] font-medium leading-none tracking-tighter whitespace-nowrap">Linear</span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // 1. Nav load
+            setTimeout(() => {
+                document.querySelector('header').classList.add('loaded');
+            }, 100);
+
+            // 2. Hero title text reveal
+            setTimeout(() => {
+                const heroTitle = document.getElementById('hero-title');
+                if (heroTitle) heroTitle.classList.add('reveal-active');
+            }, 400);
+
+            // 3. Hero badge reveal
+            setTimeout(() => {
+                document.querySelectorAll('.hero-badge').forEach(el => {
+                    el.classList.add('active');
+                });
+            }, 300);
+
+            // 4. Scroll Observer for reveals
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        const textWrappers = entry.target.querySelectorAll('.text-reveal-wrapper');
+                        if (textWrappers.length > 0 || entry.target.classList.contains('text-reveal-wrapper')) {
+                            entry.target.classList.add('reveal-active');
+                        }
+                        if (entry.target.tagName === 'H1' || entry.target.tagName === 'H2') {
+                            entry.target.classList.add('reveal-active');
+                        }
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+            document.querySelectorAll('h1, h2').forEach(el => {
+                if (el.querySelector('.text-reveal-content')) observer.observe(el);
+            });
+        });
+    </script>
+</body>
+
+</html>

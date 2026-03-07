@@ -1,0 +1,39 @@
+# ── Model Configuration ──────────────────────────────────────────────────
+#
+# Map each agent (= task) to a specific LLM model.
+# This lets you control token usage by using cheaper/faster models for
+# simple tasks and reserving expensive models for complex ones.
+#
+# Format:  agent_key: "provider/model-name"
+#
+# Examples:
+#   "openai/gpt-4o"          — GPT-4o (default, most capable)
+#   "openai/gpt-4o-mini"     — GPT-4o Mini (cheap, fast)
+#   "openai/o3-mini"         — o3-mini (reasoning, very capable)
+#   "anthropic/claude-sonnet-4-20250514"  — Claude Sonnet
+#   "google/gemini-2.0-flash"   — Gemini Flash (very cheap)
+#
+# Leave a value empty or delete the line to use the system default
+# (whatever OPENAI_MODEL_NAME or MODEL env var is set to).
+# ─────────────────────────────────────────────────────────────────────────
+
+# Phase 1: Generates 3 diagnostic MC questions from the extraction
+gap_identifier: "openai/gpt-4o-mini"
+
+# Phase 2: Infers error pattern, checks vault for duplicates
+error_pattern_analyst: "openai/gpt-4o-mini"
+
+# Phase 3: Composes the micro-note(s) — needs strong writing
+note_composer: "openai/gpt-4o"
+
+# Phase 4: Restructures/formats the note — structural only
+note_formatter: "openai/gpt-4o-mini"
+
+# Anki card search — just calls a tool, barely needs LLM
+anki_search_agent: "openai/gpt-4o-mini"
+
+# Anki card formatting — structural only
+anki_card_formatter: "openai/gpt-4o-mini"
+
+# Key Note synthesis — needs strong reasoning
+keynote_synthesizer: "openai/gpt-4o"

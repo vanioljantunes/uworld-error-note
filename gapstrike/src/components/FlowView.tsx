@@ -1101,11 +1101,8 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
         console.log("[MakeCard] Fixed front:", front);
       }
 
-      // Render mermaid to inline SVG for Anki (Anki can't run mermaid.js)
-      if (/mermaid|flowchart\s+TD/i.test(front)) {
-        console.log("[MakeCard] Rendering mermaid to SVG for Anki...");
-        front = await renderMermaidToSvg(front);
-      }
+      // Mermaid cards: keep raw mermaid code as-is — AnkiMD addon renders it client-side in Anki.
+      // No server-side SVG conversion needed.
 
       // Try adding with selected model, then fallback to other cloze models
       const modelsToTry = [model, ...clozeModels.filter((m) => m !== model)];

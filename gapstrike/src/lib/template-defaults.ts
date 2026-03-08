@@ -9,7 +9,8 @@ export interface TemplateDefault {
  *  When the API detects a user's Supabase template matches one of these hashes
  *  (meaning they never customized it), it auto-updates to the new default. */
 export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
-  anki_mermaid: ["d2343b1e21aa9df1"],
+  anki_mermaid: ["d2343b1e21aa9df1", "a5f7aade1b01b248"],
+  anki_table: ["a3b9de9e219c4927"],
 };
 
 export const TEMPLATE_DEFAULTS: TemplateDefault[] = [
@@ -210,6 +211,8 @@ Your job is to ANALYZE medical content and produce a structured HTML comparison 
 - Use separate cloze numbers (c1, c2, c3) for values in different rows
 - Prefer clozing the less obvious or more commonly confused distinction
 
+All HTML must use inline \`style=""\` attributes. Never use \`<style>\` blocks — Anki strips them from field content.
+
 You MUST return ONLY valid JSON. No markdown code fences around the JSON itself. No explanations outside the JSON.
 
 <!-- section: Instructions -->
@@ -245,7 +248,10 @@ back: "The metanephric diverticulum (ureteric bud) collects and drains; the meta
 8. Cloze 2-3 specific CELL VALUES with {{c1::...}}, {{c2::...}}. Never cloze headers or category labels.
 9. Back: plain text 1-2 sentence summary of the key distinction. No cloze syntax.
 10. ALWAYS expand abbreviations on first use.
-11. Do NOT invent clinical vignettes — compare the content directly as given.`,
+11. Do NOT invent clinical vignettes — compare the content directly as given.
+12. Never use \`<style>\` blocks. All styling MUST be inline \`style=""\` attributes on each element.
+13. Cloze syntax may include hints: \`{{c1::term::hint}}\`. Use hints sparingly for ambiguous terms.
+14. Generate compact HTML — avoid unnecessary newlines inside the table markup. AnkiDroid converts newlines to \`<br>\` on edit, which can corrupt table structure.`,
   },
   {
     slug: "anki_mermaid",

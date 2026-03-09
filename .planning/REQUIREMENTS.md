@@ -16,14 +16,14 @@
 
 ### Flowchart Editor
 
-- [ ] **FLOW-01**: Rebuilt flowchart editor renders the AI-generated HTML visually (boxes + arrows)
+- [x] **FLOW-01**: Rebuilt flowchart editor renders the AI-generated HTML visually (boxes + arrows)
 - [ ] **FLOW-02**: User can click a box to edit its text/cloze content inline
 - [ ] **FLOW-03**: User can add new boxes to the flowchart
 - [ ] **FLOW-04**: User can remove boxes from the flowchart
 - [ ] **FLOW-05**: User can add connections (arrows) between boxes with optional labels
 - [ ] **FLOW-06**: User can remove connections
 - [ ] **FLOW-07**: User can reorder/reposition boxes
-- [ ] **FLOW-08**: Cloze syntax `{{cN::text::hint}}` is displayed raw in the editor (not stripped)
+- [x] **FLOW-08**: Cloze syntax `{{cN::text::hint}}` is displayed raw in the editor (not stripped)
 - [x] **FLOW-09**: Editing the flowchart updates the card's FRONT field HTML in real-time
 
 ### Table Editor
@@ -81,8 +81,8 @@
 | INTG-04 | Phase 1 | Complete |
 | FLOW-09 | Phase 2 | Complete |
 | TABL-05 | Phase 2 | Complete |
-| FLOW-01 | Phase 3 | Pending |
-| FLOW-08 | Phase 3 | Pending |
+| FLOW-01 | Phase 3 | Complete |
+| FLOW-08 | Phase 3 | Complete |
 | FLOW-02 | Phase 4 | Pending |
 | FLOW-03 | Phase 4 | Pending |
 | FLOW-04 | Phase 4 | Pending |

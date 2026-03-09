@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Templates** - AI prompt templates generate valid inline-style HTML with native cloze syntax
 - [x] **Phase 2: Data Model and Parse/Serialize Pipeline** - FlowGraph types, parseFlowHTML, rebuildHTML, and TableEditor cloze fix (completed 2026-03-09)
-- [ ] **Phase 3: Visual Rendering** - FlowchartEditor renders AI HTML as interactive boxes and arrows (no editing yet)
+- [~] **Phase 3: Visual Rendering** - FlowchartEditor renders AI HTML as interactive boxes and arrows (no editing yet) — 03-01 complete
 - [ ] **Phase 4: Editing Operations** - Inline label editing, add/remove boxes, add/remove connections, table editor polish
 - [ ] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy
 
@@ -66,7 +66,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Install deps, delete old FlowchartEditor, build new component with NodeCard/EdgePill/FlowRenderer + CSS Module + smoke tests
+- [x] 03-01-PLAN.md — Install deps, delete old FlowchartEditor, build new component with NodeCard/EdgePill/FlowRenderer + CSS Module + smoke tests
 - [ ] 03-02-PLAN.md — Human-verify visual rendering with real AI-generated flowchart HTML
 
 ### Phase 4: Editing Operations
@@ -113,6 +113,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Templates | 2/3 | In progress | - |
 | 2. Data Model and Parse/Serialize Pipeline | 3/3 | Complete   | 2026-03-09 |
-| 3. Visual Rendering | 0/2 | Not started | - |
+| 3. Visual Rendering | 1/2 | In progress | - |
 | 4. Editing Operations | 0/5 | Not started | - |
 | 5. Polish and Deploy | 0/3 | Not started | - |

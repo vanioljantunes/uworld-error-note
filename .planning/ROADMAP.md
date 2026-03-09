@@ -30,12 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Generated cloze syntax `{{cN::text::hint}}` appears verbatim in the HTML and survives the AnkiConnect push to Anki
   4. The original simple cloze card is also saved alongside the flowchart/table card (user retains both formats)
   5. Generated HTML renders without visual breakage in Anki's desktop card viewer
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [x] 01-01: Rewrite anki_flowchart template for div-based HTML output
-- [x] 01-02: Polish anki_table template for inline styles and compact output
-- [ ] 01-03: Validate TMPL-06 — confirm HTML renders in Anki desktop and AnkiConnect push works with HTML content (INTG-03, INTG-04)
+- [x] 01-01-PLAN.md — Rewrite anki_flowchart template for div-based HTML output
+- [x] 01-02-PLAN.md — Polish anki_table template for inline styles and compact output
+- [ ] 01-03-PLAN.md — Save dual cards (HTML + cloze) via handleMakeCard; human-verify Anki rendering (TMPL-06, INTG-03, INTG-04)
 
 ### Phase 2: Data Model and Parse/Serialize Pipeline
 **Goal**: A working FlowGraph data model with parseFlowHTML and rebuildHTML functions that can round-trip AI-generated HTML without corruption, plus the TableEditor cloze passthrough bug fixed

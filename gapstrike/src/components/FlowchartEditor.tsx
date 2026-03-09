@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useImmerReducer } from "use-immer";
 import { parseFlowHTML } from "@/lib/parse-flow-html";
 import { rebuildHTML } from "@/lib/rebuild-flow-html";
@@ -196,11 +196,129 @@ export function highlightCloze(label: string): React.ReactNode {
   });
 }
 
-// ── NodeCard ──────────────────────────────────────────────────────────────────
+// ── EditableNodeCard ──────────────────────────────────────────────────────────
 
-function NodeCard({ node }: { node: FlowNode }) {
+interface EditableNodeCardProps {
+  node: FlowNode;
+  isEditing: boolean;
+  isSelected: boolean;
+  connectMode: boolean;
+  onStartEdit: () => void;
+  onCommit: (label: string) => void;
+  onConnectClick: (nodeId: string) => void;
+  onRemove: () => void;
+  onReorder: (dir: "up" | "down") => void;
+  isFirst: boolean;
+  isLast: boolean;
+}
+
+function EditableNodeCard({
+  node,
+  isEditing,
+  isSelected,
+  connectMode,
+  onStartEdit,
+  onCommit,
+  onConnectClick,
+  onRemove,
+  onReorder,
+  isFirst,
+  isLast,
+}: EditableNodeCardProps) {
+  const [draft, setDraft] = useState(node.label);
+
+  // Sync draft when node label changes externally (e.g., REORDER_NODE)
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(node.label);
+    }
+  }, [node.label, isEditing]);
+
+  // When entering edit mode, initialize draft from current label
+  useEffect(() => {
+    if (isEditing) {
+      setDraft(node.label);
+    }
+  }, [isEditing]);
+
+  function handleClick() {
+    if (connectMode) {
+      onConnectClick(node.id);
+    } else {
+      onStartEdit();
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onCommit(draft);
+    }
+    if (e.key === "Escape") {
+      onCommit(node.label); // revert on Escape
+    }
+  }
+
+  const cardStyle: React.CSSProperties = {
+    cursor: connectMode ? "crosshair" : "text",
+  };
+
   return (
-    <div className={styles.nodeCard}>{highlightCloze(node.label)}</div>
+    <div className={styles.nodeCardWrap}>
+      {isEditing ? (
+        <textarea
+          className={styles.nodeCardTextarea}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => onCommit(draft)}
+          onKeyDown={handleKeyDown}
+          autoFocus
+          spellCheck={false}
+          rows={2}
+        />
+      ) : (
+        <div
+          className={
+            styles.nodeCard +
+            (isSelected ? " " + styles.nodeCardSelected : "")
+          }
+          style={cardStyle}
+          onClick={handleClick}
+        >
+          {highlightCloze(node.label)}
+        </div>
+      )}
+      <div className={styles.nodeControls}>
+        {!isFirst && (
+          <button
+            className={styles.nodeControlBtn}
+            onClick={(e) => { e.stopPropagation(); onReorder("up"); }}
+            title="Move up"
+            type="button"
+          >
+            ↑
+          </button>
+        )}
+        {!isLast && (
+          <button
+            className={styles.nodeControlBtn}
+            onClick={(e) => { e.stopPropagation(); onReorder("down"); }}
+            title="Move down"
+            type="button"
+          >
+            ↓
+          </button>
+        )}
+        <button
+          className={styles.nodeControlBtn}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title="Delete node"
+          type="button"
+        >
+          ×
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -211,15 +329,155 @@ function EdgePill({ label }: { label: string }) {
   return <div className={styles.pill}>{label}</div>;
 }
 
-// ── FlowRenderer ──────────────────────────────────────────────────────────────
+// ── FlowchartPreview (named export — FlowView.tsx depends on this) ─────────────
 
-function FlowRenderer({ graph }: { graph: FlowGraph }) {
+export function FlowchartPreview({ value }: { value: string }) {
+  return (
+    <div
+      className={styles.previewContainer}
+      dangerouslySetInnerHTML={{ __html: value }}
+    />
+  );
+}
+
+// ── FlowchartEditor (default export) ─────────────────────────────────────────
+
+export default function FlowchartEditor({ value, onChange }: FlowchartEditorProps) {
+  const initialState: FlowState = {
+    graph: EMPTY_GRAPH,
+    viewMode: "editor",
+    editingNodeId: null,
+    selectedNodeId: null,
+    connectMode: false,
+    connectingFromId: null,
+    hasUserEdited: false,
+    nodeCounter: 0,
+  };
+  const [state, dispatch] = useImmerReducer<FlowState, FlowAction>(flowReducer, initialState);
+
+  // Local state for connect mode — managed outside reducer for two-click flow
+  const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
+  const [connectMode, setConnectMode] = useState(false);
+
+  useEffect(() => {
+    const graph = parseFlowHTML(value);
+    dispatch({ type: "LOAD", graph });
+  }, [value]);
+
+  // Wire onChange: only call after user mutations (hasUserEdited guard prevents
+  // infinite loop on LOAD — LOAD resets hasUserEdited to false)
+  useEffect(() => {
+    if (state.hasUserEdited) {
+      onChange(rebuildHTML(state.graph));
+    }
+  }, [state.graph, state.hasUserEdited]);
+
+  // Handle connect mode click (two-click edge creation)
+  function handleConnectClick(nodeId: string) {
+    if (!connectingFromId) {
+      // First click: set source node
+      setConnectingFromId(nodeId);
+    } else if (connectingFromId === nodeId) {
+      // Clicked same node: cancel
+      setConnectingFromId(null);
+    } else {
+      // Second click: create edge
+      const stepLabel = window.prompt("Step label (optional):") ?? "";
+      dispatch({
+        type: "ADD_EDGE",
+        fromId: connectingFromId,
+        toId: nodeId,
+        stepLabel,
+      });
+      setConnectMode(false);
+      setConnectingFromId(null);
+    }
+  }
+
+  function toggleConnectMode() {
+    setConnectMode((prev) => {
+      if (prev) {
+        setConnectingFromId(null);
+      }
+      return !prev;
+    });
+  }
+
+  return (
+    <div className={styles.editorRoot}>
+      <div className={styles.editorHeader}>
+        <span className={styles.editorTitle}>
+          {state.graph.title || "Flowchart"}
+        </span>
+        <button
+          className={styles.toggleBtn}
+          onClick={() => dispatch({ type: "TOGGLE_VIEW" })}
+          type="button"
+        >
+          {state.viewMode === "editor" ? "Preview in Anki" : "Back to Editor"}
+        </button>
+      </div>
+      {state.viewMode === "editor" && (
+        <div className={styles.toolbar}>
+          <button
+            className={styles.toolbarBtn}
+            onClick={() => dispatch({ type: "ADD_NODE", label: "New box" })}
+            type="button"
+          >
+            + Add Box
+          </button>
+          <button
+            className={
+              styles.toolbarBtn +
+              (connectMode ? " " + styles.toolbarBtnActive : "")
+            }
+            onClick={toggleConnectMode}
+            type="button"
+          >
+            {connectMode ? "Cancel Connect" : "Connect"}
+          </button>
+        </div>
+      )}
+      {state.viewMode === "preview" ? (
+        <FlowchartPreview value={value} />
+      ) : (
+        <FlowRendererWithConnect
+          graph={state.graph}
+          editingNodeId={state.editingNodeId}
+          connectMode={connectMode}
+          connectingFromId={connectingFromId}
+          dispatch={dispatch}
+          onConnectClick={handleConnectClick}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── FlowRendererWithConnect — wraps FlowRenderer with connect handler ──────────
+
+interface FlowRendererWithConnectProps {
+  graph: FlowGraph;
+  editingNodeId: string | null;
+  connectMode: boolean;
+  connectingFromId: string | null;
+  dispatch: React.Dispatch<FlowAction>;
+  onConnectClick: (nodeId: string) => void;
+}
+
+function FlowRendererWithConnect({
+  graph,
+  editingNodeId,
+  connectMode,
+  connectingFromId,
+  dispatch,
+  onConnectClick,
+}: FlowRendererWithConnectProps) {
   const toIds = new Set(graph.edges.map((e) => e.toId));
   const rootNode = graph.nodes.find((n) => !toIds.has(n.id));
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   const branchMap = new Map(graph.branchGroups.map((g) => [g.parentId, g.childIds]));
 
-  // Build outgoing edge map grouped by fromId
   const outgoing = new Map<string, FlowEdge[]>();
   for (const edge of graph.edges) {
     if (!outgoing.has(edge.fromId)) outgoing.set(edge.fromId, []);
@@ -230,6 +488,7 @@ function FlowRenderer({ graph }: { graph: FlowGraph }) {
     return <div className={styles.errorState}>Empty flowchart</div>;
   }
 
+  const nodeCount = graph.nodes.length;
   const visited = new Set<string>();
 
   function renderNode(nodeId: string): React.ReactNode {
@@ -239,13 +498,30 @@ function FlowRenderer({ graph }: { graph: FlowGraph }) {
     const node = nodeById.get(nodeId);
     if (!node) return null;
 
+    const nodeIdx = graph.nodes.findIndex((n) => n.id === nodeId);
+    const isFirst = nodeIdx === 0;
+    const isLast = nodeIdx === nodeCount - 1;
+
     const childIds = branchMap.get(nodeId);
 
+    const cardProps = {
+      node,
+      isEditing: editingNodeId === nodeId,
+      isSelected: connectingFromId === nodeId,
+      connectMode,
+      onStartEdit: () => dispatch({ type: "SET_EDITING_NODE", id: nodeId }),
+      onCommit: (label: string) => dispatch({ type: "EDIT_NODE", id: nodeId, label }),
+      onConnectClick,
+      onRemove: () => dispatch({ type: "REMOVE_NODE", id: nodeId }),
+      onReorder: (dir: "up" | "down") => dispatch({ type: "REORDER_NODE", id: nodeId, direction: dir }),
+      isFirst,
+      isLast,
+    };
+
     if (childIds && childIds.length > 0) {
-      // Branch node
       return (
         <React.Fragment key={nodeId}>
-          <NodeCard node={node} />
+          <EditableNodeCard {...cardProps} />
           <div className={styles.stem} />
           <div className={styles.branchWrapper}>
             {childIds.map((childId, i) => {
@@ -281,11 +557,10 @@ function FlowRenderer({ graph }: { graph: FlowGraph }) {
 
     const outs = outgoing.get(nodeId);
     if (outs && outs.length > 0) {
-      // Linear: follow first outgoing edge
       const { toId, stepLabel } = outs[0];
       return (
         <React.Fragment key={nodeId}>
-          <NodeCard node={node} />
+          <EditableNodeCard {...cardProps} />
           <div className={styles.stem} />
           <EdgePill label={stepLabel} />
           <div className={styles.stem} />
@@ -294,73 +569,10 @@ function FlowRenderer({ graph }: { graph: FlowGraph }) {
       );
     }
 
-    // Leaf node
-    return <NodeCard key={nodeId} node={node} />;
+    return <EditableNodeCard key={nodeId} {...cardProps} />;
   }
 
   return (
     <div className={styles.canvas}>{renderNode(rootNode.id)}</div>
-  );
-}
-
-// ── FlowchartPreview (named export — FlowView.tsx depends on this) ─────────────
-
-export function FlowchartPreview({ value }: { value: string }) {
-  return (
-    <div
-      className={styles.previewContainer}
-      dangerouslySetInnerHTML={{ __html: value }}
-    />
-  );
-}
-
-// ── FlowchartEditor (default export) ─────────────────────────────────────────
-
-export default function FlowchartEditor({ value, onChange }: FlowchartEditorProps) {
-  const initialState: FlowState = {
-    graph: EMPTY_GRAPH,
-    viewMode: "editor",
-    editingNodeId: null,
-    selectedNodeId: null,
-    connectMode: false,
-    connectingFromId: null,
-    hasUserEdited: false,
-    nodeCounter: 0,
-  };
-  const [state, dispatch] = useImmerReducer<FlowState, FlowAction>(flowReducer, initialState);
-
-  useEffect(() => {
-    const graph = parseFlowHTML(value);
-    dispatch({ type: "LOAD", graph });
-  }, [value]);
-
-  // Wire onChange: only call after user mutations (hasUserEdited guard prevents
-  // infinite loop on LOAD — LOAD resets hasUserEdited to false)
-  useEffect(() => {
-    if (state.hasUserEdited) {
-      onChange(rebuildHTML(state.graph));
-    }
-  }, [state.graph, state.hasUserEdited]);
-
-  return (
-    <div className={styles.editorRoot}>
-      <div className={styles.editorHeader}>
-        <span className={styles.editorTitle}>
-          {state.graph.title || "Flowchart"}
-        </span>
-        <button
-          className={styles.toggleBtn}
-          onClick={() => dispatch({ type: "TOGGLE_VIEW" })}
-          type="button"
-        >
-          {state.viewMode === "editor" ? "Preview in Anki" : "Back to Editor"}
-        </button>
-      </div>
-      {state.viewMode === "preview" ? (
-        <FlowchartPreview value={value} />
-      ) : (
-        <FlowRenderer graph={state.graph} />
-      )}
-    </div>
   );
 }

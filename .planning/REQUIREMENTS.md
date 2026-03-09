@@ -28,12 +28,12 @@
 
 ### Table Editor
 
-- [ ] **TABL-01**: Table editor renders the AI-generated HTML table visually
-- [ ] **TABL-02**: User can click a cell to edit its text/cloze content inline
-- [ ] **TABL-03**: User can add/remove rows
-- [ ] **TABL-04**: User can add/remove columns
+- [x] **TABL-01**: Table editor renders the AI-generated HTML table visually
+- [x] **TABL-02**: User can click a cell to edit its text/cloze content inline
+- [x] **TABL-03**: User can add/remove rows
+- [x] **TABL-04**: User can add/remove columns
 - [x] **TABL-05**: Cloze syntax displayed raw in cells (not stripped)
-- [ ] **TABL-06**: Editing the table updates the card's FRONT field HTML in real-time
+- [x] **TABL-06**: Editing the table updates the card's FRONT field HTML in real-time
 
 ### Integration
 
@@ -89,11 +89,11 @@
 | FLOW-05 | Phase 4 | Pending |
 | FLOW-06 | Phase 4 | Pending |
 | FLOW-07 | Phase 4 | Pending |
-| TABL-01 | Phase 4 | Pending |
-| TABL-02 | Phase 4 | Pending |
-| TABL-03 | Phase 4 | Pending |
-| TABL-04 | Phase 4 | Pending |
-| TABL-06 | Phase 4 | Pending |
+| TABL-01 | Phase 4 | Complete |
+| TABL-02 | Phase 4 | Complete |
+| TABL-03 | Phase 4 | Complete |
+| TABL-04 | Phase 4 | Complete |
+| TABL-06 | Phase 4 | Complete |
 | INTG-01 | Phase 4 | Pending |
 | INTG-02 | Phase 4 | Pending |
 

@@ -1015,6 +1015,51 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
         if (usedModel !== model) {
           setSelectedModel(usedModel);
         }
+        // INTG-04: Save original cloze card alongside flowchart/table card
+        if (editorMode === "flowchart" || editorMode === "table") {
+          const clozeFront = modeContentRef.current["cloze"] || "";
+          if (clozeFront && /\{\{c\d+::/i.test(clozeFront)) {
+            try {
+              // Re-use the same model-fallback loop for the cloze card
+              for (const tryModel of modelsToTry) {
+                try {
+                  const modelFields = (await ankiConnect("modelFieldNames", { modelName: tryModel })) as string[];
+                  let clozeFieldName = modelFields[0];
+                  try {
+                    const templates = (await ankiConnect("modelTemplates", { modelName: tryModel })) as Record<string, { Front: string; Back: string }>;
+                    for (const tmpl of Object.values(templates)) {
+                      const clozeMatch = (tmpl.Front + " " + tmpl.Back).match(/\{\{cloze:([^}]+)\}\}/);
+                      if (clozeMatch) { clozeFieldName = clozeMatch[1].trim(); break; }
+                    }
+                  } catch {}
+                  const clozeFields: Record<string, string> = {};
+                  clozeFields[clozeFieldName] = clozeFront;
+                  const backField = modelFields.find((f) => f !== clozeFieldName);
+                  if (backField) clozeFields[backField] = cleanBack;
+                  const clozeNoteId = await ankiConnect("addNote", {
+                    note: {
+                      deckName: deck,
+                      modelName: tryModel,
+                      fields: clozeFields,
+                      tags: activeExtraction?.questionId ? [String(activeExtraction.questionId)] : [],
+                      options: { allowDuplicate: true, duplicateScope: "deck" },
+                    },
+                  });
+                  if (clozeNoteId) {
+                    console.log("[MakeCard] Cloze companion card saved:", clozeNoteId);
+                    setMakeCardMsg(`Cards added — flowchart + cloze (${usedModel})`);
+                    break;
+                  }
+                } catch (e: any) {
+                  console.warn("[MakeCard] Cloze companion model", tryModel, "failed:", e?.message);
+                }
+              }
+            } catch (e: any) {
+              console.warn("[MakeCard] Cloze companion card failed:", e?.message);
+              // Non-fatal — primary card already saved, just log it
+            }
+          }
+        }
       } else {
         // Fallback: open card in Anki's Add Cards dialog
         try {

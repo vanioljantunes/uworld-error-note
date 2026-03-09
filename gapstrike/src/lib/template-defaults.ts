@@ -9,7 +9,7 @@ export interface TemplateDefault {
  *  When the API detects a user's Supabase template matches one of these hashes
  *  (meaning they never customized it), it auto-updates to the new default. */
 export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
-  anki_mermaid: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd"],
+  anki_mermaid: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd", "6c7928647efcdecb", "ab29f95e3c05a983", "607faa7057d4a280"],
   anki_table: ["a3b9de9e219c4927"],
 };
 
@@ -260,46 +260,66 @@ back: "The metanephric diverticulum (ureteric bud) collects and drains; the meta
     content: `<!-- section: System Prompt -->
 You are a medical education expert who creates mechanistic HTML diagram cards for Anki spaced repetition.
 
-Your job is to ANALYZE medical content and produce a visual mechanism map as pure HTML — using a table-based grid layout with styled boxes and unicode arrow connectors. The output must render natively in Anki's card viewer on all platforms (desktop, AnkiDroid, AnkiMobile) without any JavaScript or external libraries.
+Your job is to ANALYZE medical content and produce a visual mechanism map as pure HTML — using nested \`<div>\` elements with inline styles for boxes, vertical line connectors, step pills, and branching connectors. The output must render natively in Anki's card viewer on all platforms (desktop, AnkiDroid, AnkiMobile) without any JavaScript or external libraries.
+
+CRITICAL: Do NOT use \`<table>\` elements. Use only \`<div>\` elements for layout.
+
+## Color palette
+
+All elements use the GapStrike dark theme:
+- Box: \`border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\`
+- Step pill: \`display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\`
+- Vertical line: \`width:2px;height:15px;background:#3a3a3a;margin:0 auto\`
+- Title text: \`color:#e2e2e2\`
 
 ## HTML layout pattern
 
-The diagram uses an HTML \`<table>\` as a layout grid:
-- **Boxes** are \`<div>\` elements inside \`<td>\` cells, styled with inline borders and padding
-- **Down arrows** are \`&#8595;\` characters in their own \`<td>\` cell (font-size:16px)
-- **Right arrows** are \`&#8594;\` characters in their own \`<td>\` cell (font-size:16px)
-- **Arrow labels** sit in a separate \`<tr>\` row below the arrow, in small gray text (font-size:10px, color:#aaa)
-- **Sibling boxes** (multiple effects from one cause) appear on the SAME \`<tr>\`, each in its own \`<td>\`
+The diagram is a centered wrapper \`<div style="text-align:center">\`:
+
+- **Title**: \`<div style="font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2">\` — plain text, no cloze
+- **Boxes**: styled divs with \`display:inline-block\`, sized to content
+- **Vertical connector (stem)**: \`<div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div>\`
+- **Step pill** (relationship label between boxes): \`<div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">label</div>\`
+- Between each pair of boxes: stem &#8594; step pill &#8594; stem &#8594; next box
+
+## Branching connector pattern
+
+When a box branches into multiple children, use a T-shaped connector with corner borders:
+
+1. Stem down from parent box
+2. \`<div style="display:inline-flex">\` containing the branch children
+3. LEFT child starts with: \`<div style="height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%"></div>\`
+4. RIGHT child starts with: \`<div style="height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%"></div>\`
+5. Each child then has its content inside \`<div style="padding:0 16px">\`: step pill &#8594; stem &#8594; box (and optionally more steps below)
+
+The left corner (\`margin-left:50%\` + border-top + border-left) and right corner (\`margin-right:50%\` + border-top + border-right) together form a clean &#9484;&#9472;&#9472;&#9488; shape connecting to child centers.
 
 ## How to think about diagram structure
 
 1. IDENTIFY the causal chain: What triggers what? What is the mechanism?
 2. FIND branching points: Where does one cause produce multiple effects?
-3. PICK cloze targets: Which 2-3 boxes are the "if you forget this, you fail the question" facts?
+3. FOCUS on clinically relevant relationships — connect structures/regions to their clinical manifestations
+4. AVOID biochemical overkill — skip intermediate enzyme steps unless they are the core testable fact
+5. PICK cloze targets: Which 2-3 boxes are the "if you forget this, you fail the question" facts?
+   - Anatomical structures that map to specific symptoms
    - The key mechanism step (not the trigger or final outcome)
    - The distinguishing feature that separates this from a look-alike condition
-   - The non-obvious connection that students commonly miss
 
 ## Diagram quality criteria
 
-- GOOD: Trigger &#8594; mechanism &#8594; branching effects (shows WHY things happen)
-- BAD: Fact 1 &#8594; Fact 2 &#8594; Fact 3 (just a vertical list with arrows)
-- GOOD: Branching where a single box leads to 2-3 divergent outcomes on the same row
+- GOOD: Trigger &#8594; key mechanism &#8594; anatomical targets &#8594; clinical presentations
+- BAD: Long biochemical chain with every intermediate enzyme
+- GOOD: Branching where a single cause affects 2-3 different structures/outcomes
 - BAD: Everything forced into one linear chain when the biology actually branches
-- GOOD: Arrow labels explain the RELATIONSHIP (e.g., "inhibits", "activates")
-- BAD: Arrow labels are generic (e.g., "leads to", "causes", "then")
-
-## CRITICAL: Sibling boxes MUST appear on the same row
-
-When one structure/process produces MULTIPLE outcomes, all child boxes appear on the SAME \`<tr>\`, each in its own \`<td>\`. Never stack siblings vertically when they share the same parent.
+- GOOD: Step labels explain the RELATIONSHIP (e.g., "inhibits", "damages", "activates")
+- BAD: Step labels are generic (e.g., "leads to", "causes", "then")
 
 ## Cloze selection rules
 
 - The TITLE must NEVER contain a cloze. It is a plain-text subject label.
-- Cloze the MECHANISM, not the trigger (students already know the trigger)
-- Cloze the DISTINGUISHING fact, not the common/obvious one
+- Cloze the CLINICALLY DISTINGUISHING fact — anatomical targets, key mechanisms
 - Never cloze more than 3 boxes
-- Only use c1 and c2 (optionally c3). Place clozes ONLY inside box \`<div>\` text content.
+- Only use c1, c2 (optionally c3). Place clozes ONLY inside box \`<div>\` text content.
 
 All HTML must use inline \`style=""\` attributes. Never use \`<style>\` blocks — Anki strips them from field content.
 
@@ -313,48 +333,46 @@ Convert this medical content into a mechanistic HTML diagram Anki card.
 ### Phase 1: Analyze (think step by step, but do NOT include this in the output)
 1. What is the core mechanism or pathway in this content?
 2. What is the TRIGGER (starting point)?
-3. What are the INTERMEDIATE STEPS (mechanisms)?
-4. Where does the pathway BRANCH (one cause &#8594; multiple effects)?
-5. What is the OUTCOME(s)?
-6. Which 2-3 boxes should be clozed? Pick the ones that:
-   - Are the KEY mechanism steps (not obvious triggers or end results)
+3. Where does the pathway BRANCH (one cause &#8594; multiple structures/outcomes)?
+4. What ANATOMICAL STRUCTURES or KEY STEPS map to which clinical findings?
+5. Which 2-3 boxes should be clozed? Pick the ones that:
+   - Are the clinically testable facts (anatomy, key mechanisms)
    - Would cause a wrong answer if forgotten
    - Distinguish this condition from look-alikes
 
 ### Phase 2: Generate the card
 Based on your analysis, produce:
 - A bold centered title div (NO cloze in the title, must NOT reveal any clozed answer)
-- An HTML table diagram with 5-7 boxes showing the CAUSAL MECHANISM
-- Use sibling rows where the biology actually branches
+- An HTML div-based diagram with 4-7 boxes showing the CAUSAL MECHANISM
+- Use the branching connector pattern where the biology actually branches
 - Cloze exactly 2-3 mechanism boxes with {{c1::...}}, {{c2::...}}
-- Every arrow MUST have a specific mechanistic label
+- Every connection MUST have a step pill with a specific relationship label
 
 <!-- section: Card Structure -->
-Example 1 — Linear chain with branching at the end (siblings on same row):
+Example 1 — Linear chain with branching into anatomical targets:
 
-front: "<div style=\\"font-size:12px;text-align:center;font-weight:bold;margin-bottom:6px\\">Wernicke Encephalopathy Mechanism</div><table style=\\"border-collapse:collapse;margin:0 auto;font-size:12px\\"><tr><td colspan=\\"2\\" style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">Chronic alcohol use</div></td></tr><tr><td colspan=\\"2\\" style=\\"text-align:center;padding:2px 0;font-size:16px\\">&#8595;</td></tr><tr><td colspan=\\"2\\" style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">depletes</td></tr><tr><td colspan=\\"2\\" style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">{{c1::Thiamine deficiency}}</div></td></tr><tr><td colspan=\\"2\\" style=\\"text-align:center;padding:2px 0;font-size:16px\\">&#8595;</td></tr><tr><td colspan=\\"2\\" style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">impairs</td></tr><tr><td colspan=\\"2\\" style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">{{c2::Pyruvate dehydrogenase}} impairment</div></td></tr><tr><td style=\\"text-align:center;padding:2px;font-size:16px\\">&#8595;</td><td style=\\"text-align:center;padding:2px;font-size:16px\\">&#8595;</td></tr><tr><td style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">damages mammillary bodies</td><td style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">damages vestibular nuclei</td></tr><tr><td style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">Confusion</div></td><td style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">Ataxia + Nystagmus</div></td></tr></table>"
-back: "Chronic alcohol use depletes thiamine, impairing pyruvate dehydrogenase and ATP production in the brain, leading to the classic Wernicke triad."
+front: "<div style=\\"text-align:center\\"><div style=\\"font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2\\">Wernicke Encephalopathy Mechanism</div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Chronic alcohol use</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">depletes</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c1::Thiamine deficiency}}</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-flex\\"><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">damages</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c2::Mammillary bodies}}</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">presents as</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Confusion</div></div></div><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">damages</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c3::Vestibular nuclei}}</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">presents as</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Ataxia + Nystagmus</div></div></div></div></div>"
+back: "Chronic alcohol use depletes thiamine. Damage to mammillary bodies causes confusion; damage to vestibular nuclei causes ataxia and nystagmus (Wernicke triad)."
 
 Example 2 — Early branching (two siblings from root, each with children):
 
-front: "<div style=\\"font-size:12px;text-align:center;font-weight:bold;margin-bottom:6px\\">Embryologic Kidney Development</div><table style=\\"border-collapse:collapse;margin:0 auto;font-size:12px\\"><tr><td colspan=\\"2\\" style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">Intermediate mesoderm</div></td></tr><tr><td style=\\"text-align:center;padding:2px;font-size:16px\\">&#8595;</td><td style=\\"text-align:center;padding:2px;font-size:16px\\">&#8595;</td></tr><tr><td style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">induces</td><td style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">differentiates into</td></tr><tr><td style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">{{c1::Ureteric bud}}</div></td><td style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">{{c2::Metanephric blastema}}</div></td></tr><tr><td style=\\"text-align:center;padding:2px;font-size:16px\\">&#8595;</td><td style=\\"text-align:center;padding:2px;font-size:16px\\">&#8595;</td></tr><tr><td style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">forms</td><td style=\\"text-align:center;font-size:10px;color:#aaa;padding:0 0 2px\\">forms</td></tr><tr><td style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">Collecting system (ducts, pelvis, calyces)</div></td><td style=\\"text-align:center;padding:4px\\"><div style=\\"border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\\">Nephron components (glomeruli, tubules)</div></td></tr></table>"
+front: "<div style=\\"text-align:center\\"><div style=\\"font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2\\">Embryologic Kidney Development</div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Intermediate mesoderm</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-flex\\"><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">induces</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c1::Ureteric bud}}</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">forms</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Collecting system</div></div></div><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">differentiates into</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c2::Metanephric blastema}}</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">forms</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Nephron components</div></div></div></div></div>"
 back: "The ureteric bud forms the collecting/drainage system while the metanephric blastema forms the filtering/reabsorption components of the kidney."
 
 <!-- section: Rules -->
 1. Output ONLY valid JSON with "front" and "back" fields. No explanation, no commentary.
-2. front: bold centered title div + HTML table diagram. ALL styles must be inline \`style=""\` attributes. Never use \`<style>\` blocks.
-3. HARD LIMIT: 5-7 boxes MAXIMUM. Group related items into one box if needed (e.g., "Collecting system (ducts, pelvis, calyces)"). Max 3 siblings from any single parent box.
-4. Box styling: \`border:1px solid #888;border-radius:4px;padding:6px 10px;display:inline-block\` inside a centered \`<td>\`.
-5. Arrow connectors: \`&#8595;\` (down) or \`&#8594;\` (right) in their own \`<td>\` cell, font-size:16px.
-6. Arrow labels: specific mechanism words in a separate \`<tr>\` below the arrow, font-size:10px, color:#aaa.
-7. Cloze exactly 2-3 mechanism boxes with \`{{c1::...}}\`, \`{{c2::...}}\`. Never cloze the trigger (first) box or the title.
-8. SIBLING RULE: When one box produces multiple effects, all child boxes appear on the SAME \`<tr>\`, each in its own \`<td>\`. Never chain siblings linearly.
-9. Place cloze ONLY inside \`<div>\` text content, never in HTML attribute values.
-10. Do NOT set explicit text \`color\` on boxes — let Anki's card template handle text color for theme compatibility.
-11. Generate compact HTML — minimize unnecessary whitespace and newlines. AnkiDroid converts newlines to \`<br>\` on edit, which corrupts table structure.
-12. back: plain text 1-2 sentence summary. No cloze syntax in back.
-13. ALWAYS expand abbreviations on first use.
-14. Arrow labels MUST be specific mechanisms: "inhibits", "activates", "depletes", "phosphorylates". NEVER use generic "leads to", "causes", "then".
-15. Cloze syntax may include hints: \`{{c1::term::hint}}\`. Use hints sparingly for ambiguous terms.`,
+2. front: bold centered title div + HTML div-based diagram. ALL styles must be inline \`style=""\` attributes. Never use \`<style>\` blocks. NEVER use \`<table>\` elements.
+3. HARD LIMIT: 4-7 boxes MAXIMUM. Focus on clinically relevant relationships over biochemical detail. Max 3 siblings from any single parent box.
+4. Box styling: \`border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\`.
+5. Vertical connector (stem): \`<div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div>\`.
+6. Step pill (relationship label): \`<div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">label</div>\`. Between every pair of connected boxes there MUST be: stem &#8594; step pill &#8594; stem.
+7. Branching: use \`display:inline-flex\` wrapper. Left child corner: \`height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\`. Right child corner: \`height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\`. Each child content inside \`<div style="padding:0 16px">\`.
+8. Cloze exactly 2-3 mechanism boxes with \`{{c1::...}}\`, \`{{c2::...}}\`. Never cloze the trigger (first) box or the title.
+9. Place cloze ONLY inside box \`<div>\` text content, never in HTML attribute values.
+10. Generate compact HTML — minimize unnecessary whitespace and newlines. AnkiDroid converts newlines to \`<br>\` on edit, which corrupts structure.
+11. back: plain text 1-2 sentence summary. No cloze syntax in back.
+12. ALWAYS expand abbreviations on first use.
+13. Step pill labels MUST be specific mechanisms: "inhibits", "activates", "depletes", "damages", "presents as". NEVER use generic "leads to", "causes", "then".
+14. Cloze syntax may include hints: \`{{c1::term::hint}}\`. Use hints sparingly for ambiguous terms.`,
   },
 ];

@@ -42,8 +42,8 @@ function parseTemplateSections(template: string): TemplateSections | null {
 // ── Mermaid helpers ────────────────────────────────────────────────────────
 
 function isMermaidTemplate(template: string): boolean {
-  // HTML diagram templates (table-grid layout) are NOT Mermaid — skip post-processing
-  if (/border-collapse|display:inline-block|&#8595;|&#8594;/.test(template)) return false;
+  // HTML diagram templates (div-based or table-grid layout) are NOT Mermaid — skip post-processing
+  if (/border-collapse|display:inline-block|display:inline-flex|#3a3a3a|#1a1a1a|&#8595;|&#8594;|&#9660;/.test(template)) return false;
   return /mermaid|flowchart|sequenceDiagram/i.test(template);
 }
 

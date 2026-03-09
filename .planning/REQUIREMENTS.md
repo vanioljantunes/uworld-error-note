@@ -24,7 +24,7 @@
 - [ ] **FLOW-06**: User can remove connections
 - [ ] **FLOW-07**: User can reorder/reposition boxes
 - [ ] **FLOW-08**: Cloze syntax `{{cN::text::hint}}` is displayed raw in the editor (not stripped)
-- [ ] **FLOW-09**: Editing the flowchart updates the card's FRONT field HTML in real-time
+- [x] **FLOW-09**: Editing the flowchart updates the card's FRONT field HTML in real-time
 
 ### Table Editor
 
@@ -79,7 +79,7 @@
 | TMPL-06 | Phase 1 | Complete |
 | INTG-03 | Phase 1 | Complete |
 | INTG-04 | Phase 1 | Complete |
-| FLOW-09 | Phase 2 | Pending |
+| FLOW-09 | Phase 2 | Complete |
 | TABL-05 | Phase 2 | Complete |
 | FLOW-01 | Phase 3 | Pending |
 | FLOW-08 | Phase 3 | Pending |

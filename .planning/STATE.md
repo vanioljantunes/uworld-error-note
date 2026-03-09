@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-09T22:16:18.492Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-09T22:20:39.280Z"
 last_activity: 2026-03-09 — Roadmap created; TMPL-01 through TMPL-05 confirmed complete from previous session
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 4
   percent: 100
 ---
 
@@ -52,6 +52,8 @@ Progress: [██████████] 100%
 *Updated after each plan completion*
 | Phase 01 P03 | 30 | 2 tasks | 1 files |
 | Phase 02 P03 | 10 | 1 tasks | 4 files |
+| Phase 02 P02 | 15 | 1 tasks | 4 files |
+| Phase 02 P01 | 35 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -68,6 +70,11 @@ Recent decisions affecting current work:
 - [Phase 01]: modeContentRef.current['cloze'] is the canonical source for original cloze text when editorMode is flowchart or table
 - [Phase 02]: Export parseTable and rebuildTable at module level to enable unit testing without React render overhead
 - [Phase 02]: Remove tag-stripping regex from td cell extraction only — header stripping preserved (headers don't contain cloze)
+- [Phase 02]: rebuildHTML walks FlowGraph from root via toId exclusion set, using recursive emitNode with branchMap for inline-flex groups
+- [Phase 02]: emitStem wraps inner stem div in unstyled outer div to match exact template nesting that parser expects for stemWrap detection
+- [Phase 02]: Use textContent for box labels to preserve cloze syntax verbatim
+- [Phase 02]: Flat FlowGraph model (nodes + edges + branchGroups) over tree model for simpler React state
+- [Phase 02]: FLOWCHART_STYLES constants as single source of truth for parser role detection and serializer emit
 
 ### Pending Todos
 
@@ -80,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T22:16:18.490Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-03-09T22:20:16.478Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

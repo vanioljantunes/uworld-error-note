@@ -17,12 +17,12 @@
 ### Flowchart Editor
 
 - [x] **FLOW-01**: Rebuilt flowchart editor renders the AI-generated HTML visually (boxes + arrows)
-- [ ] **FLOW-02**: User can click a box to edit its text/cloze content inline
-- [ ] **FLOW-03**: User can add new boxes to the flowchart
-- [ ] **FLOW-04**: User can remove boxes from the flowchart
-- [ ] **FLOW-05**: User can add connections (arrows) between boxes with optional labels
-- [ ] **FLOW-06**: User can remove connections
-- [ ] **FLOW-07**: User can reorder/reposition boxes
+- [x] **FLOW-02**: User can click a box to edit its text/cloze content inline
+- [x] **FLOW-03**: User can add new boxes to the flowchart
+- [x] **FLOW-04**: User can remove boxes from the flowchart
+- [x] **FLOW-05**: User can add connections (arrows) between boxes with optional labels
+- [x] **FLOW-06**: User can remove connections
+- [x] **FLOW-07**: User can reorder/reposition boxes
 - [x] **FLOW-08**: Cloze syntax `{{cN::text::hint}}` is displayed raw in the editor (not stripped)
 - [x] **FLOW-09**: Editing the flowchart updates the card's FRONT field HTML in real-time
 
@@ -83,12 +83,12 @@
 | TABL-05 | Phase 2 | Complete |
 | FLOW-01 | Phase 3 | Complete |
 | FLOW-08 | Phase 3 | Complete |
-| FLOW-02 | Phase 4 | Pending |
-| FLOW-03 | Phase 4 | Pending |
-| FLOW-04 | Phase 4 | Pending |
-| FLOW-05 | Phase 4 | Pending |
-| FLOW-06 | Phase 4 | Pending |
-| FLOW-07 | Phase 4 | Pending |
+| FLOW-02 | Phase 4 | Complete |
+| FLOW-03 | Phase 4 | Complete |
+| FLOW-04 | Phase 4 | Complete |
+| FLOW-05 | Phase 4 | Complete |
+| FLOW-06 | Phase 4 | Complete |
+| FLOW-07 | Phase 4 | Complete |
 | TABL-01 | Phase 4 | Complete |
 | TABL-02 | Phase 4 | Complete |
 | TABL-03 | Phase 4 | Complete |

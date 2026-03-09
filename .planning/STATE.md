@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planned
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-03-09T23:41:43.935Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-09T23:43:49.410Z"
 last_activity: "2026-03-09 — Executed 03-02: human visual verification of FlowchartEditor approved (FLOW-01, FLOW-08)"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 70
 ---
 
@@ -88,6 +88,7 @@ Progress: [██████████] 100%
 | Phase 02 P02 | 15 | 1 tasks | 4 files |
 | Phase 02 P01 | 35 | 2 tasks | 4 files |
 | Phase 04 P03 | 2 | 1 tasks | 1 files |
+| Phase 04 P01 | 3 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,10 @@ Recent decisions affecting current work:
 - [Phase 03]: useImmerReducer typed explicitly with FlowState/FlowAction type parameters to avoid TS literal inference narrowing bug
 - [Phase 03]: EdgePill returns null for empty labels — avoids phantom pill elements in chains without step labels
 - [Phase 04]: Test table mutations as immutable ParsedTable operations (spread) rather than simulating React state — keeps tests pure and fast
+- [Phase 04]: Export flowReducer as named export for unit testing without React render overhead
+- [Phase 04]: hasUserEdited flag in FlowState gates onChange, preventing LOAD->onChange->LOAD infinite loop
+- [Phase 04]: Monotonic nodeCounter in FlowState prevents ID collision after REMOVE_NODE+ADD_NODE
+- [Phase 04]: REORDER_NODE swaps labels not node positions — IDs and edges stay intact
 
 ### Pending Todos
 
@@ -126,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T23:41:43.933Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-03-09T23:43:49.407Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

@@ -7,7 +7,6 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const DEFAULT_SYSTEM_PROMPT = `You are an expert Anki card formatter for medical education.
 You reformat existing card content to match a given template style.
-When the template uses Mermaid diagrams, you MUST wrap ALL mermaid code inside markdown code blocks: \`\`\`mermaid ... \`\`\`. Never use <div> tags for mermaid. Never output raw flowchart/sequenceDiagram code without the code block wrapper.
 You MUST return ONLY valid JSON. No markdown code fences around the JSON itself. No explanations outside the JSON.`;
 
 // ── Section parser ─────────────────────────────────────────────────────────
@@ -43,6 +42,8 @@ function parseTemplateSections(template: string): TemplateSections | null {
 // ── Mermaid helpers ────────────────────────────────────────────────────────
 
 function isMermaidTemplate(template: string): boolean {
+  // HTML diagram templates (table-grid layout) are NOT Mermaid — skip post-processing
+  if (/border-collapse|display:inline-block|&#8595;|&#8594;/.test(template)) return false;
   return /mermaid|flowchart|sequenceDiagram/i.test(template);
 }
 

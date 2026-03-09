@@ -77,25 +77,25 @@
 | TMPL-04 | Phase 1 | Complete |
 | TMPL-05 | Phase 1 | Complete |
 | TMPL-06 | Phase 1 | Pending |
-| FLOW-01 | Phase 2 | Pending |
-| FLOW-02 | Phase 3 | Pending |
-| FLOW-03 | Phase 3 | Pending |
-| FLOW-04 | Phase 3 | Pending |
-| FLOW-05 | Phase 3 | Pending |
-| FLOW-06 | Phase 3 | Pending |
-| FLOW-07 | Phase 3 | Pending |
-| FLOW-08 | Phase 2 | Pending |
-| FLOW-09 | Phase 3 | Pending |
+| INTG-03 | Phase 1 | Pending |
+| INTG-04 | Phase 1 | Pending |
+| FLOW-09 | Phase 2 | Pending |
+| TABL-05 | Phase 2 | Pending |
+| FLOW-01 | Phase 3 | Pending |
+| FLOW-08 | Phase 3 | Pending |
+| FLOW-02 | Phase 4 | Pending |
+| FLOW-03 | Phase 4 | Pending |
+| FLOW-04 | Phase 4 | Pending |
+| FLOW-05 | Phase 4 | Pending |
+| FLOW-06 | Phase 4 | Pending |
+| FLOW-07 | Phase 4 | Pending |
 | TABL-01 | Phase 4 | Pending |
 | TABL-02 | Phase 4 | Pending |
 | TABL-03 | Phase 4 | Pending |
 | TABL-04 | Phase 4 | Pending |
-| TABL-05 | Phase 4 | Pending |
 | TABL-06 | Phase 4 | Pending |
-| INTG-01 | Phase 3 | Pending |
+| INTG-01 | Phase 4 | Pending |
 | INTG-02 | Phase 4 | Pending |
-| INTG-03 | Phase 1 | Pending |
-| INTG-04 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 25 total (TMPL x6, FLOW x9, TABL x6, INTG x4)
@@ -104,4 +104,4 @@
 
 ---
 *Requirements defined: 2026-03-08*
-*Last updated: 2026-03-09 after re-initialization with research*
+*Last updated: 2026-03-09 — traceability updated after roadmap revision (5-phase structure)*

@@ -12,7 +12,7 @@
 - [x] **TMPL-03**: Flowchart supports labeled arrows (e.g., "inhibits", "activates") between boxes
 - [x] **TMPL-04**: Flowchart cloze placement follows existing rules (2-3 mechanism nodes, not triggers)
 - [x] **TMPL-05**: Table template prompt polished for consistent HTML output with inline styles
-- [ ] **TMPL-06**: Generated HTML renders correctly in Anki's card viewer on desktop and mobile
+- [x] **TMPL-06**: Generated HTML renders correctly in Anki's card viewer on desktop and mobile
 
 ### Flowchart Editor
 
@@ -39,8 +39,8 @@
 
 - [ ] **INTG-01**: Flowchart button in GapStrike's Anki panel triggers AI generation then opens the visual editor
 - [ ] **INTG-02**: Table button in GapStrike's Anki panel triggers AI generation then opens the visual editor
-- [ ] **INTG-03**: Card is saved to Anki via AnkiConnect with the inline HTML in the FRONT field
-- [ ] **INTG-04**: Original simple cloze card remains saved (user can choose between formats)
+- [x] **INTG-03**: Card is saved to Anki via AnkiConnect with the inline HTML in the FRONT field
+- [x] **INTG-04**: Original simple cloze card remains saved (user can choose between formats)
 
 ## v2 Requirements
 
@@ -76,9 +76,9 @@
 | TMPL-03 | Phase 1 | Complete |
 | TMPL-04 | Phase 1 | Complete |
 | TMPL-05 | Phase 1 | Complete |
-| TMPL-06 | Phase 1 | Pending |
-| INTG-03 | Phase 1 | Pending |
-| INTG-04 | Phase 1 | Pending |
+| TMPL-06 | Phase 1 | Complete |
+| INTG-03 | Phase 1 | Complete |
+| INTG-04 | Phase 1 | Complete |
 | FLOW-09 | Phase 2 | Pending |
 | TABL-05 | Phase 2 | Pending |
 | FLOW-01 | Phase 3 | Pending |

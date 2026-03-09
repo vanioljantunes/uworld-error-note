@@ -37,8 +37,8 @@
 
 ### Integration
 
-- [ ] **INTG-01**: Flowchart button in GapStrike's Anki panel triggers AI generation then opens the visual editor
-- [ ] **INTG-02**: Table button in GapStrike's Anki panel triggers AI generation then opens the visual editor
+- [x] **INTG-01**: Flowchart button in GapStrike's Anki panel triggers AI generation then opens the visual editor
+- [x] **INTG-02**: Table button in GapStrike's Anki panel triggers AI generation then opens the visual editor
 - [x] **INTG-03**: Card is saved to Anki via AnkiConnect with the inline HTML in the FRONT field
 - [x] **INTG-04**: Original simple cloze card remains saved (user can choose between formats)
 
@@ -94,8 +94,8 @@
 | TABL-03 | Phase 4 | Complete |
 | TABL-04 | Phase 4 | Complete |
 | TABL-06 | Phase 4 | Complete |
-| INTG-01 | Phase 4 | Pending |
-| INTG-02 | Phase 4 | Pending |
+| INTG-01 | Phase 4 | Complete |
+| INTG-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 25 total (TMPL x6, FLOW x9, TABL x6, INTG x4)

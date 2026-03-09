@@ -32,7 +32,7 @@
 - [ ] **TABL-02**: User can click a cell to edit its text/cloze content inline
 - [ ] **TABL-03**: User can add/remove rows
 - [ ] **TABL-04**: User can add/remove columns
-- [ ] **TABL-05**: Cloze syntax displayed raw in cells (not stripped)
+- [x] **TABL-05**: Cloze syntax displayed raw in cells (not stripped)
 - [ ] **TABL-06**: Editing the table updates the card's FRONT field HTML in real-time
 
 ### Integration
@@ -80,7 +80,7 @@
 | INTG-03 | Phase 1 | Complete |
 | INTG-04 | Phase 1 | Complete |
 | FLOW-09 | Phase 2 | Pending |
-| TABL-05 | Phase 2 | Pending |
+| TABL-05 | Phase 2 | Complete |
 | FLOW-01 | Phase 3 | Pending |
 | FLOW-08 | Phase 3 | Pending |
 | FLOW-02 | Phase 4 | Pending |

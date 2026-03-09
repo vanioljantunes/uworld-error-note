@@ -2243,8 +2243,8 @@ export default function Home() {
                   className={`${styles.formatChip} ${styles.formatChipFlowchart} ${streamingChip === "flowchart" ? styles.formatChipStreaming : ""}`}
                   onClick={() => startSelectionFor("flowchart")}
                   disabled={formatting}
-                  title="Append a Mermaid flowchart to selected text"
-                  aria-label="Flowchart: append Mermaid diagram"
+                  title="Append a flowchart to selected text"
+                  aria-label="Flowchart: append HTML diagram"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="6" height="4" rx="1"/><rect x="15" y="3" width="6" height="4" rx="1"/><rect x="9" y="17" width="6" height="4" rx="1"/><line x1="6" y1="7" x2="6" y2="19"/><line x1="18" y1="7" x2="18" y2="12"/><line x1="6" y1="19" x2="9" y2="19"/><line x1="15" y1="19" x2="18" y2="19"/><line x1="18" y1="12" x2="15" y2="19"/></svg>
                   Flowchart

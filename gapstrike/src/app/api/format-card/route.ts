@@ -39,62 +39,6 @@ function parseTemplateSections(template: string): TemplateSections | null {
   return sections;
 }
 
-// ── Mermaid helpers ────────────────────────────────────────────────────────
-
-function isMermaidTemplate(template: string): boolean {
-  // HTML diagram templates (div-based or table-grid layout) are NOT Mermaid — skip post-processing
-  if (/border-collapse|display:inline-block|display:inline-flex|#3a3a3a|#1a1a1a|&#8595;|&#8594;|&#9660;/.test(template)) return false;
-  return /mermaid|flowchart|sequenceDiagram/i.test(template);
-}
-
-function ensureMermaidWrapped(text: string): string {
-  if (text.includes("```mermaid")) return text;
-  if (text.includes('class="mermaid"')) {
-    return text.replace(
-      /<div class="mermaid">([\s\S]*?)<\/div>/gi,
-      (_m, content: string) => "```mermaid\n" + content.trim() + "\n```"
-    );
-  }
-  const kwMatch = text.match(/(flowchart|graph|sequenceDiagram)\s/i);
-  if (!kwMatch || kwMatch.index === undefined) return text;
-  const kwIdx = kwMatch.index;
-  const before = text.substring(0, kwIdx);
-  const rest = text.substring(kwIdx);
-  const endMatch = rest.match(/\b(Key point|Pitfall)\b/i);
-  let diagram: string, after: string;
-  if (endMatch && endMatch.index) {
-    diagram = rest.substring(0, endMatch.index).trimEnd();
-    after = rest.substring(endMatch.index);
-  } else {
-    diagram = rest.trimEnd();
-    after = "";
-  }
-  return before + "```mermaid\n" + diagram + "\n```\n" + after;
-}
-
-function fixMermaidInCodeBlock(text: string): string {
-  return text.replace(
-    /(```mermaid\n)([\s\S]*?)(```)/g,
-    (_m, open: string, content: string, close: string) => {
-      let f = content;
-      f = f.replace(/→/g, "-->").replace(/←/g, "<--");
-      f = f.replace(/((?:flowchart|graph|sequenceDiagram)(?:\s+(?:TD|TB|BT|RL|LR))?)\s+([A-Za-z])/i, "$1\n    $2");
-      f = f.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
-      f = f.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
-      f = f.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
-      return open + f + close;
-    }
-  );
-}
-
-function cleanMermaidLegacy(text: string): string {
-  return text
-    .replace(/<script[^>]*mermaid[^>]*><\/script>/gi, "")
-    .replace(/<script>mermaid\.initialize[^<]*<\/script>/gi, "")
-    .replace(/<div class="mermaid">([\s\S]*?)<\/div>/gi, (_m, c: string) => "```mermaid\n" + c.trim() + "\n```")
-    .trim();
-}
-
 // ── Prompt builders ────────────────────────────────────────────────────────
 
 function buildSectionedPrompt(front: string, sections: TemplateSections): string {
@@ -120,7 +64,6 @@ function buildSectionedPrompt(front: string, sections: TemplateSections): string
 }
 
 function buildFallbackPrompt(front: string, template: string): string {
-  const mermaid = isMermaidTemplate(template);
   return `Reformat the FRONT (Text field) of this Anki cloze card to match the given template style. Keep all medical content accurate. Do NOT modify or return the Back field.
 
 ## Current Front (Text field)
@@ -133,11 +76,7 @@ ${template}
 - Only reformat the FRONT field
 - Preserve all medical facts and cloze deletions
 - Apply the template's formatting style (headings, bullets, bold, etc.)
-- Keep cloze deletions in {{c1::answer}} format${mermaid ? `
-- CRITICAL: Wrap ALL mermaid diagram code in markdown code blocks: \`\`\`mermaid ... \`\`\`
-- Do NOT use <div class="mermaid"> tags. Use \`\`\`mermaid code blocks only.
-- Use proper mermaid arrow syntax: --> for arrows, -->|label| for labeled arrows. NEVER use unicode arrows
-- Each node connection MUST be on its own line with 4-space indent` : ""}
+- Keep cloze deletions in {{c1::answer}} format
 
 Return JSON:
 {
@@ -168,7 +107,6 @@ export async function POST(request: NextRequest) {
     }
 
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-    const mermaid = isMermaidTemplate(template || "");
     const sections = parseTemplateSections(template || "");
 
     // Build system and user messages from sections or fallback
@@ -189,7 +127,7 @@ export async function POST(request: NextRequest) {
         { role: "system", content: systemMsg },
         { role: "user", content: userMsg },
       ],
-      temperature: mermaid ? 0.3 : 0.3,
+      temperature: 0.3,
       max_tokens: 2048,
     });
 
@@ -214,14 +152,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let resultFront: string = parsed.front || "";
-
-    // Post-process: ensure mermaid in code blocks, fix syntax, clean legacy
-    if (mermaid) {
-      resultFront = cleanMermaidLegacy(resultFront);
-      resultFront = ensureMermaidWrapped(resultFront);
-      resultFront = fixMermaidInCodeBlock(resultFront);
-    }
+    const resultFront: string = parsed.front || "";
 
     return NextResponse.json({ success: true, front: resultFront });
   } catch (error) {

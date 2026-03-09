@@ -275,7 +275,7 @@ function nextNodeId(existingIds: string[]): string {
 }
 
 /** Read-only grid preview that matches the editor layout */
-export function MermaidGridPreview({ value }: { value: string }) {
+export function FlowchartPreview({ value }: { value: string }) {
   const graph = parseMermaid(value);
   const nodeMap = new Map<string, MermaidNode>();
   for (const n of graph.nodes) nodeMap.set(n.id, n);
@@ -395,7 +395,7 @@ export function MermaidGridPreview({ value }: { value: string }) {
   );
 }
 
-export default function MermaidStructEditor({ value, onChange }: MermaidStructEditorProps) {
+export default function FlowchartEditor({ value, onChange }: MermaidStructEditorProps) {
   const [graph, setGraph] = useState<ParsedGraph>(() => parseMermaid(value));
   const selfEmittedRef = useRef(false);
 

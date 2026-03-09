@@ -9,7 +9,7 @@ export interface TemplateDefault {
  *  When the API detects a user's Supabase template matches one of these hashes
  *  (meaning they never customized it), it auto-updates to the new default. */
 export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
-  anki_mermaid: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd", "6c7928647efcdecb", "ab29f95e3c05a983", "607faa7057d4a280"],
+  anki_flowchart: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd", "6c7928647efcdecb", "ab29f95e3c05a983", "607faa7057d4a280"],
   anki_table: ["a3b9de9e219c4927"],
 };
 
@@ -254,7 +254,7 @@ back: "The metanephric diverticulum (ureteric bud) collects and drains; the meta
 14. Generate compact HTML — avoid unnecessary newlines inside the table markup. AnkiDroid converts newlines to \`<br>\` on edit, which can corrupt table structure.`,
   },
   {
-    slug: "anki_mermaid",
+    slug: "anki_flowchart",
     category: "anki",
     title: "Flowchart",
     content: `<!-- section: System Prompt -->

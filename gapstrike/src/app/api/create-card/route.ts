@@ -7,10 +7,6 @@ const FALLBACK_SYSTEM_PROMPT = `You are an expert Anki card creator for medical 
 You create cloze-deletion cards from Obsidian micro-notes.
 You MUST return ONLY valid JSON. No markdown code fences around the JSON itself. No explanations outside the JSON.`;
 
-function isMermaidTemplate(template: string): boolean {
-  return /mermaid|flowchart|sequenceDiagram/i.test(template);
-}
-
 /** Parse structured template with <!-- section: Name --> markers */
 function parseTemplateSections(template: string): Record<string, string> | null {
   if (!template.includes("<!-- section:")) return null;
@@ -24,56 +20,6 @@ function parseTemplateSections(template: string): Record<string, string> | null 
     sections[name] = content;
   }
   return Object.keys(sections).length > 0 ? sections : null;
-}
-
-/** Ensure mermaid code is wrapped in <div class="mermaid"> for Anki rendering */
-function ensureMermaidWrapped(text: string): string {
-  if (text.includes('class="mermaid"')) return text;
-  if (text.includes("```mermaid")) {
-    return text.replace(
-      /```mermaid\s*\n?([\s\S]*?)```/g,
-      (_m, content: string) => '<div class="mermaid">\n' + content.trim() + "\n</div>"
-    );
-  }
-  const kwMatch = text.match(/(flowchart|graph|sequenceDiagram)\s/i);
-  if (!kwMatch || kwMatch.index === undefined) return text;
-  const kwIdx = kwMatch.index;
-  const before = text.substring(0, kwIdx);
-  const rest = text.substring(kwIdx);
-  const endMatch = rest.match(/\b(Key point|Pitfall)\b/i);
-  let diagram: string, after: string;
-  if (endMatch && endMatch.index) {
-    diagram = rest.substring(0, endMatch.index).trimEnd();
-    after = rest.substring(endMatch.index);
-  } else {
-    diagram = rest.trimEnd();
-    after = "";
-  }
-  return before + '<div class="mermaid">\n' + diagram + "\n</div>\n" + after;
-}
-
-/** Fix mermaid syntax inside <div class="mermaid"> tags */
-function fixMermaidInDivBlock(text: string): string {
-  return text.replace(
-    /(<div class="mermaid">\s*\n?)([\s\S]*?)(<\/div>)/gi,
-    (_m, open: string, content: string, close: string) => {
-      let f = content;
-      f = f.replace(/→/g, "-->").replace(/←/g, "<--");
-      f = f.replace(/((?:flowchart|graph|sequenceDiagram)(?:\s+(?:TD|TB|BT|RL|LR))?)\s+([A-Za-z])/i, "$1\n    $2");
-      f = f.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
-      f = f.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
-      f = f.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
-      return open + f + close;
-    }
-  );
-}
-
-/** Strip mermaid CDN scripts */
-function cleanMermaidLegacy(text: string): string {
-  return text
-    .replace(/<script[^>]*mermaid[^>]*><\/script>/gi, "")
-    .replace(/<script>mermaid\.initialize[^<]*<\/script>/gi, "")
-    .trim();
 }
 
 /** Build system + user prompt from structured template sections */
@@ -197,16 +143,6 @@ export async function POST(request: NextRequest) {
 
     let front: string = parsed.front || "";
     let back: string = parsed.back || "";
-
-    // Post-process: ensure mermaid wrapped in div, fix syntax, clean legacy
-    if (isMermaidTemplate(body.template || "")) {
-      front = cleanMermaidLegacy(front);
-      back = cleanMermaidLegacy(back);
-      front = ensureMermaidWrapped(front);
-      back = ensureMermaidWrapped(back);
-      front = fixMermaidInDivBlock(front);
-      back = fixMermaidInDivBlock(back);
-    }
 
     // Strip cloze syntax from back — only front should have cloze
     back = back.replace(/\{\{c\d+::([\s\S]*?)\}\}/g, "$1");

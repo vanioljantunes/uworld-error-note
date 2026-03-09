@@ -3149,11 +3149,11 @@
   border-color: rgba(124, 58, 237, 0.5);
   color: #c4b5fd;
 }
-.ankiFormatBtnMermaid {
+.ankiFormatBtnFlowchart {
   border-color: rgba(124, 58, 237, 0.3);
   color: rgba(124, 58, 237, 0.7);
 }
-.ankiFormatBtnMermaid:hover:not(:disabled) {
+.ankiFormatBtnFlowchart:hover:not(:disabled) {
   background: rgba(124, 58, 237, 0.15);
   color: rgba(124, 58, 237, 0.9);
 }
@@ -3242,11 +3242,6 @@
 .ankiPreviewContent th {
   background: rgba(255, 255, 255, 0.08);
   font-weight: 600;
-}
-
-.ankiPreviewContent .mermaid-rendered svg {
-  max-width: 100%;
-  height: auto;
 }
 
 .ankiPreviewSection {

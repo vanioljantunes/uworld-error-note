@@ -5,7 +5,7 @@ import styles from "../app/page.module.css";
 import { saveUserData, getUserData } from "@/lib/user-data";
 import { renderMarkdown } from "@/lib/render-markdown";
 import TurndownService from "turndown";
-import MermaidStructEditor, { MermaidGridPreview } from "./MermaidStructEditor";
+import FlowchartEditor, { FlowchartPreview } from "./FlowchartEditor";
 import QuestionEditor from "./QuestionEditor";
 import TableEditor from "./TableEditor";
 
@@ -37,7 +37,7 @@ turndown.addRule("fencedCodeBlock", {
   },
 });
 
-type EditorMode = "cloze" | "question" | "table" | "mermaid";
+type EditorMode = "cloze" | "question" | "table" | "flowchart";
 type NoteFormatMode = "original" | "error_note" | "comparison" | "mechanism";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -106,88 +106,6 @@ function stripHtml(html: string): string {
   const div = document.createElement("div");
   div.innerHTML = html;
   return div.textContent || "";
-}
-
-/** Render mermaid code blocks in a card front to inline SVG for Anki.
- *  Cloze markers ({{c1::text}}) conflict with mermaid's {{ hexagon syntax,
- *  so we strip them before rendering and re-inject into SVG text nodes after. */
-async function renderMermaidToSvg(html: string): Promise<string> {
-  const codeBlockRe = /```mermaid\s*\n?([\s\S]*?)```/g;
-  const mermaidDivRe = /<div class="mermaid">\s*([\s\S]*?)\s*<\/div>/gi;
-
-  // Normalize code blocks to div wrappers
-  let normalized = html.replace(codeBlockRe, (_m, code: string) =>
-    `<div class="mermaid">${code.trim()}</div>`
-  );
-
-  const matches = [...normalized.matchAll(mermaidDivRe)];
-  if (matches.length === 0) return html;
-
-  try {
-    const mermaid = (await import("mermaid")).default;
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: "dark",
-      themeVariables: {
-        primaryColor: "#7c3aed",
-        primaryTextColor: "#fff",
-        lineColor: "#a89cdc",
-        secondaryColor: "#2d1b69",
-        background: "#1a1a2e",
-        mainBkg: "#2d1b69",
-        nodeBorder: "#7c3aed",
-      },
-    });
-
-    for (let i = 0; i < matches.length; i++) {
-      const fullMatch = matches[i][0];
-      const code = matches[i][1].trim();
-      if (!code) continue;
-
-      // Collect cloze markers and replace with placeholder text for mermaid
-      const clozeMap: { placeholder: string; clozeNum: string; text: string }[] = [];
-      let cleanCode = code.replace(/\{\{c(\d+)::([\s\S]*?)\}\}/g, (_m, num: string, text: string) => {
-        const placeholder = `CLOZE${num}X${clozeMap.length}`;
-        clozeMap.push({ placeholder, clozeNum: num, text });
-        return text; // render with plain text
-      });
-
-      // Fix common mermaid syntax issues
-      cleanCode = cleanCode.replace(/→/g, "-->").replace(/←/g, "<--");
-      // Ensure flowchart declaration is on its own line
-      cleanCode = cleanCode.replace(/((?:flowchart|graph)\s+(?:TD|TB|BT|RL|LR))\s+([A-Za-z])/i, "$1\n    $2");
-      // Ensure each node connection is on its own line
-      cleanCode = cleanCode.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
-      cleanCode = cleanCode.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
-      // Fix label pipes that might have been mangled
-      cleanCode = cleanCode.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
-
-      try {
-        const { svg } = await mermaid.render(`anki-mermaid-${Date.now()}-${i}`, cleanCode);
-
-        // Re-inject cloze syntax: find the plain text in SVG and wrap with cloze markers
-        let fixedSvg = svg;
-        for (const { clozeNum, text } of clozeMap) {
-          // The text appears in SVG <text>/<tspan> elements — replace the plain text with clozed version
-          // Use a function to only replace the first occurrence
-          const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          const re = new RegExp(`(>)([^<]*?)(${escaped})([^<]*?<)`, "");
-          if (re.test(fixedSvg)) {
-            fixedSvg = fixedSvg.replace(re, `$1$2{{c${clozeNum}::${text}}}$4`);
-          }
-        }
-
-        normalized = normalized.replace(fullMatch, fixedSvg);
-      } catch (err) {
-        console.warn("[MakeCard] Mermaid render failed, keeping raw code.", err);
-        console.warn("[MakeCard] Attempted to render:\n", cleanCode);
-      }
-    }
-  } catch {
-    console.warn("[MakeCard] Mermaid import failed");
-  }
-
-  return normalized;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────
@@ -318,76 +236,13 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
     fetchModels();
   }, []);
 
-  // Pre-process field content for preview: convert ```mermaid blocks and <div class="mermaid"> to renderable divs, strip cloze
+  // Pre-process field content for preview: strip cloze markers for display
   const preparePreviewHtml = useCallback((fieldContent: string): string => {
     let html = fieldContent;
     // Strip cloze markers for display
     html = html.replace(/\{\{c\d+::(.*?)\}\}/g, "$1");
-    // Convert ```mermaid code blocks to <div class="mermaid">
-    html = html.replace(/```mermaid\s*([\s\S]*?)```/g, (_m, code: string) => {
-      let c = code;
-      c = c.replace(/→/g, "-->").replace(/←/g, "<--");
-      c = c.replace(/((?:flowchart|graph|sequenceDiagram)(?:\s+(?:TD|TB|BT|RL|LR))?)\s+([A-Za-z])/i, "$1\n    $2");
-      c = c.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
-      c = c.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
-      c = c.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
-      return `<div class="mermaid">${c.trim()}</div>`;
-    });
-    // Also fix arrows inside existing <div class="mermaid"> blocks
-    html = html.replace(
-      /(<div class="mermaid">)([\s\S]*?)(<\/div>)/gi,
-      (_m, open: string, content: string, close: string) => {
-        let f = content;
-        f = f.replace(/→/g, "-->").replace(/←/g, "<--");
-        f = f.replace(/((?:flowchart|graph|sequenceDiagram)(?:\s+(?:TD|TB|BT|RL|LR))?)\s+([A-Za-z])/i, "$1\n    $2");
-        f = f.replace(/\]\s+([A-Za-z]\w*)\s*(-->|---)/g, "]\n    $1 $2");
-        f = f.replace(/\]\s+([A-Za-z]\w*)\[/g, "]\n    $1[");
-        f = f.replace(/\}\s+([A-Za-z]\w*)\s*(-->|---)/g, "}\n    $1 $2");
-        return open + f + close;
-      }
-    );
-    // Convert newlines to <br> OUTSIDE of mermaid divs only
-    const parts = html.split(/(<div class="mermaid">[\s\S]*?<\/div>)/gi);
-    html = parts.map((part) => {
-      if (/^<div class="mermaid">/i.test(part)) return part; // keep mermaid newlines intact
-      return part.replace(/\n/g, "<br/>");
-    }).join("");
     return html;
   }, []);
-
-  // Render .mermaid divs in the preview container
-  const renderMermaidInPreview = useCallback(async () => {
-    if (!ankiPreviewRef.current) return;
-    try {
-      const mermaid = (await import("mermaid")).default;
-      mermaid.initialize({ startOnLoad: false, theme: "dark", themeVariables: { primaryColor: "#7c3aed", primaryTextColor: "#fff", lineColor: "#a89cdc", secondaryColor: "#2d1b69" } });
-
-      const mermaidDivs = ankiPreviewRef.current.querySelectorAll(".mermaid:not(.mermaid-rendered)");
-      for (let i = 0; i < mermaidDivs.length; i++) {
-        const el = mermaidDivs[i] as HTMLElement;
-        // Get text, undo any <br/> that we added during preparePreviewHtml
-        const code = (el.textContent || "").trim();
-        if (!code) continue;
-        try {
-          const { svg } = await mermaid.render(`mermaid-${Date.now()}-${i}`, code);
-          el.innerHTML = svg;
-          el.classList.add("mermaid-rendered");
-        } catch (err) {
-          console.warn("[Mermaid] render error:", err, "\nCode:", code);
-          el.innerHTML = `<pre style="color:#f87171;font-size:11px;white-space:pre-wrap">${code}\n\n[Mermaid syntax error]</pre>`;
-          el.classList.add("mermaid-rendered");
-        }
-      }
-    } catch { /* mermaid not available */ }
-  }, []);
-
-  // Render mermaid in preview mode
-  useEffect(() => {
-    if (ankiPreview) {
-      const t = setTimeout(renderMermaidInPreview, 80);
-      return () => clearTimeout(t);
-    }
-  }, [ankiPreview, editFront, editBack, renderMermaidInPreview]);
 
   // Note editor — noteRawMode toggles raw markdown textarea (escape hatch)
   const [noteRawMode, setNoteRawMode] = useState(false);
@@ -1101,9 +956,6 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
         console.log("[MakeCard] Fixed front:", front);
       }
 
-      // Mermaid cards: keep raw mermaid code as-is — AnkiMD addon renders it client-side in Anki.
-      // No server-side SVG conversion needed.
-
       // Try adding with selected model, then fallback to other cloze models
       const modelsToTry = [model, ...clozeModels.filter((m) => m !== model)];
       let noteId: unknown = null;
@@ -1252,7 +1104,7 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
     modeContentRef.current[editorMode] = editFront;
   }, [editFront, editorMode]);
 
-  /** Unified handler: switch editor mode. Question/Table/Mermaid format via API, Cloze restores original. */
+  /** Unified handler: switch editor mode. Question/Table/Flowchart format via API, Cloze restores original. */
   const handleSwitchEditor = async (mode: EditorMode) => {
     // Save current mode's content before switching (belt-and-suspenders with the effect above)
     modeContentRef.current[editorMode] = editFront;
@@ -1274,20 +1126,12 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
       setEditorMode(targetMode);
       return;
     }
-    // Mermaid: if cloze content already has mermaid block, use it directly
-    if (targetMode === "mermaid" && /```mermaid/i.test(modeContentRef.current["cloze"] || editFront)) {
-      const content = modeContentRef.current["cloze"] || editFront;
-      modeContentRef.current["mermaid"] = content;
-      setEditFront(content);
-      setEditorMode("mermaid");
-      return;
-    }
-    // Question / Table / Mermaid: format via API using the CLOZE content as source (never current editFront)
+    // Question / Table / Flowchart: format via API using the CLOZE content as source (never current editFront)
     setAnkiFormatting(true);
     setAnkiEditError("");
     try {
       const sourceContent = modeContentRef.current["cloze"] || editFront;
-      const slug = targetMode === "question" ? "anki_cloze" : targetMode === "table" ? "anki_table" : "anki_mermaid";
+      const slug = targetMode === "question" ? "anki_cloze" : targetMode === "table" ? "anki_table" : "anki_flowchart";
       const tpl = userTemplates.find((t) => t.slug === slug)?.content || "";
       const resp = await fetch("/api/format-card", {
         method: "POST",
@@ -1969,8 +1813,8 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
                             setAnkiEditError("");
                             // Reset mode cache — start fresh for this card
                             modeContentRef.current = { cloze: card.front };
-                            // Auto-detect editor mode
-                            if (/```mermaid/i.test(card.front)) { modeContentRef.current["mermaid"] = card.front; setEditorMode("mermaid"); }
+                            // Auto-detect editor mode — flowchart cards use inline div-based HTML
+                            if (/display:inline-flex|border:2px solid #3a3a3a|display:inline-block.*border-radius:4px/i.test(card.front)) { modeContentRef.current["flowchart"] = card.front; setEditorMode("flowchart"); }
                             else if (/<table/i.test(card.front)) { modeContentRef.current["table"] = card.front; setEditorMode("table"); }
                             else if (/Answer:<\/b>|Key clues:<\/b>/i.test(card.front)) { modeContentRef.current["question"] = card.front; setEditorMode("question"); }
                             else setEditorMode("cloze");
@@ -2023,8 +1867,8 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
                                   <button className={`${styles.ankiFormatBtn} ${editorMode === "table" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("table")} disabled={ankiFormatting}>
                                     {ankiFormatting && editorMode !== "table" ? "…" : "Table"}
                                   </button>
-                                  <button className={`${styles.ankiFormatBtn} ${styles.ankiFormatBtnMermaid} ${editorMode === "mermaid" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("mermaid")} disabled={ankiFormatting}>
-                                    Mermaid
+                                  <button className={`${styles.ankiFormatBtn} ${styles.ankiFormatBtnFlowchart} ${editorMode === "flowchart" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("flowchart")} disabled={ankiFormatting}>
+                                    Flowchart
                                   </button>
                                   <button
                                     className={`${styles.ankiPreviewBtn} ${ankiPreview ? styles.ankiPreviewBtnActive : ""}`}
@@ -2049,8 +1893,8 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
                                 <div ref={ankiPreviewRef} className={styles.ankiPreviewContent}>
                                   <div className={styles.ankiPreviewSection}>
                                     <div className={styles.ankiPreviewSectionLabel}>Front</div>
-                                    {editorMode === "mermaid" ? (
-                                      <MermaidGridPreview value={editFront} />
+                                    {editorMode === "flowchart" ? (
+                                      <FlowchartPreview value={editFront} />
                                     ) : (
                                       <div dangerouslySetInnerHTML={{ __html: preparePreviewHtml(editFront) }} />
                                     )}
@@ -2063,8 +1907,8 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
                                 </div>
                               ) : (
                                 <>
-                                  {editorMode === "mermaid" && (
-                                    <MermaidStructEditor
+                                  {editorMode === "flowchart" && (
+                                    <FlowchartEditor
                                       value={editFront}
                                       onChange={(val) => {
                                         setEditFront(val);

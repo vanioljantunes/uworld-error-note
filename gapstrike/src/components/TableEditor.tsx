@@ -13,7 +13,7 @@ interface ParsedTable {
   rows: string[][];
 }
 
-function parseTable(value: string): ParsedTable {
+export function parseTable(value: string): ParsedTable {
   let title = "";
   let headers: string[] = ["Column A", "Column B", "Column C"];
   let rows: string[][] = [["", "", ""]];
@@ -44,7 +44,7 @@ function parseTable(value: string): ParsedTable {
   for (const tr of trMatches) {
     const tds = [...tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
     if (tds.length > 0) {
-      rows.push(tds.map((m) => m[1].replace(/<[^>]*>/g, "").trim()));
+      rows.push(tds.map((m) => m[1].trim()));
     }
   }
 
@@ -55,7 +55,7 @@ function parseTable(value: string): ParsedTable {
   return { title, headers, rows };
 }
 
-function rebuildTable(t: ParsedTable): string {
+export function rebuildTable(t: ParsedTable): string {
   const colCount = t.headers.length;
 
   const headerCells = t.headers

@@ -80,14 +80,13 @@ Plans:
   4. User can add or remove an arrow between two boxes, with an optional step label — the card FRONT field reflects the change
   5. User can click a table cell and edit its content including cloze syntax — the card FRONT field updates immediately
   6. User can add and remove rows and columns in the table editor
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: Add contentEditable to NodeCard label span with onBlur → dispatch → rebuildHTML → onChange; guard cloze with textContent
-- [ ] 04-02: Implement add-node and delete-node reducer actions with auto-layout (assignPositions)
-- [ ] 04-03: Implement add-edge, delete-edge, edit-edge-label reducer actions; wire EdgePill contentEditable
-- [ ] 04-04: Polish TableEditor — TABL-01 through TABL-04 and TABL-06; verify Table button opens editor (INTG-02)
-- [ ] 04-05: Wire Flowchart button to trigger AI generation then open FlowchartEditor (INTG-01); end-to-end flow test
+- [ ] 04-01-PLAN.md — TDD: Reducer mutations (EDIT_NODE, ADD_NODE, REMOVE_NODE, ADD_EDGE, REMOVE_EDGE, REORDER_NODE) + onChange wiring with hasUserEdited guard
+- [ ] 04-02-PLAN.md — EditableNodeCard UI, toolbar (Add Box, Connect, Delete), node hover controls (reorder, remove), connect mode
+- [ ] 04-03-PLAN.md — TableEditor mutation tests verifying TABL-01 through TABL-06 against existing implementation
+- [ ] 04-04-PLAN.md — Human-verify end-to-end integration: Flowchart + Table buttons trigger AI generation then open editors with working editing (INTG-01, INTG-02)
 
 ### Phase 5: Polish and Deploy
 **Goal**: The editor handles parse failures gracefully, renders correctly on AnkiDroid, and the full feature is deployed to production on Vercel
@@ -114,5 +113,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Templates | 2/3 | In progress | - |
 | 2. Data Model and Parse/Serialize Pipeline | 3/3 | Complete   | 2026-03-09 |
 | 3. Visual Rendering | 2/2 | Complete    | 2026-03-09 |
-| 4. Editing Operations | 0/5 | Not started | - |
+| 4. Editing Operations | 0/4 | Not started | - |
 | 5. Polish and Deploy | 0/3 | Not started | - |

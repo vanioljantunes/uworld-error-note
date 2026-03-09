@@ -47,12 +47,12 @@ Plans:
   3. A round-trip test — parse then rebuild — produces HTML that renders identically to the original in a browser
   4. Cloze syntax `{{cN::text::hint}}` survives parse and rebuild verbatim (not stripped, not HTML-encoded)
   5. TableEditor's `parseTable()` no longer strips cloze syntax when reading cell contents
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Define FlowGraph TypeScript types in flowchart-types.ts and implement parseFlowHTML with DOMParser
-- [ ] 02-02: Implement rebuildHTML serializer with FLOWCHART_STYLES constants; write round-trip fixture test
-- [ ] 02-03: Fix TableEditor parseTable() cloze passthrough bug (use textContent not innerHTML for label fields)
+- [ ] 02-01-PLAN.md — Install Vitest, define FlowGraph types and FLOWCHART_STYLES, implement parseFlowHTML with DOMParser
+- [ ] 02-02-PLAN.md — Implement rebuildHTML serializer, write round-trip fixture tests
+- [ ] 02-03-PLAN.md — Fix TableEditor parseTable() cloze passthrough bug
 
 ### Phase 3: Visual Rendering
 **Goal**: FlowchartEditor.tsx is rebuilt from scratch and renders AI-generated flowchart HTML as visual interactive boxes and arrows using the Phase 2 data model — no editing yet, just correct visual output

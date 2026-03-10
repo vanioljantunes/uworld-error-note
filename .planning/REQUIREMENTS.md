@@ -57,8 +57,8 @@
 
 - [ ] **BUG-01**: REMOVE_NODE correctly reconnects edges when removing a node with a branch parent
 - [ ] **BUG-02**: ADD_NODE leaf detection works on disconnected graphs
-- [ ] **BUG-03**: Cancelling the step label prompt (window.prompt) does not create empty-label edges
-- [ ] **BUG-04**: Back field displays correct content after flowchart/table generation (Issue 4 fix)
+- [x] **BUG-03**: Cancelling the step label prompt (window.prompt) does not create empty-label edges
+- [x] **BUG-04**: Back field displays correct content after flowchart/table generation (Issue 4 fix)
 
 ### AI Template
 
@@ -127,8 +127,8 @@
 | LAY-01 | Phase 6 (v1.1) | Complete |
 | BUG-01 | Phase 7 (v1.1) | Pending |
 | BUG-02 | Phase 7 (v1.1) | Pending |
-| BUG-03 | Phase 7 (v1.1) | Pending |
-| BUG-04 | Phase 7 (v1.1) | Pending |
+| BUG-03 | Phase 7 (v1.1) | Complete |
+| BUG-04 | Phase 7 (v1.1) | Complete |
 | TMPL-07 | Phase 8 (v1.1) | Pending |
 
 **Coverage:**

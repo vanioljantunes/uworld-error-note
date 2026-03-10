@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Editor Polish
 status: roadmap-ready
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-10T04:10:11.803Z"
+stopped_at: Completed 07-02-PLAN.md — awaiting human-verify checkpoint for BUG-03/BUG-04
+last_updated: "2026-03-10T11:40:11.851Z"
 last_activity: 2026-03-10 — Phase 6 executed (Preview default, toggle pair, eye-toggle hide, format row wrap)
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 19
+  completed_plans: 18
 ---
 
 ---
@@ -73,6 +73,8 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: Phase 6 (mode + layout) must land before Phase 7 (bugs) — preview-default creates stable baseline for edit-mode bug isolation
 - [v1.1 Roadmap]: Phase 8 (AI template) is atomic — template + parse-flow-html.ts + rebuild-flow-html.ts + TEMPLATE_PREV_HASHES hash must commit together; no partial deploys
 - [Phase 06-mode-simplification-and-layout]: LAY-01: flex-wrap + justify-content: flex-end on .ankiFormatRow keeps wrapped format buttons right-aligned
+- [Phase 07-02]: BUG-03: Used pendingEdge state + StepLabelInput instead of window.prompt to allow Escape-to-abort
+- [Phase 07-02]: BUG-04: Added synchronous requestAnimationFrame in click handler so Back ref is never stale on mode switch
 
 ### Pending Todos
 
@@ -85,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T04:10:11.801Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-reducer-bug-fixes-and-flowview-data-flow/07-CONTEXT.md
+Last session: 2026-03-10T11:40:04.227Z
+Stopped at: Completed 07-02-PLAN.md — awaiting human-verify checkpoint for BUG-03/BUG-04
+Resume file: None

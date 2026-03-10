@@ -139,7 +139,7 @@ describe("EDIT_NODE action (FLOW-02)", () => {
 // ── ADD_NODE action ───────────────────────────────────────────────────────────
 
 describe("ADD_NODE action (FLOW-03)", () => {
-  it("appends to end when no afterId given (2-node graph)", () => {
+  it("appends to end when no afterId given (2-node graph, selectedNodeId=leaf)", () => {
     const graph: FlowGraph = {
       title: "Test",
       nodes: [
@@ -149,11 +149,12 @@ describe("ADD_NODE action (FLOW-03)", () => {
       edges: [{ fromId: "n0", toId: "n1", stepLabel: "" }],
       branchGroups: [],
     };
-    const state = makeInitialState(graph);
+    // selectedNodeId parent model: UI sets selectedNodeId to the leaf before ADD_NODE
+    const state = { ...makeInitialState(graph), selectedNodeId: "n1" };
     const next = apply(state, { type: "ADD_NODE", label: "Tail" });
     expect(next.graph.nodes).toHaveLength(3);
     expect(next.graph.nodes[2].label).toBe("Tail");
-    // Edge from last existing node to new node
+    // Edge from selectedNodeId (n1) to new node
     const newId = next.graph.nodes[2].id;
     const edge = next.graph.edges.find((e) => e.toId === newId);
     expect(edge).toBeDefined();
@@ -402,7 +403,8 @@ describe("rebuildHTML integration (FLOW-09)", () => {
   });
 
   it("produces HTML containing new node label after ADD_NODE", () => {
-    const state = makeInitialState(makeLinearGraph());
+    // selectedNodeId parent model: select leaf (n2) so new node is connected and renderable
+    const state = { ...makeInitialState(makeLinearGraph()), selectedNodeId: "n2" };
     const next = apply(state, { type: "ADD_NODE", label: "Brand New Node" });
     const html = rebuildHTML(next.graph);
     expect(html).toContain("Brand New Node");

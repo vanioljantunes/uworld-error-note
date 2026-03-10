@@ -149,44 +149,66 @@ export function flowReducer(draft: FlowState, action: FlowAction): void {
           draft.graph.edges.push({ fromId: action.afterId, toId: newId, stepLabel: "" });
         }
       } else {
-        // Append at end: add edge from current last node (before push) to newId
-        // Find nodes with no outgoing edges (leaf nodes)
-        const fromIds = new Set(draft.graph.edges.map((e) => e.fromId));
-        const nodeIds = draft.graph.nodes
-          .filter((n) => n.id !== newId)
-          .map((n) => n.id);
-        const leafIds = nodeIds.filter((id) => !fromIds.has(id));
-        if (leafIds.length > 0) {
-          draft.graph.edges.push({ fromId: leafIds[leafIds.length - 1], toId: newId, stepLabel: "" });
+        // Use selectedNodeId as parent: create edge from selected node to new node.
+        // If no node is selected, create a standalone disconnected node (no edge).
+        if (draft.selectedNodeId !== null) {
+          draft.graph.edges.push({ fromId: draft.selectedNodeId, toId: newId, stepLabel: "" });
         }
       }
 
+      // Auto-select the new node
+      draft.selectedNodeId = newId;
       draft.hasUserEdited = true;
       break;
     }
 
     case "REMOVE_NODE": {
+      // Collect all outgoing edges from the removed node before deletion
+      const outEdges = draft.graph.edges.filter((e) => e.fromId === action.id);
+      // Find single incoming edge (if any)
       const inEdge = draft.graph.edges.find((e) => e.toId === action.id);
-      const outEdge = draft.graph.edges.find((e) => e.fromId === action.id);
 
+      // Remove the node
       draft.graph.nodes = draft.graph.nodes.filter((n) => n.id !== action.id);
+      // Remove all edges touching the node
       draft.graph.edges = draft.graph.edges.filter(
         (e) => e.fromId !== action.id && e.toId !== action.id
       );
 
-      // Reconnect linear chain if both in and out edges existed
-      if (inEdge && outEdge) {
-        draft.graph.edges.push({
-          fromId: inEdge.fromId,
-          toId: outEdge.toId,
-          stepLabel: "",
-        });
+      // Reconnect children to grandparent if inEdge exists
+      if (inEdge && outEdges.length > 0) {
+        for (const outEdge of outEdges) {
+          draft.graph.edges.push({
+            fromId: inEdge.fromId,
+            toId: outEdge.toId,
+            stepLabel: outEdge.stepLabel,
+          });
+        }
       }
 
-      // Clean up branchGroups referencing the removed node
-      draft.graph.branchGroups = draft.graph.branchGroups.filter(
-        (bg) => bg.parentId !== action.id && !bg.childIds.includes(action.id)
-      );
+      // Handle branchGroups referencing the removed node
+      for (let i = draft.graph.branchGroups.length - 1; i >= 0; i--) {
+        const bg = draft.graph.branchGroups[i];
+
+        if (bg.parentId === action.id) {
+          // Removed node IS a branch parent
+          if (inEdge && outEdges.length >= 2) {
+            // Redirect branchGroup to grandparent
+            bg.parentId = inEdge.fromId;
+            bg.childIds = outEdges.map((e) => e.toId);
+          } else {
+            // No incoming edge (root branch) or only 1 child — delete the branchGroup
+            draft.graph.branchGroups.splice(i, 1);
+          }
+        } else if (bg.childIds.includes(action.id)) {
+          // Removed node IS a branch child — update childIds
+          bg.childIds = bg.childIds.filter((id) => id !== action.id);
+          if (bg.childIds.length < 2) {
+            // Collapse branchGroup (0 or 1 children — no longer a real branch)
+            draft.graph.branchGroups.splice(i, 1);
+          }
+        }
+      }
 
       // Clear selection/editing state if referencing removed node
       if (draft.editingNodeId === action.id) draft.editingNodeId = null;

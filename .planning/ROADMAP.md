@@ -113,7 +113,7 @@ Plans:
 
 Plans:
 - [ ] 06-01-PLAN.md — Preview default mode, toggle pair UI (Preview/Edit tabs), eye-toggle conditional hide (UX-01, UX-02)
-- [ ] 06-02-PLAN.md — Format button row flex-wrap fix, human-verify all Phase 6 visual changes (LAY-01)
+- [x] 06-02-PLAN.md — Format button row flex-wrap fix, human-verify all Phase 6 visual changes (LAY-01) (completed 2026-03-10)
 
 #### Phase 7: Reducer Bug Fixes and FlowView Data-Flow
 **Goal**: All add/remove/reconnect operations in Edit mode complete without crashes or silent data corruption; the Back field always shows the original extraction text after flowchart generation
@@ -171,7 +171,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Visual Rendering | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 4. Editing Operations | v1.0 | 5/5 | Complete | 2026-03-10 |
 | 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
-| 6. Mode Simplification and Layout | v1.1 | 0/2 | Planned | - |
+| 6. Mode Simplification and Layout | 2/2 | Complete   | 2026-03-10 | - |
 | 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 0/2 | Not started | - |
 | 8. Richer AI Template (Atomic) | v1.1 | 0/2 | Not started | - |
 | 9. Verification and Deploy | v1.1 | 0/1 | Not started | - |

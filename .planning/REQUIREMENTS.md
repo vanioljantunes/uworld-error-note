@@ -51,7 +51,7 @@
 
 ### Layout
 
-- [ ] **LAY-01**: Toolbar button row does not overflow on narrow screens (Issue 3 fix)
+- [x] **LAY-01**: Toolbar button row does not overflow on narrow screens (Issue 3 fix)
 
 ### Bug Fixes
 
@@ -124,7 +124,7 @@
 | INTG-02 | Phase 4 (v1.0) | Complete |
 | UX-01 | Phase 6 (v1.1) | Pending |
 | UX-02 | Phase 6 (v1.1) | Pending |
-| LAY-01 | Phase 6 (v1.1) | Pending |
+| LAY-01 | Phase 6 (v1.1) | Complete |
 | BUG-01 | Phase 7 (v1.1) | Pending |
 | BUG-02 | Phase 7 (v1.1) | Pending |
 | BUG-03 | Phase 7 (v1.1) | Pending |

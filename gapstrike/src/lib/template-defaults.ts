@@ -9,7 +9,7 @@ export interface TemplateDefault {
  *  When the API detects a user's Supabase template matches one of these hashes
  *  (meaning they never customized it), it auto-updates to the new default. */
 export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
-  anki_flowchart: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd", "6c7928647efcdecb", "ab29f95e3c05a983", "607faa7057d4a280", "c9d31786fcdb0678"],
+  anki_flowchart: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd", "6c7928647efcdecb", "ab29f95e3c05a983", "607faa7057d4a280", "c9d31786fcdb0678", "a20e902ae4a053e2"],
   anki_table: ["a3b9de9e219c4927"],
 };
 
@@ -296,13 +296,18 @@ The left corner (\`margin-left:50%\` + border-top + border-left) and right corne
 
 ## Arrow label vocabulary
 
-Arrow labels MUST come from the following domain vocabulary. NEVER use generic "leads to", "causes", "then".
+IMPORTANT: Arrow labels MUST come from the following domain vocabulary. ABSOLUTELY FORBIDDEN — never use these as arrow labels under any circumstances: "leads to", "causes", "then", "results in", "giving rise to". These are banned without exception. Substitute "activates", "depletes", "disrupts", "impairs", "produces", "activates", "presents as" as appropriate.
 
-**Pharmacology:** binds to, blocks, agonizes, antagonizes, upregulates, downregulates, sensitizes, potentiates, inhibits
+**Pharmacology:** binds to, blocks, agonizes, antagonizes, upregulates, downregulates, sensitizes, potentiates, inhibits, depletes, activates
 
-**Pathophysiology:** damages, inflames, disrupts, occludes, compresses, infiltrates, necroses, fibroses, depletes, activates, produces
+**Pathophysiology:** damages, inflames, disrupts, occludes, compresses, infiltrates, necroses, fibroses, depletes, activates, produces, reduces, impairs, triggers, stimulates
 
-**Anatomy/Clinical:** innervates, drains to, supplies, crosses, presents as, metastasizes to, refers to
+**Anatomy/Clinical:** innervates, drains to, supplies, crosses, presents as, metastasizes to, refers to, manifests as
+
+Examples of correct substitution:
+- WRONG: "M. tb infection leads to granuloma" → CORRECT: "M. tb infection activates granuloma formation"
+- WRONG: "Low oncotic pressure leads to edema" → CORRECT: "Low oncotic pressure presents as edema"
+- WRONG: "Ketone accumulation causes acidosis" → CORRECT: "Ketone accumulation depletes bicarbonate"
 
 ## How to think about diagram structure
 
@@ -383,12 +388,12 @@ back: "ACE inhibitors block angiotensin-converting enzyme, preventing Ang I→An
 5. Vertical connector (stem): \`<div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div>\`.
 6. Step pill (relationship label): \`<div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">label</div>\`. Between every pair of connected boxes there MUST be: stem &#8594; step pill &#8594; stem.
 7. Branching: use \`display:inline-flex\` wrapper. Left child corner: \`height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\`. Right child corner: \`height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\`. Each child content inside \`<div style="padding:0 16px">\`.
-8. Cloze the DISTINGUISHING STEP identified in Phase 1 analysis. If forgetting this step would cause a student to pick the most tempting wrong alternative, it must be clozed. Triggers and leaf outcomes are rarely clozed unless the trigger/outcome itself IS the distinguishing fact.
+8. Cloze the DISTINGUISHING STEP identified in Phase 1 analysis. If forgetting this step would cause a student to pick the most tempting wrong alternative, it must be clozed. NEVER cloze the LAST box of any chain (the leaf outcome) — students already see the clinical presentation in the question stem. NEVER cloze the FIRST box (trigger) unless the trigger name itself is what students confuse. Cloze the KEY MECHANISM STEP in the middle of the chain.
 9. Use category hints for clozed terms (e.g. \`{{c1::Thiamine::vitamin}}\` in Anki cloze format). NEVER use wrong-alternative text as a hint.
 10. Place cloze ONLY inside box \`<div>\` text content, never in HTML attribute values.
 11. Generate compact HTML — minimize unnecessary whitespace and newlines. AnkiDroid converts newlines to \`<br>\` on edit, which corrupts structure.
 12. back: plain text 1-2 sentence summary. No cloze syntax in back.
 13. ALWAYS expand abbreviations on first use.
-14. Arrow labels MUST come from the domain vocabulary listed in the System Prompt. NEVER use: leads to, causes, then.`,
+14. Arrow labels MUST come from the domain vocabulary listed in the System Prompt. ABSOLUTELY FORBIDDEN — DO NOT use these words as arrow labels: "leads to", "causes", "then", "results in", "giving rise to". If stuck, use "activates", "depletes", "disrupts", "impairs", "presents as", or another specific verb from the domain vocabulary.`,
   },
 ];

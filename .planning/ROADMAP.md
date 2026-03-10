@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Data Model and Parse/Serialize Pipeline** - FlowGraph types, parseFlowHTML, rebuildHTML, and TableEditor cloze fix (completed 2026-03-09)
 - [x] **Phase 3: Visual Rendering** - FlowchartEditor renders AI HTML as interactive boxes and arrows (no editing yet) — complete (2026-03-09)
 - [x] **Phase 4: Editing Operations** - Inline label editing, add/remove boxes, add/remove connections, table editor polish (gap closure in progress) (completed 2026-03-10)
-- [ ] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy
+- [x] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy (completed 2026-03-10)
 
 ## Phase Details
 
@@ -115,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Data Model and Parse/Serialize Pipeline | 3/3 | Complete   | 2026-03-09 |
 | 3. Visual Rendering | 2/2 | Complete    | 2026-03-09 |
 | 4. Editing Operations | 5/5 | Complete   | 2026-03-10 |
-| 5. Polish and Deploy | 2/3 | In Progress|  |
+| 5. Polish and Deploy | 3/3 | Complete   | 2026-03-10 |

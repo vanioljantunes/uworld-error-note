@@ -69,6 +69,51 @@ describe('parseFlowHTML — branching fixture', () => {
   });
 });
 
+// ── Richer 5+ node fixtures (Plan 08-01 / TMPL-07) ───────────────────────────
+
+// FIXTURE_RICHER_LINEAR: 5-box DKA mechanism linear chain with category-hint cloze
+// DKA Mechanism
+// Insulin deficiency --activates--> {{c1::Hormone-sensitive lipase::enzyme}} --releases--> Free fatty acid oxidation --disrupts--> Ketone accumulation --depletes--> Anion gap metabolic acidosis
+const FIXTURE_RICHER_LINEAR = '<div style="text-align:center"><div style="font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2">DKA Mechanism</div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">Insulin deficiency</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">activates</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">{{c1::Hormone-sensitive lipase::enzyme}}</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">releases</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">Free fatty acid oxidation</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">disrupts</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">Ketone accumulation</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">depletes</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">Anion gap metabolic acidosis</div></div>';
+
+// FIXTURE_RICHER_BRANCHING: 6-box ACE inhibitor structure (4 linear + 2-arm branch = 6 nodes total)
+// ACE Inhibitor Mechanism
+// ACE inhibitor administered --blocks--> {{c1::Angiotensin-converting enzyme::target}} --depletes--> Angiotensin II levels decrease
+//   --decreases--> Aldosterone secretion reduced
+//   --accumulates--> {{c2::Bradykinin::mediator}} buildup
+const FIXTURE_RICHER_BRANCHING = '<div style="text-align:center"><div style="font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2">ACE Inhibitor Mechanism</div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">ACE inhibitor administered</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">blocks</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">{{c1::Angiotensin-converting enzyme::target}}</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">depletes</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">Angiotensin II levels decrease</div><div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div><div style="display:inline-flex"><div style="text-align:center"><div style="height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%"></div><div style="padding:0 16px"><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">decreases</div><div><div style="width:2px;height:12px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">Aldosterone secretion reduced</div></div></div><div style="text-align:center"><div style="height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%"></div><div style="padding:0 16px"><div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">accumulates</div><div><div style="width:2px;height:12px;background:#3a3a3a;margin:0 auto"></div></div><div style="border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px">{{c2::Bradykinin::mediator}} buildup</div></div></div></div></div>';
+
+describe('parseFlowHTML — richer 5+ node structures (TMPL-07)', () => {
+  it('parses a 5-box linear chain returning 5 nodes and 4 edges', () => {
+    const graph = parseFlowHTML(FIXTURE_RICHER_LINEAR);
+    expect(graph.nodes).toHaveLength(5);
+    expect(graph.edges).toHaveLength(4);
+    expect(graph.branchGroups).toHaveLength(0);
+  });
+
+  it('parses a 6-box branching structure with >= 5 nodes and >= 1 branchGroup', () => {
+    const graph = parseFlowHTML(FIXTURE_RICHER_BRANCHING);
+    expect(graph.nodes.length).toBeGreaterThanOrEqual(5);
+    expect(graph.branchGroups.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('category-hint cloze survives parse', () => {
+    const graph = parseFlowHTML(FIXTURE_RICHER_LINEAR);
+    const clozeNode = graph.nodes.find((n) => n.label.includes('{{c1::'));
+    expect(clozeNode).toBeDefined();
+    expect(clozeNode!.label).toBe('{{c1::Hormone-sensitive lipase::enzyme}}');
+  });
+
+  it('category-hint cloze survives parse + rebuild round-trip', () => {
+    const original = parseFlowHTML(FIXTURE_RICHER_LINEAR);
+    const rebuilt = rebuildHTML(original);
+    const reparsed = parseFlowHTML(rebuilt);
+    const clozeNode = reparsed.nodes.find((n) => n.label.includes('{{c1::'));
+    expect(clozeNode).toBeDefined();
+    expect(clozeNode!.label).toBe('{{c1::Hormone-sensitive lipase::enzyme}}');
+  });
+});
+
 // ── Round-trip tests (Plan 02) ────────────────────────────────────────────────
 
 describe('rebuildHTML round-trip', () => {

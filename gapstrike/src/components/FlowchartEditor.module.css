@@ -311,6 +311,28 @@
   justify-content: center;
 }
 
+/* ── StepLabelInput — inline edge label entry ────────────────────────────── */
+
+.stepLabelInput {
+  display: block;
+  width: 220px;
+  margin: 8px auto;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  border: 1px solid #D6D3D1;
+  border-radius: 4px;
+  background: white;
+  color: var(--text);
+  outline: none;
+}
+
+.stepLabelInput:focus {
+  border-color: #5E6AD2;
+  outline: 2px solid rgba(94, 106, 210, 0.3);
+  outline-offset: 0;
+}
+
 /* -- Parse failure fallback -- */
 
 .fallbackRoot {

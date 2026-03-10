@@ -88,6 +88,17 @@ const EMPTY_GRAPH: FlowGraph = {
   branchGroups: [],
 };
 
+export const FLOW_INITIAL_STATE: FlowState = {
+  graph: EMPTY_GRAPH,
+  viewMode: "preview",
+  editingNodeId: null,
+  selectedNodeId: null,
+  connectMode: false,
+  connectingFromId: null,
+  hasUserEdited: false,
+  nodeCounter: 0,
+};
+
 // ── Reducer ───────────────────────────────────────────────────────────────────
 
 export function flowReducer(draft: FlowState, action: FlowAction): void {
@@ -410,25 +421,44 @@ export function FlowchartPreview({ value }: { value: string }) {
   );
 }
 
+// ── StepLabelInput — inline input replacing window.prompt for edge label entry ─
+
+function StepLabelInput({
+  onCommit,
+  onAbort,
+}: {
+  onCommit: (label: string) => void;
+  onAbort: () => void;
+}) {
+  const [value, setValue] = useState("");
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") { e.preventDefault(); onCommit(value); }
+    if (e.key === "Escape") { e.preventDefault(); onAbort(); }
+  }
+  return (
+    <input
+      className={styles.stepLabelInput}
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={() => onAbort()}
+      autoFocus
+      spellCheck={false}
+      placeholder="Label (optional) — Enter to confirm, Esc to cancel"
+    />
+  );
+}
+
 // ── FlowchartEditorInner (implementation) ────────────────────────────────────
 
 function FlowchartEditorInner({ value, onChange }: FlowchartEditorProps) {
-  const initialState: FlowState = {
-    graph: EMPTY_GRAPH,
-    viewMode: "preview",
-    editingNodeId: null,
-    selectedNodeId: null,
-    connectMode: false,
-    connectingFromId: null,
-    hasUserEdited: false,
-    nodeCounter: 0,
-  };
-  const [state, dispatch] = useImmerReducer<FlowState, FlowAction>(flowReducer, initialState);
+  const [state, dispatch] = useImmerReducer<FlowState, FlowAction>(flowReducer, FLOW_INITIAL_STATE);
   const [parseFailed, setParseFailed] = useState(false);
 
   // Local state for connect mode — managed outside reducer for two-click flow
   const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
   const [connectMode, setConnectMode] = useState(false);
+  const [pendingEdge, setPendingEdge] = useState<{ fromId: string; toId: string } | null>(null);
 
   useEffect(() => {
     const graph = parseFlowHTML(value);
@@ -458,15 +488,8 @@ function FlowchartEditorInner({ value, onChange }: FlowchartEditorProps) {
       // Clicked same node: cancel
       setConnectingFromId(null);
     } else {
-      // Second click: create edge
-      const stepLabel = window.prompt("Step label (optional):") ?? "";
-      dispatch({
-        type: "ADD_EDGE",
-        fromId: connectingFromId,
-        toId: nodeId,
-        stepLabel,
-      });
-      setConnectMode(false);
+      // Second click: show inline input — do NOT dispatch ADD_EDGE yet
+      setPendingEdge({ fromId: connectingFromId, toId: nodeId });
       setConnectingFromId(null);
     }
   }
@@ -542,6 +565,19 @@ function FlowchartEditorInner({ value, onChange }: FlowchartEditorProps) {
             {connectMode ? "Cancel Connect" : "Connect"}
           </button>
         </div>
+      )}
+      {pendingEdge && (
+        <StepLabelInput
+          onCommit={(label) => {
+            dispatch({ type: "ADD_EDGE", fromId: pendingEdge.fromId, toId: pendingEdge.toId, stepLabel: label });
+            setPendingEdge(null);
+            setConnectMode(false);
+          }}
+          onAbort={() => {
+            setPendingEdge(null);
+            setConnectMode(false);
+          }}
+        />
       )}
       {state.viewMode === "preview" ? (
         <FlowchartPreview value={value} />

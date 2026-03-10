@@ -1,17 +1,17 @@
 # Project Research Summary
 
-**Project:** GapStrike FlowchartAnki — Visual HTML Flowchart Editor
-**Domain:** AI-assisted Anki card editor with parse/edit/serialize pipeline for div-based HTML flowcharts
+**Project:** GapStrike FlowchartEditor v1.1 — Editor Polish
+**Domain:** Visual Anki card editor — UX polish, CSS layout, AI prompt improvement
 **Researched:** 2026-03-09
 **Confidence:** HIGH
 
 ## Executive Summary
 
-GapStrike is adding a visual editor for AI-generated HTML flowchart Anki cards. The core challenge is narrow and well-defined: parse a deterministic HTML string from GPT-4o into an editable graph model, let the user make targeted corrections, then serialize back to compact inline-style HTML that Anki accepts on all platforms. This is a correction layer, not a creation tool — the AI does the heavy lifting and the editor handles the last 10%. The recommended approach is a single `FlowchartEditor.tsx` component that owns a `FlowGraph` internal model, uses `DOMParser` to parse AI HTML on mount, renders interactive `NodeCard` and `EdgePill` sub-components, and rebuilds the HTML string on every mutation via a `rebuildHTML()` function. No canvas library, no global store, no serialization middleware is needed.
+GapStrike v1.1 is a focused UX polish iteration on a shipping visual Anki card editor. The v1.0 product is fully deployed and working; v1.1 exists to address four UX regressions documented in the Phase 5 production smoke-test (Issues 1–4 in VERIFICATION.md) plus three proactive improvements: preview-first default, two-mode simplification, and richer AI-generated flowchart structure. The entire scope is achievable with zero new npm dependencies — all changes are code-only modifications to existing TypeScript, CSS Modules, and a prompt string.
 
-The most critical architectural decision is to replace the current Mermaid-based FlowchartEditor with an HTML-aware one, built on `html-react-parser` for parse-to-React-components and `useImmerReducer` for deep graph state mutations. The existing `FlowView.tsx` host and `TableEditor.tsx` sibling already define the correct contract — `value: string` in, `onChange(html: string)` out — and the new editor must match it exactly. The rebuild proceeds in a strict 7-step dependency chain: define types, implement parser, implement serializer, build sub-components, assemble editor, replace preview, integration smoke-test.
+The recommended approach is a strict build-order: change the default preview mode first (one line), then fix CSS layout, then fix reducer bugs in edit mode, then update the AI template and parser together atomically. This sequence matters because each step exposes the next: the preview-default makes the layout issue visible, the layout fix must be verified before adding nodes via the reducer, and the richer AI template must land together with any parser extensions to avoid breaking visual editing for users who auto-upgrade templates. FlowView.tsx cleanup (hiding the redundant eye-toggle in flowchart mode) is the final cosmetic step.
 
-The key risk is parser brittleness: if GPT-4o generates an unexpected HTML variant, the DOMParser walk must degrade gracefully rather than silently corrupt the card. A secondary risk is cloze syntax breakage — the `{{cN::text::hint}}` strings must flow through every stage (parse, state, render, serialize) as raw text, never HTML-parsed or stripped. Both risks are manageable with explicit fallback paths and the "raw textarea" escape hatch. PITFALLS.md was not produced (agent interrupted), but the architecture and features research surfaces the same failure modes.
+The key risk is not technical complexity but integration timing. The two highest-danger changes are: (a) the richer AI prompt, which can silently produce HTML that `parseFlowHTML` cannot handle, triggering the raw-textarea fallback for all users whose templates auto-upgrade via `TEMPLATE_PREV_HASHES`; and (b) the container layout CSS, which can clip tall flowcharts if applied carelessly to the preview container. Both risks have clear mitigation strategies: atomic prompt+parser commits and `min-height` on the editor canvas (not the preview container).
 
 ---
 
@@ -19,149 +19,123 @@ The key risk is parser brittleness: if GPT-4o generates an unexpected HTML varia
 
 ### Recommended Stack
 
-The project already has React 19 + Next.js 15 + TypeScript 5 installed. Only three additional packages are needed: `html-react-parser` (5.2.17, React 19 compatible) for replacing parsed DOM nodes with interactive React components via a `replace()` callback, `immer` (11.1.4) for safe deep mutations of the nested graph state, and `use-immer` (0.11.0) for the `useImmerReducer` hook that combines Immer with the reducer dispatch pattern. Everything else — `DOMParser`, `crypto.randomUUID()`, `useRef`/`outerHTML` for serialization — is browser-native with zero bundle cost.
+The stack is fully locked from v1.0. No new packages are needed. All three primary v1.1 features map to targeted changes in already-installed technologies: React 19 + immer `useImmerReducer` for the mode state change, CSS Modules for container layout, and a prompt string edit in `template-defaults.ts` for richer AI output. The only non-trivial coordination requirement is the `TEMPLATE_PREV_HASHES` auto-upgrade mechanism — any content change to the `anki_flowchart` template must be accompanied by adding the old content hash to the array, triggering silent re-generation for uncustomized users.
 
 See `.planning/research/STACK.md` for full alternatives analysis and version compatibility table.
 
 **Core technologies:**
-- `html-react-parser` 5.2.17: Parse AI HTML → React components — the only library that lets you swap specific DOM nodes for interactive React components via a `replace()` callback.
-- `immer` 11.1.4 + `use-immer` 0.11.0: Deep graph state mutations — graph state is 3+ levels deep; spread-cloning at each level is error-prone; Immer's `produce()` handles this cleanly.
-- Browser `DOMParser` (native): Parse HTML for element identification — superior to regex for nested structures; zero bundle cost.
-- `ref.current.outerHTML` (native): Serialization — captures exactly what the browser rendered from inline styles; eliminates custom serializer drift risk.
-
-**Avoid:**
-- `@xyflow/react`: Canvas-based, outputs SVG, cannot produce inline-style HTML divs.
-- Mermaid.js: Already replaced; Anki strips SVG output.
-- `renderToStaticMarkup`: Broken in Next.js 15 client contexts (issue #57669).
-- `dangerouslySetInnerHTML` on the editor pane: Renders statically — event handlers not attached.
-- `contentEditable` on the full flowchart div: Users accidentally delete structural elements.
+- `useImmerReducer` + `FlowState` (already installed): two-mode editor state — change `initialState.viewMode` from `"editor"` to `"preview"`, rename `"editor"` to `"edit"` throughout
+- `CSS Modules` / `FlowchartEditor.module.css` (built-in): container layout fix — add `min-width: 120px` to `.nodeCard`, `min-height` to `.canvas` and `.editorRoot`
+- `flowchart-styles.ts` / `FLOWCHART_STYLES.box` (existing): Anki-side min-width propagation — add `min-width:120px` to the inline style string so all generated cards inherit the fix
+- `template-defaults.ts` (existing): AI prompt content — rewrite `anki_flowchart` template with richer card structure examples, stronger negative rules, and a new hash in `TEMPLATE_PREV_HASHES`
+- `parse-flow-html.ts` + `rebuild-flow-html.ts` (existing): parser/serializer pair — must be extended atomically if the richer template introduces new HTML patterns
+- `vitest` (already installed): verify `initialState.viewMode = "preview"` and REORDER_NODE swap correctness after immer fix
 
 ### Expected Features
 
-The editor is a correction layer with a narrow interaction surface. The AI generates 90% correct output; the editor handles label fixes, box additions/removals, and connection adjustments.
+**Must have (table stakes — P1):**
+- Preview-First Default — users expect to see the card result, not edit scaffolding, when the editor opens; change `initialState.viewMode` to `"preview"`
+- Two-Mode Toggle (Preview + Edit) — single "Edit" button in preview mode, "Preview" in edit mode; toolbar visible only in edit mode
+- Hide FlowView eye-toggle in flowchart/table mode — eliminating the redundant dual-preview mechanism is required for two-mode simplification to be coherent
+- Container layout for short content — 2–3 node flowcharts must not appear as a tiny island in a large empty container; `min-height` and centering on `.canvas`
+- Back field bug fix (Issue 4) — `editBack` in `FlowView.tsx` `handleSwitchEditor` populates the Back field with generated card content instead of the original extraction; data-flow error that must be traced and corrected
+- Button row overflow fix (Issue 3) — `flex-wrap: wrap` on `.ankiFormatRow` in `page.module.css` to prevent cramping on narrow panels
 
-See `.planning/research/FEATURES.md` for full prioritization matrix and dependency graph.
-
-**Must have (table stakes — FLOW-01 through FLOW-09, TABL-05, INTG-01 through INTG-03):**
-- Render AI HTML as visual boxes + arrows (FLOW-01) — the critical path blocker; every other operation depends on this.
-- Click-to-edit box label inline with raw cloze passthrough (FLOW-02 + FLOW-08) — cloze syntax must survive editing verbatim.
-- Rebuild compact, valid Anki HTML from model on every edit (FLOW-09) — output goes directly to Anki's FRONT field.
-- Add/delete boxes with auto-layout (FLOW-03 + FLOW-04) — AI frequently adds one extra node or misses a step.
-- Add/delete connections + edit connection labels (FLOW-05, FLOW-06, FLOW-07) — arrow labels carry clinical meaning.
-- Fix cloze passthrough bug in existing TableEditor's `parseTable()` (TABL-05) — current regex strips HTML tags and can destroy cloze syntax.
-- AnkiConnect push works with HTML card content (INTG-03) — finalizes the workflow.
-
-**Should have (differentiators — v1.x, after core validation):**
-- Cloze number auto-increment suggestion when adding boxes — avoids users manually tracking `maxClozeN`.
-- "Regenerate" button in editor — practical undo for when AI output is too wrong to correct manually.
-- Preview fidelity improvements — ensure GapStrike preview matches AnkiDroid rendering.
+**Should have (competitive differentiators — P1 for v1.1):**
+- Richer AI-generated flowchart structure — 5–7 node chains with labeled causal arrows (`inhibits`, `activates`, `converts`) instead of generic 3–4 node chains; cloze on mechanism steps only, not leaf outcomes
+- Edit-mode bug fixes — REMOVE_NODE reconnect for branches, ADD_NODE leaf detection on disconnected graphs, replace `window.prompt` for edge step labels with inline input
 
 **Defer (v2+):**
-- Drag-and-drop repositioning — requires solving DOM-order-as-layout; high implementation cost.
-- Multiple box shapes (diamond, oval) — CSS rotation conflicts with cloze text alignment.
-- Undo/redo — regenerate covers the common case; full history stack is v2.
-- Color-coded boxes by cloze number — visual polish, not pedagogically necessary.
+- Undo/redo — requires history stack; Regenerate button is the practical v1 substitute
+- Drag-and-drop box repositioning — complex DOM-order mapping; up/down buttons already cover reordering
+- Multiple box shapes (diamond, oval)
+- Color-coded boxes by cloze number
+- Three-mode raw HTML view — the parse-failure fallback textarea already provides emergency raw access
 
 ### Architecture Approach
 
-The architecture follows the existing `TableEditor` contract exactly: `value: string` (raw HTML) in, `onChange(html: string)` out, all internal complexity hidden inside the component. `FlowchartEditor.tsx` owns a `FlowGraph` intermediate model (nodes + edges + branch groups + title), parses AI HTML into it on mount via `DOMParser`, renders `NodeCard` and `EdgePill` sub-components from the model, and calls `rebuildHTML()` → `onChange()` on every mutation. `FlowView.tsx` is untouched. The `FlowchartPreview` named export must be preserved to avoid breaking the existing import in FlowView.
+The architecture follows a self-contained two-mode editor pattern: `FlowchartEditor` controls its own `viewMode` state entirely within its immer reducer. `FlowView.tsx` (the host) passes `value` and `onChange` props but does not control mode. The existing `ankiPreview` boolean in FlowView remains relevant for table/cloze/question modes but becomes a no-op for flowchart mode — an acceptable temporary divergence. The critical integration constraint is that `parseFlowHTML` and `rebuildHTML` must form a lossless round-trip for any HTML the updated `anki_flowchart` template produces; if the richer template introduces new HTML patterns, the parser and serializer must be updated in the same atomic commit as the template.
 
-See `.planning/research/ARCHITECTURE.md` for full data flow diagrams, anti-patterns, and the 7-step build order.
+See `.planning/research/ARCHITECTURE.md` for full data flow diagrams, anti-patterns, and the 5-step build order.
 
 **Major components:**
-1. `FlowView.tsx` — host; owns canonical `editFront` HTML string and mode switching; no changes needed.
-2. `FlowchartEditor.tsx` — full replacement; contains `parseFlowHTML()`, `rebuildHTML()`, `NodeCard`, `EdgePill`; only file being written.
-3. `FlowchartPreview` — named export from FlowchartEditor.tsx; read-only render via `dangerouslySetInnerHTML`.
-4. `TableEditor.tsx` — minor bug fix only (`parseTable()` cloze passthrough).
-
-**Key internal data model:**
-```typescript
-interface FlowGraph {
-  title: string;           // never clozed
-  nodes: FlowNode[];       // id, label (raw cloze), depth, branchIndex
-  edges: FlowEdge[];       // fromId, toId, label (step pill text)
-  branchGroups: string[][]; // groups of sibling node IDs in inline-flex parents
-}
-```
+1. `FlowchartEditor.tsx` — visual editor with embedded preview; owns `viewMode`, `graph`, and editing state via `useImmerReducer`; primary modification target for mode default and bug fixes
+2. `FlowView.tsx` — host component; owns `editFront` canonical HTML, `editorMode`, AnkiConnect calls; minor modification (suppress eye-toggle in flowchart mode, fix Issue 3, fix Issue 4)
+3. `template-defaults.ts` — `anki_flowchart` prompt content and `TEMPLATE_PREV_HASHES` auto-upgrade registry; content rewrite for richer flowchart output
+4. `parse-flow-html.ts` + `rebuild-flow-html.ts` — parser/serializer pair; must maintain lossless round-trip after template change; bug fix target for edge-case crashes
+5. `FlowchartEditor.module.css` + `flowchart-styles.ts` — CSS and shared style constants; `min-width` and `min-height` additions for container layout fix
 
 ### Critical Pitfalls
 
-PITFALLS.md was not produced. The following are derived from the architecture and features research, which surface the same failure modes.
+1. **onChange infinite loop when changing default viewMode** — the `hasUserEdited` guard in the `useEffect` watching `state.graph` prevents the loop; do not remove or bypass this guard when changing `initialState.viewMode`. Warning signs: "Maximum update depth exceeded" in console, card front field flickers on load.
 
-1. **Cloze syntax stripping** — Anytime a label passes through an HTML parser, `.innerHTML`, or regex replace, `{{c1::text::hint}}` can be destroyed silently. Prevention: always use `.textContent` (not `.innerHTML`) when reading from `contentEditable` nodes; never apply `.replace(/<[^>]*>/g, "")` to label fields. Fix `parseTable()` immediately (TABL-05).
+2. **Richer AI template deployed without updating the parser** — any new HTML patterns produced by the updated `anki_flowchart` template must be handled by `parseFlowHTML`; otherwise all auto-upgraded users immediately hit the `parseFailed` raw-textarea fallback. Mitigation: design new HTML patterns first, verify parser handles them, commit template + parser + serializer atomically with the new hash in `TEMPLATE_PREV_HASHES`.
 
-2. **Parser brittleness on GPT-4o output variation** — The DOMParser walk assumes a specific nested div structure. If GPT-4o generates a slightly different layout, the parse returns an empty or corrupted graph. Prevention: validate parse output (minimum 1 node, non-empty title); on failure, fall back to a raw `contentEditable` textarea rather than showing a broken visual editor.
+3. **Immer destructuring swap corruption in REORDER_NODE** — ES6 `[a, b] = [b, a]` on immer draft arrays silently corrupts or loses the mutation. The existing code uses the correct explicit `tempVar` swap; the risk is inadvertently switching to destructuring when "cleaning up" the reducer.
 
-3. **Structural div corruption via contentEditable** — Applying `contentEditable` to the full flowchart container lets users delete connector stems, branch wrappers, and step pills that are structural, not textual. Prevention: only label fields inside `NodeCard` and `EdgePill` get `contentEditable` — structural wrappers are pure React render output, not editable.
+4. **CSS container layout breaks FlowchartPreview** — adding `min-height`, `align-items`, or `justify-content` to `.previewContainer` affects the vertical axis for all card sizes. Fix the short-content layout on the editor canvas side (`.canvas`, `.editorRoot`) not the preview container. Unsafe properties on `.previewContainer`: `min-height`, `align-items`, `justify-content`, `overflow: hidden`.
 
-4. **Inline style drift between rebuildHTML and AI template** — If `rebuildHTML()` hard-codes style strings independently of the AI template definition, future template updates will cause visual divergence in edited cards. Prevention: define `FLOWCHART_STYLES` constants shared between parser (for element identification) and serializer (for HTML output); store template version in `FlowGraph` for future migration paths.
-
-5. **`<style>` blocks in serialized output** — Anki strips `<style>` blocks from field content on sync and export. Prevention: `rebuildHTML()` must emit all styles inline; never accumulate shared CSS into a `<style>` block even for readability.
+5. **AI prompt regression in cloze syntax output** — LLM distribution shifts after prompt rewrites can cause GPT-4o to change cloze format (omit hints, add `<span>` wrappers around cloze text, produce orphaned branch nodes). Mitigation: test the updated prompt against 5 diverse inputs before landing; verify all 5 produce parseable HTML without triggering `parseFailed`.
 
 ---
 
 ## Implications for Roadmap
 
-Based on combined research, 4 phases are suggested, driven by the strict dependency chain in the architecture:
+Based on combined research, 5 phases are suggested, driven by the hard dependency chain in the architecture: mode default makes layout visible, layout must be stable before edit-mode testing, edit bugs must be fixed before the richer template exercises those code paths, and the template+parser change must be atomic.
 
-### Phase 1: Foundation — Data Model and Parse/Serialize Pipeline
+### Phase 1: Mode Simplification and UX Defaults
 
-**Rationale:** `parseFlowHTML()` and `rebuildHTML()` are the zero-dependency core. Every React component, every editing operation, every test depends on these functions working correctly. Building and unit-testing these in isolation (no React rendering) gives a stable foundation before UI complexity is added. This phase also eliminates the cloze-passthrough bug in `TableEditor` since it requires only a targeted fix.
+**Rationale:** The single-line `initialState.viewMode = "preview"` change is zero-risk and the most impactful UX improvement. Button label rename and FlowView eye-toggle suppression are tightly coupled — both must land together to avoid two competing preview mechanisms. This phase creates the correct baseline for all subsequent visual verification.
+**Delivers:** Preview-first editor, clear Edit/Preview toggle labels, no redundant eye-toggle in flowchart/table mode.
+**Addresses:** Preview-First Default, Two-Mode Toggle labels, Hide FlowView eye-toggle (all P1).
+**Avoids:** onChange infinite loop (Pitfall 1) — preserve `hasUserEdited` guard; TOGGLE_VIEW contract break — keep `viewMode` as strict two-value type `"preview" | "edit"`.
 
-**Delivers:** TypeScript `FlowGraph` types in `flowchart-types.ts`; working `parseFlowHTML(html) → FlowGraph`; working `rebuildHTML(graph) → html`; TABL-05 bug fixed; round-trip test (parse AI fixture → rebuild → string diff).
+### Phase 2: Container Layout and CSS Fixes
 
-**Addresses:** FLOW-09, TABL-05.
+**Rationale:** After Phase 1 makes Preview the default view, the short-content layout issue becomes immediately visible. CSS-only changes with no logic risk. Issue 3 (button row overflow in `page.module.css`) is a separate, independent CSS fix that belongs here by scope proximity.
+**Delivers:** Proportional editor layout for 2–3 node flowcharts without clipping tall ones; non-overflowing format button row.
+**Addresses:** Container layout for short content (`.nodeCard` min-width, `.canvas`/`.editorRoot` min-height), Button row overflow fix Issue 3 (all P1).
+**Avoids:** CSS preview container clipping (Pitfall 4) — apply `min-height` only to `.canvas` and `.editorRoot`; do not add height-axis constraints to `.previewContainer`.
 
-**Avoids:** Parser brittleness (validated against real AI fixture HTML before any UI is built); style drift (FLOWCHART_STYLES defined once here, shared with all subsequent phases).
+### Phase 3: Reducer Bug Fixes and FlowView Data-Flow
 
-### Phase 2: Visual Rendering — NodeCard, EdgePill, and FlowchartEditor Shell
+**Rationale:** Edit-mode bugs are only encountered when the user deliberately enters Edit mode — Phase 1 makes this an intentional opt-in, making bugs easier to isolate. Issue 4 (Back field data-flow in FlowView.tsx) is independent of FlowchartEditor. Both are medium-complexity trace-and-fix tasks that must be validated before the richer AI template exercises the same code paths with more complex graphs.
+**Delivers:** Stable add/remove node and connection operations; correct Back field content from original extraction text.
+**Addresses:** Edit-mode bug fixes (REMOVE_NODE branch reconnect, ADD_NODE leaf detection, `window.prompt` replacement), Back field bug fix Issue 4 (all P1).
+**Avoids:** Immer destructuring swap corruption (Pitfall 3) — use explicit `tempVar` swap in REORDER_NODE; do not consolidate `connectMode` and `connectingFromId` local state into the immer reducer (they are transient UI state, not graph mutations).
 
-**Rationale:** With a working data model and serializer, the React rendering layer can be built on a solid foundation. This phase produces a visually correct editor where nodes and edges appear as styled boxes and step pills, even before inline editing works. Users can see the flowchart structure. `html-react-parser` is installed and the `replace()` callback wired here.
+### Phase 4: Richer AI Template and Parser Extension (Atomic)
 
-**Delivers:** `NodeCard` sub-component (styled box, non-editable yet); `EdgePill` sub-component (step-label pill); `FlowchartEditor` main component renders graph from state; `FlowchartPreview` named export (read-only, `dangerouslySetInnerHTML`); visual smoke-test in FlowView.
+**Rationale:** This is the highest-risk change and must land last among code changes. The updated `anki_flowchart` prompt must be designed alongside parser extensions. The `TEMPLATE_PREV_HASHES` mechanism auto-upgrades all uncustomized user templates on the next API call — this is irreversible in production. Phase 3 must be complete so the fixed parser handles both existing and new HTML patterns correctly.
+**Delivers:** 5–7 node flowchart chains with labeled causal arrows (`inhibits`, `activates`, `converts`), correct cloze placement on mechanism steps, title naming the mechanism/pathway not the organ/condition.
+**Addresses:** Richer AI-generated flowchart structure (P1 differentiator).
+**Avoids:** AI prompt regression in cloze output (Pitfall 5) — test 5 cards before commit; template-without-parser deploy (Pitfall 2) — commit template + `parse-flow-html.ts` + `rebuild-flow-html.ts` + `flowchart-styles.ts` + new hash in `TEMPLATE_PREV_HASHES` as a single atomic change.
 
-**Addresses:** FLOW-01 (render AI HTML as visual boxes + arrows).
+### Phase 5: Verification and Deploy
 
-**Uses:** `html-react-parser`, `useImmerReducer`, `DOMParser`.
-
-### Phase 3: Editing Operations — Labels, Add/Remove, Connections
-
-**Rationale:** Inline editing is added to the already-rendering components. This phase delivers the complete MVP editing surface. Each operation (edit label, add box, delete box, add/delete connection, edit connection label) follows the same pattern: mutate `FlowGraph` via reducer, call `rebuildHTML()`, call `onChange()`. Auto-layout (`assignPositions()`) is bundled with add-box (FLOW-03) because adding boxes without it degrades layout immediately.
-
-**Delivers:** `contentEditable` labels in NodeCard + EdgePill with cloze passthrough; add/delete node operations; add/delete/edit edge operations; auto-layout for inserted nodes; AnkiConnect push validated with HTML content (INTG-03).
-
-**Addresses:** FLOW-02, FLOW-03, FLOW-04, FLOW-05, FLOW-06, FLOW-07, FLOW-08, INTG-01, INTG-02, INTG-03.
-
-**Avoids:** Cloze stripping (`.textContent` not `.innerHTML` on blur); structural corruption (only label spans are `contentEditable`).
-
-### Phase 4: Polish and Validation — Error States, Preview Fidelity, UX Hardening
-
-**Rationale:** After the core editing loop is functional and tested with real USMLE content, add the quality-of-life features that make the editor reliable in production. Includes: graceful parse failure fallback (raw textarea), parser robustness against GPT-4o variation, preview fidelity verification against AnkiDroid, and the v1.x differentiators if validation confirms user need.
-
-**Delivers:** Graceful fallback to raw textarea on parse failure; "Regenerate" button; cloze-N auto-increment suggestion; AnkiDroid rendering verification; template version field in `FlowGraph` for future migrations.
-
-**Addresses:** Auto-layout polish, cloze N auto-increment (v1.x differentiators).
-
-**Avoids:** Leaving users stranded on parse failure; silent corruption from GPT-4o HTML variation.
-
----
+**Rationale:** Full smoke-test before Vercel production push. The previous Phase 5 encountered a stale Vercel deploy issue (gap closure plan 05-04 exists) — run `npm run build` locally first, verify TypeScript zero-error, then push.
+**Delivers:** Production deploy at gapstrike.vercel.app with all v1.1 changes.
+**Addresses:** Deploy verification, regression checks for TableEditor (imports from `page.module.css`), AnkiDroid newline-to-`<br>` round-trip, 2-box and 7-box card layout checks in preview.
+**Avoids:** Vercel stale deploy (known recovery: `npx vercel --prod --force` or empty-commit push).
 
 ### Phase Ordering Rationale
 
-- **Parser before UI**: `parseFlowHTML()` and `rebuildHTML()` have no React dependency. Testing them in isolation before adding rendering complexity means bugs are caught at the cheapest point. This is the build order the architecture research mandates.
-- **Rendering before editing**: A visual-but-non-editable editor confirms the data model is correct and the component hierarchy works before adding the complexity of `contentEditable` management.
-- **All editing operations in one phase**: The add/delete/connect operations share the same reducer pattern. Bundling them avoids shipping a half-working editor between phases; the MVP is either complete or not.
-- **Polish last**: Graceful fallbacks and UX hardening are not blockers for validating the core workflow with real users. Defer until the editing loop proves out.
+- Phase 1 before Phase 2: preview-default must exist to make the short-content layout issue observable and testable in the correct mode.
+- Phase 2 before Phase 3: CSS-only changes are zero-logic-risk; validating layout before touching reducer logic keeps change surfaces isolated.
+- Phase 3 before Phase 4: REMOVE_NODE branch reconnect and ADD_NODE leaf detection bugs could be triggered by the richer graphs Phase 4's template produces; fix the code paths before the AI starts generating content that exercises them.
+- Phase 4 is atomic: template content, parser, serializer, `flowchart-styles.ts`, and `TEMPLATE_PREV_HASHES` hash update must be a single commit — no partial deploys of this group.
+- Phase 5 is terminal: all verification after all code changes.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 1 (Parser):** The exact HTML structure of the `anki_flowchart` template needs to be confirmed against the actual template in `gapstrike/src/lib/template-defaults.ts` before writing `parseFlowHTML()`. A misread of branching div nesting will corrupt the node tree. Read the template source and write a fixture test before coding.
-- **Phase 3 (AnkiConnect with HTML):** The INTG-03 requirement (push HTML to Anki) should be verified against live AnkiConnect with a flowchart card — specifically confirm that `addNote`/`updateNoteFields` accepts the inline-style HTML format without escaping issues.
+- **Phase 3 (Reducer Bug Fixes):** Beyond the known REMOVE_NODE and ADD_NODE issues, the MILESTONES.md notes "fix box/connection editing bugs — unspecified at milestone start — surface in real usage." Bug surface area is unknown until the code is exercised with real USMLE content. Plan for discovery work within this phase.
+- **Phase 4 (AI Template):** The exact HTML patterns a richer 5–7 node prompt will produce from GPT-4o are not fully predictable until the prompt is written and tested. Parser extension scope may expand once the prompt is finalized. Reserve capacity for 1–2 rounds of prompt iteration.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 2 (Rendering):** `html-react-parser` replace callback is well-documented; the rendering approach exactly mirrors the existing `TableEditor` pattern.
-- **Phase 4 (Polish):** Fallback patterns and "Regenerate" button are straightforward UX additions; no novel technical territory.
+Phases with standard patterns (research not required):
+- **Phase 1 (Mode Default):** Single-line `initialState` change plus string renames. Well-understood React state initialization. No research needed.
+- **Phase 2 (CSS Layout):** `min-height` and `min-width` properties with confirmed universal support in all Anki WebView environments (AnkiDesktop 2.1.x, AnkiDroid 2.17+, AnkiMobile). No research needed.
+- **Phase 5 (Deploy):** Established Vercel deploy pattern with known recovery procedure for stale builds.
 
 ---
 
@@ -169,47 +143,44 @@ Phases with standard patterns (skip research-phase):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All library versions confirmed via npm registry; React 19 compat verified via GitHub issue; browser API availability is definitive. One MEDIUM flag: immer 11.1.4 version confirmed from search snippet rather than direct npm page fetch. |
-| Features | HIGH | Based on direct codebase inspection (FlowView.tsx, TableEditor.tsx, FlowchartEditor.tsx), authored REQUIREMENTS.md, and official Anki docs. Feature boundaries are well-understood. |
-| Architecture | HIGH | Derived from direct code inspection of the existing component contracts. The `value`/`onChange` pattern is already in production in TableEditor. No speculative architectural decisions. |
-| Pitfalls | MEDIUM | PITFALLS.md was not produced (agent interrupted). Pitfalls in this summary are derived from architecture and features research — they surface the same failure modes but lack the systematic enumeration a dedicated pitfalls pass would provide. |
+| Stack | HIGH | Zero new dependencies. Every change file was directly inspected in the live codebase. Version compatibility for `min-width` in Anki WebViews confirmed via MDN. |
+| Features | HIGH | Feature list derived from MILESTONES.md known-issues log, PROJECT.md, and VERIFICATION.md — all primary source documents from the same codebase. |
+| Architecture | HIGH | All components directly inspected. Build order derived from actual code dependency chain, not inference. Integration boundaries confirmed in live source files. |
+| Pitfalls | HIGH | Pitfalls derived from direct code audit: `hasUserEdited` guard confirmed at lines 446–450 of FlowchartEditor.tsx, REORDER_NODE implementation confirmed, `TEMPLATE_PREV_HASHES` mechanism confirmed, `connectMode`/`connectingFromId` local state split confirmed. |
 
-**Overall confidence:** HIGH — the three completed research files cover the decision space well. The missing PITFALLS.md is partially mitigated by the anti-patterns sections in ARCHITECTURE.md and the anti-features section in FEATURES.md.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Anki template HTML structure confirmation**: Before writing `parseFlowHTML()`, read `gapstrike/src/lib/template-defaults.ts` to confirm the exact nesting of boxes, stems, branch wrappers, and step pills. The parser logic must match the actual template, not an assumed structure.
-- **AnkiDroid HTML rendering behavior**: The features research references an AnkiDroid issue (#20227) at MEDIUM confidence. The specific behavior of `display:inline-flex` and unicode arrows on AnkiDroid should be smoke-tested during Phase 4 before declaring the editor production-ready.
-- **Template versioning risk**: If the `anki_flowchart` template is updated in Supabase during development, the parser may silently break. The `TEMPLATE_PREV_HASHES` mechanism mentioned in STACK.md should be understood before Phase 1 coding starts.
+- **Editing bug surface area (Phase 3):** The known bugs are documented, but additional bugs may surface during Phase 3 testing with real USMLE content. Budget time for triage of one or two unexpected failures.
+- **AI prompt output predictability (Phase 4):** The richer prompt guidelines are well-specified, but GPT-4o output is probabilistic. The specific HTML patterns the updated template will produce are not known until the prompt is written and tested. The parser extension scope is an open variable. Budget for up to two prompt iteration cycles.
+- **Issue 4 exact root cause (Phase 3):** The back-field data-flow bug is described as "likely using the wrong source in `handleSwitchEditor`" but the exact assignment line was not confirmed in this research pass. Requires a targeted trace of `editBack` population in `FlowView.tsx` before the fix can be scoped accurately.
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- `gapstrike/src/components/FlowView.tsx` — host integration contract
-- `gapstrike/src/components/TableEditor.tsx` — parse/model/rebuild pattern to follow
-- `gapstrike/src/components/FlowchartEditor.tsx` — Mermaid-based file to replace
-- `gapstrike/src/lib/template-defaults.ts` — AI-generated HTML structure
-- `flowchartAnki/.planning/REQUIREMENTS.md` — authored feature requirements (FLOW-01 through INTG-03)
-- `.planning/PROJECT.md` — project constraints (inline styles, no JS, compact HTML)
-- https://www.npmjs.com/package/html-react-parser — version 5.2.17 confirmed, last published Feb 2026
-- https://github.com/remarkablemark/html-react-parser/issues/1501 — React 19 compat confirmed
-- https://www.npmjs.com/package/immer — version 11.1.4 confirmed
-- https://www.npmjs.com/package/use-immer — version 0.11.0 confirmed
-- https://docs.ankiweb.net/templates/styling.html — Anki inline-styles requirement (official)
-- https://react.dev/learn/manipulating-the-dom-with-refs — ref.current.outerHTML pattern (official)
-- https://github.com/vercel/next.js/issues/57669 — renderToStaticMarkup broken in Next.js 14+ client context
+### Primary (HIGH confidence — direct code inspection)
+- `gapstrike/src/components/FlowchartEditor.tsx` — FlowState shape, `initialState`, `TOGGLE_VIEW` action, `hasUserEdited` guard, `REORDER_NODE` implementation, `parseFailed` fallback state, `connectMode`/`connectingFromId` local useState split
+- `gapstrike/src/components/FlowchartEditor.module.css` — current `.nodeCard` (max-width only, no min-width confirmed), canvas and editorRoot classes
+- `gapstrike/src/lib/flowchart-styles.ts` — `FLOWCHART_STYLES.box` string (no min-width confirmed)
+- `gapstrike/src/lib/template-defaults.ts` — `anki_flowchart` template content and `TEMPLATE_PREV_HASHES` structure with current hashes
+- `gapstrike/src/lib/rebuild-flow-html.ts` — uses `FLOWCHART_STYLES.box` directly, confirming min-width addition propagates automatically
+- `gapstrike/src/lib/parse-flow-html.ts` — regex-based HTML parser implementation
+- `gapstrike/src/components/FlowView.tsx` — `editorMode`, `ankiPreview`, `editFront`, `modeContentRef` state ownership
+- `gapstrike/src/components/TableEditor.tsx` — import from `page.module.css` at line 6 (tech debt coupling confirmed)
+- `.planning/PROJECT.md` — v1.1 target features, inline-styles-only constraint for Anki cards, Vercel deploy target
+- `.planning/MILESTONES.md` — v1.0 known issues at ship
+- `.planning/phases/05-polish-and-deploy/05-VERIFICATION.md` — Issue 1–4 structured details
+- `.planning/phases/05-polish-and-deploy/05-04-SUMMARY.md` — Vercel stale deploy gap closure context
+- `.planning/codebase/CONCERNS.md` — zero test coverage and LLM output parsing concerns confirmed
 
 ### Secondary (MEDIUM confidence)
-- https://github.com/ankidroid/Anki-Android/issues/20227 — AnkiDroid rendering behavior (specific version, may vary)
-- General WebSearch synthesis on visual diagram editor UX patterns
-- WebSearch: immer 11.1.4 — confirmed from search snippet (npm page returned 403)
-
-### Tertiary (inferred — LOW confidence)
-- PITFALLS.md: not produced; pitfall analysis inferred from anti-patterns in ARCHITECTURE.md and anti-features in FEATURES.md
+- OpenAI documentation (inference): GPT-4o structured output — prompt quality is the bottleneck for structured HTML generation at temperature 0.5; model upgrade is not required
+- UX pattern references (general knowledge): preview-first default as standard pattern in Notion, Obsidian, GitHub Markdown editors — from training knowledge, no WebSearch available
+- immer documentation (knowledge): destructuring swap incompatibility with draft proxies is a documented pitfall — https://immerjs.github.io/immer/pitfalls
+- MDN Web Docs: `min-width` — universal support in Chromium/WebKit environments including all Anki platforms
 
 ---
-
 *Research completed: 2026-03-09*
 *Ready for roadmap: yes*

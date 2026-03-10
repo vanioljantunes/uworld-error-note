@@ -1,8 +1,8 @@
 # Architecture Research
 
-**Domain:** Visual editor for AI-generated HTML flowchart Anki cards
+**Domain:** v1.1 UX polish integration for FlowchartEditor / TableEditor
 **Researched:** 2026-03-09
-**Confidence:** HIGH (based on direct codebase inspection and first-principles analysis)
+**Confidence:** HIGH (direct codebase inspection — all referenced files read)
 
 ---
 
@@ -11,371 +11,403 @@
 ### System Overview
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                         FlowView.tsx (host)                            │
-│  editorMode state | modeContentRef cache | editFront string state      │
-├────────────────────┬───────────────────────────────────────────────────┤
-│   FlowchartEditor  │         (parallel editors, same contract)         │
-│ ┌───────────────┐  │  ┌─────────────────┐  ┌──────────────────────┐  │
-│ │ parseFlowHTML │  │  │  TableEditor    │  │   QuestionEditor     │  │
-│ │ (HTML→graph)  │  │  └─────────────────┘  └──────────────────────┘  │
-│ ├───────────────┤  │                                                    │
-│ │  FlowGraph    │  │  All editors share props:                         │
-│ │  data model   │  │    value: string (raw HTML)                       │
-│ │  nodes+edges  │  │    onChange: (val: string) => void                │
-│ ├───────────────┤  │                                                    │
-│ │ React render  │  │                                                    │
-│ │ (graph→nodes) │  │                                                    │
-│ ├───────────────┤  │                                                    │
-│ │ rebuildHTML   │  │                                                    │
-│ │ (graph→HTML)  │  │                                                    │
-│ └───────────────┘  │                                                    │
-├────────────────────┴───────────────────────────────────────────────────┤
-│                         FlowchartPreview                               │
-│  Read-only render of raw HTML via dangerouslySetInnerHTML              │
-│  (strips cloze markers for display only)                               │
-├────────────────────────────────────────────────────────────────────────┤
-│                        Integration Layer                               │
-│  /api/format-card → GPT-4o → raw HTML string                          │
-│  AnkiConnect → addNote / updateNoteFields                              │
-└────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                           FlowView.tsx (host)                                 │
+│  editorMode | editFront | ankiPreview | modeContentRef                        │
+│                                                                               │
+│  ┌── v1.1 change: remove ankiPreview bool ──────────────────────────────────┐ │
+│  │  Replace dual-state with single viewMode inside FlowchartEditor itself   │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────────────────  ┤
+│  FlowchartEditor (value, onChange)     FlowchartPreview (named export)        │
+│  ┌──────────────────────────────┐      ┌──────────────────────────────────┐   │
+│  │  viewMode: "preview"|"edit"  │      │  dangerouslySetInnerHTML         │   │
+│  │  ↑ default = "preview" (new) │      │  (unchanged — FlowView uses it   │   │
+│  │                              │      │   for the old ankiPreview path)   │   │
+│  │  [Preview mode]              │      └──────────────────────────────────┘   │
+│  │    FlowchartPreview inline   │                                              │
+│  │    (same component)          │                                              │
+│  │                              │                                              │
+│  │  [Edit mode]                 │                                              │
+│  │    FlowRendererWithConnect   │                                              │
+│  │    EditableNodeCard / EdgePill│                                             │
+│  │    Toolbar (Add Box, Connect)│                                              │
+│  └──────────────────────────────┘                                              │
+├───────────────────────────────────────────────────────────────────────────────┤
+│  TableEditor (value, onChange)  — same props contract, no interface change    │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  parseTable → ParsedTable model → rebuildTable → HTML string             │  │
+│  │  All editing via controlled <input> fields                               │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+├───────────────────────────────────────────────────────────────────────────────┤
+│  /api/format-card (GPT-4o)     AnkiConnect (localhost:8765)                   │
+│  parseTemplateSections() ←     addNote / updateNoteFields                     │
+│  anki_flowchart template ←     ← editFront passed verbatim                   │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| `FlowView.tsx` | Host state, mode switching, AnkiConnect calls | useState/useRef, fetch() |
-| `FlowchartEditor.tsx` | Bidirectional HTML↔graph editing | Pure React, no libraries |
-| `parseFlowHTML()` | HTML string → FlowGraph data model | DOMParser + tree walk |
-| `FlowGraph` (interface) | Normalized node/edge representation | Plain TS interface |
-| `rebuildHTML()` | FlowGraph → compact inline-style HTML | Template string assembly |
-| `NodeCard` (sub-component) | Single editable box (contentEditable) | Inline edit + cloze passthrough |
-| `EdgePill` (sub-component) | Editable step-label pill between nodes | contentEditable |
-| `FlowchartPreview` | Read-only HTML render for preview tab | dangerouslySetInnerHTML |
+| Component | Responsibility | v1.1 Status |
+|-----------|----------------|-------------|
+| `FlowView.tsx` | Host: mode switching, AnkiConnect calls, editFront ownership | Modified (minor) |
+| `FlowchartEditor.tsx` | Visual editor + embedded preview, two-mode UX | Modified |
+| `FlowState.viewMode` | Internal "preview" or "editor" state | Changed (default preview) |
+| `TOGGLE_VIEW` reducer action | Switch between the two modes | Unchanged (rename label only) |
+| `FlowchartPreview` (named export) | Read-only HTML render | Reused inside editor preview mode |
+| `parseFlowHTML()` | HTML → FlowGraph | Bug fixes applied here |
+| `rebuildHTML()` | FlowGraph → HTML | Possibly extended for richer structures |
+| `anki_flowchart` template | System + instructions + cardStructure sections | Content updated |
+| `TableEditor.tsx` | Table editing UI | Minor polish only |
+| `FLOWCHART_STYLES` | Style constants shared by parser and serializer | Possibly extended |
 
 ---
 
 ## Recommended Project Structure
 
 ```
-gapstrike/src/components/
-├── FlowchartEditor.tsx          # Full replacement — HTML-aware visual editor
-│   ├── parseFlowHTML()          # HTML → FlowGraph (internal function)
-│   ├── rebuildHTML()            # FlowGraph → HTML (internal function)
-│   ├── NodeCard                 # Editable box sub-component
-│   ├── EdgePill                 # Editable step-label sub-component
-│   └── FlowchartPreview (export)# Read-only preview (keep export contract)
-├── TableEditor.tsx              # Existing — minor polish only
-└── QuestionEditor.tsx           # Existing — no changes needed
+gapstrike/src/
+├── components/
+│   ├── FlowchartEditor.tsx          # Modified — default to preview, fix bugs
+│   │   ├── FlowchartEditorErrorBoundary  # Exists — keep
+│   │   ├── FlowchartEditorInner          # Modified — initialState.viewMode = "preview"
+│   │   ├── FlowchartPreview              # Exists — reused in preview mode
+│   │   ├── FlowRendererWithConnect       # Exists — bug fixes here
+│   │   └── EditableNodeCard / EdgePill   # Exists — bug fixes here
+│   ├── FlowchartEditor.module.css   # Minor additions for container layout
+│   └── TableEditor.tsx              # Minor polish — no structural change
+├── lib/
+│   ├── flowchart-types.ts           # Unchanged (FlowGraph, FlowNode, FlowEdge, BranchGroup)
+│   ├── flowchart-styles.ts          # Possibly extended for richer template structure
+│   ├── parse-flow-html.ts           # Bug fixes for edge cases
+│   └── rebuild-flow-html.ts         # Possibly extended for richer structures
+└── app/api/
+    └── format-card/route.ts         # No change — template content drives AI behavior
 ```
 
-No new directories needed. The entire flowchart editor is a self-contained component with internal helpers. The `FlowchartPreview` named export must be preserved — FlowView.tsx imports it separately.
+### What is New vs Modified vs Unchanged
 
-### Structure Rationale
-
-- **Single file for editor:** All parsing/rendering/serialization logic stays co-located. The data model is private to the editor — FlowView only ever sees the HTML string.
-- **Internal vs exported:** `FlowchartEditor` (default export) + `FlowchartPreview` (named export) match the existing import in FlowView.tsx. No import changes needed in the host.
+| File | Change Type | What Changes |
+|------|-------------|--------------|
+| `FlowchartEditor.tsx` | Modified | `initialState.viewMode = "preview"`, button label "Edit" / "Preview", bug fixes in reducer/renderer |
+| `FlowchartEditor.module.css` | Modified | Container layout for short content (min-height, centering) |
+| `FlowView.tsx` | Modified (minor) | Remove or suppress `ankiPreview` toggle for flowchart mode — editor owns its own preview now |
+| `parse-flow-html.ts` | Modified | Fix edge cases that cause crashes (see Pitfalls) |
+| `rebuild-flow-html.ts` | Possibly modified | Extended if richer card structure requires new HTML patterns |
+| `flowchart-styles.ts` | Possibly modified | New style constants if richer template adds element types |
+| `template-defaults.ts` | Modified | New `anki_flowchart` content + new hash in `TEMPLATE_PREV_HASHES` |
+| `TableEditor.tsx` | Minor polish | CSS class references only — no logic change |
+| `flowchart-types.ts` | Unchanged | Data model is stable |
+| `format-card/route.ts` | Unchanged | API is content-agnostic |
 
 ---
 
 ## Architectural Patterns
 
-### Pattern 1: Controlled HTML String as Editor State
+### Pattern 1: Self-Contained Two-Mode Editor
 
-**What:** The editor receives `value: string` (raw HTML) and calls `onChange(newHtml: string)` on every mutation. The host (`FlowView.tsx`) owns the canonical string in `editFront` state. The editor never stores the HTML string internally — it parses it into a `FlowGraph` on mount/value-change and serializes back on every edit.
+**What:** `FlowchartEditor` controls its own `viewMode` ("preview" | "editor") entirely. FlowView.tsx does not need to know which mode the editor is in. The `ankiPreview` boolean in FlowView.tsx was the old "preview from outside" mechanism — that is now redundant for the flowchart case because the editor renders its own preview.
 
-**When to use:** Always. This matches the existing contract used by `TableEditor` and `QuestionEditor`.
+**When to use:** Always, for flowchart mode. The other editors (TableEditor, QuestionEditor) remain controlled by FlowView's `ankiPreview` bool — no change needed there.
 
-**Trade-offs:** Parsing on every external `value` change adds a small overhead but keeps the host simple and all three editors interchangeable.
+**Trade-offs:** Slight divergence between how FlowchartEditor and TableEditor handle preview. Acceptable because flowchart preview requires the same `FlowchartPreview` component (dangerouslySetInnerHTML) which already lives inside `FlowchartEditor.tsx`.
 
-**Example:**
+**Implementation:**
 ```typescript
-// FlowView.tsx (host) — unchanged contract
-<FlowchartEditor
-  value={editFront}
-  onChange={(val) => {
-    setEditFront(val);
-    if (ankiFrontRef.current) ankiFrontRef.current.innerHTML = val;
-  }}
-/>
+// FlowchartEditor.tsx — change only one line
+const initialState: FlowState = {
+  graph: EMPTY_GRAPH,
+  viewMode: "preview",   // ← was "editor", now "preview"
+  editingNodeId: null,
+  // ...rest unchanged
+};
 ```
 
+The `TOGGLE_VIEW` reducer action already works. The button label in the header needs to change from "Preview in Anki" / "Back to Editor" to "Edit" / "Preview" (or similar). No structural change.
+
+**FlowView.tsx impact:** When `editorMode === "flowchart"`, the `ankiPreview` bool effectively becomes a no-op — the editor renders its own preview. The existing condition `if (ankiPreview) { <FlowchartPreview ...> }` in FlowView can be left in place (harmless) or removed in a follow-up cleanup.
+
+### Pattern 2: Bug Fix in Reducer Without Interface Change
+
+**What:** Editing bugs (crashes when adding connections, unexpected behavior on node removal) live in the `flowReducer` or in `FlowRendererWithConnect`. They can be fixed without changing the `FlowState` or `FlowAction` types — pure logic corrections.
+
+**When to use:** All edit-mode bug fixes in v1.1.
+
+**Known crash sites to investigate:**
 ```typescript
-// FlowchartEditor.tsx — internal flow
-function FlowchartEditor({ value, onChange }: Props) {
-  const [graph, setGraph] = useState<FlowGraph>(() => parseFlowHTML(value));
+// ADD_NODE — "append to end" path uses leaf detection
+// Risk: when graph has a cycle or disconnected node, leafIds can be wrong
+const leafIds = nodeIds.filter((id) => !fromIds.has(id));
 
-  // Sync when external value changes (e.g., AI regeneration)
-  useEffect(() => {
-    setGraph(parseFlowHTML(value));
-  }, [value]);
+// REMOVE_NODE — reconnect logic only handles linear chains
+// Risk: if the removed node had multiple outgoing edges (branch parent),
+// the reconnect edge from inEdge.fromId → outEdge.toId is ambiguous
+if (inEdge && outEdge) {
+  draft.graph.edges.push({ fromId: inEdge.fromId, toId: outEdge.toId, stepLabel: "" });
+}
 
-  const handleNodeEdit = (id: string, newLabel: string) => {
-    const updated = { ...graph, nodes: graph.nodes.map(n => n.id === id ? { ...n, label: newLabel } : n) };
-    setGraph(updated);
-    onChange(rebuildHTML(updated));
-  };
+// handleConnectClick — uses window.prompt (blocks UI thread)
+// Risk: user cancels prompt → empty stepLabel edge added anyway
+const stepLabel = window.prompt("Step label (optional):") ?? "";
+```
+
+**Fix approach:** Each bug fix is isolated to its reducer case or handler. No new state fields needed.
+
+### Pattern 3: Template Content Update via TEMPLATE_PREV_HASHES
+
+**What:** The `anki_flowchart` template content lives in Supabase per-user. When the default template changes, `TEMPLATE_PREV_HASHES` auto-upgrades users who never customized their template. This is the correct path for richer AI card structure.
+
+**When to use:** Any time the `anki_flowchart` template prompt content changes (v1.1 richer structure requirement).
+
+**Implementation:**
+```typescript
+// template-defaults.ts
+export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
+  anki_flowchart: [
+    "d2343b1e21aa9df1",
+    "a5f7aade1b01b248",
+    "195d2fc7a40117fd",
+    "6c7928647efcdecb",
+    "ab29f95e3c05a983",
+    "607faa7057d4a280",  // current hash — add new ones before adding new default
+    "<NEW_HASH>",        // ← add the hash of the OLD content here
+  ],
   // ...
+};
+
+// TEMPLATE_DEFAULTS — update the anki_flowchart entry with richer prompt
+```
+
+**Constraint:** The richer template must still produce HTML that `parseFlowHTML()` can parse. If the richer template introduces new HTML patterns (e.g., multi-level nesting, new element types), `parse-flow-html.ts` and `rebuild-flow-html.ts` must be updated in the same change, and `FLOWCHART_STYLES` extended.
+
+### Pattern 4: Container Layout via CSS Module Changes Only
+
+**What:** "Short content" layout issue (flowchart with few boxes looks cramped or misaligned) is purely a CSS problem. The editor renders boxes in a `styles.canvas` div with a `styles.editorRoot` wrapper. No React logic changes needed — add `min-height`, `align-items: center`, or padding to the CSS module classes.
+
+**When to use:** Container layout fix in v1.1.
+
+**Implementation:**
+```css
+/* FlowchartEditor.module.css — existing class, add min-height */
+.canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 200px;       /* ← prevents collapse on short flowcharts */
+  padding: 16px 0;         /* ← breathing room top/bottom */
+}
+
+.editorRoot {
+  /* existing styles... */
+  min-height: 300px;       /* ← prevents the entire editor from collapsing */
 }
 ```
 
-### Pattern 2: FlowGraph as Intermediate Normalized Model
-
-**What:** The HTML is structurally complex (nested divs, branching connectors, inline styles). Parse it once into a clean `FlowGraph` model, edit the model, then serialize back. The model is the single source of truth during editing.
-
-**When to use:** Whenever HTML structure carries semantic meaning (boxes = nodes, step pills = edge labels, `inline-flex` wrappers = branch points). Without a model layer, editing the HTML directly risks silently corrupting structure.
-
-**Trade-offs:** Requires a reliable parser. The HTML structure from `anki_flowchart` template is deterministic enough to parse reliably (fixed class of patterns).
-
-**Example:**
-```typescript
-interface FlowNode {
-  id: string;          // generated stable key (e.g., "n0", "n1")
-  label: string;       // raw text including {{cN::...}} cloze syntax
-  depth: number;       // tree depth (0 = root/title area)
-  branchIndex?: number;// position within a sibling branch group
-}
-
-interface FlowEdge {
-  fromId: string;
-  toId: string;
-  label: string;       // step pill text (e.g., "inhibits", "damages")
-}
-
-interface FlowGraph {
-  title: string;        // bold title div text — never clozed
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-  branchGroups: string[][];  // groups of node IDs that share an inline-flex parent
-}
-```
-
-### Pattern 3: DOMParser for HTML Parsing (not regex)
-
-**What:** Use `new DOMParser().parseFromString(html, "text/html")` in the browser to parse the generated HTML into a real DOM tree, then walk it to extract nodes and edges. This is more reliable than regex for nested structures.
-
-**When to use:** In the browser only (DOMParser is not available in SSR). The editor is `"use client"` so this is fine.
-
-**Trade-offs:** Slightly more setup than regex, but avoids catastrophic failures on edge cases like nested quotes in inline styles. The TableEditor already avoids DOMParser by using regex — acceptable for tables (flat), but NOT for flowcharts (nested branching).
-
-**Example:**
-```typescript
-function parseFlowHTML(html: string): FlowGraph {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const root = doc.body.firstElementChild; // outer <div style="text-align:center">
-  if (!root) return DEFAULT_GRAPH;
-
-  // Title: first child div with font-weight:bold
-  // Nodes: divs with border:2px solid #3a3a3a
-  // Branch groups: divs with display:inline-flex
-  // Step pills: divs with font-style:italic
-  // Walk and build FlowGraph...
-}
-```
+No React component changes. No new CSS classes (unless the design system requires it).
 
 ---
 
 ## Data Flow
 
-### AI Generation Flow (entry into editor)
+### v1.1 Mode Switching (Simplified)
 
 ```
-User clicks "Flowchart" button
+User lands on flowchart editor (after AI generation)
+    ↓
+FlowchartEditor mounts with viewMode = "preview"  ← NEW default
+    ↓
+User sees FlowchartPreview (rendered Anki card)
+    ↓
+User clicks "Edit" button
+    ↓
+dispatch({ type: "TOGGLE_VIEW" })
+    ↓
+viewMode = "editor" → FlowRendererWithConnect shown
+    ↓
+User edits box text
+    ↓
+dispatch({ type: "EDIT_NODE", id, label })
+    ↓
+hasUserEdited = true → onChange(rebuildHTML(graph)) fires
+    ↓
+FlowView.tsx: setEditFront(newHtml) + ankiFrontRef.current.innerHTML = newHtml
+    ↓
+User clicks "Preview"
+    ↓
+dispatch({ type: "TOGGLE_VIEW" }) → viewMode = "preview"
+    ↓
+FlowchartPreview re-renders with updated value prop
+```
+
+### v1.1 AI Prompt → Richer Card → Parser Round-trip
+
+```
+User clicks "Flowchart"
     ↓
 handleSwitchEditor("flowchart") in FlowView.tsx
     ↓
 POST /api/format-card { front: clozeHtml, template: anki_flowchart }
     ↓
-GPT-4o generates inline HTML string
+GPT-4o reads updated template (richer cardStructure section)
     ↓
-setEditFront(htmlString)         ← modeContentRef["flowchart"] = htmlString
+Returns richer HTML (more nodes, nested branches, richer step labels)
     ↓
-FlowchartEditor receives value={htmlString}
+setEditFront(richHtml)
     ↓
-useEffect → parseFlowHTML(htmlString) → FlowGraph state
+FlowchartEditor: useEffect → parseFlowHTML(richHtml)
     ↓
-React renders NodeCards + EdgePills from graph
+If new HTML patterns: MUST be handled by updated parse-flow-html.ts
+    ↓
+FlowGraph with more nodes/edges → renders correctly in edit mode
+    ↓
+rebuildHTML(graph) must reproduce the same structure
 ```
 
-### User Edit Flow (editor → host)
+**Critical constraint:** parseFlowHTML and rebuildHTML must be a lossless round-trip for any HTML the updated template produces. This means: if the richer template adds new element types, update FLOWCHART_STYLES + parse-flow-html + rebuild-flow-html in a single atomic change.
+
+### State Ownership Map
 
 ```
-User clicks NodeCard → contentEditable focus
-    ↓
-User types new label (cloze syntax preserved verbatim)
-    ↓
-onBlur / onInput in NodeCard
-    ↓
-handleNodeEdit(nodeId, newLabel) in FlowchartEditor
-    ↓
-setGraph(updatedGraph)
-    ↓
-onChange(rebuildHTML(updatedGraph))     ← calls FlowView's onChange
-    ↓
-setEditFront(newHtml) in FlowView
-    ↓
-modeContentRef["flowchart"] = newHtml  (kept in sync by useEffect)
+FlowView.tsx owns:
+├── editFront: string               ← canonical HTML, source of truth
+├── editorMode: EditorMode          ← "flowchart" | "table" | "cloze" | "question"
+├── modeContentRef: Record<mode, string>  ← per-mode cache
+└── ankiPreview: boolean            ← used for table/cloze/question; flowchart ignores it
+
+FlowchartEditor owns:
+├── graph: FlowGraph                ← parsed from value prop
+├── viewMode: "preview" | "editor" ← internal, not visible to host
+├── editingNodeId: string | null    ← which box is in text-edit mode
+├── connectMode: boolean            ← two-click edge creation mode
+└── connectingFromId: string | null ← first node clicked in connect flow
 ```
-
-### Add/Remove Node Flow
-
-```
-User clicks "Add box" button
-    ↓
-addNode(afterId) in FlowchartEditor
-    ↓
-Insert FlowNode at position, add FlowEdge from predecessor
-    ↓
-setGraph(updated)
-    ↓
-onChange(rebuildHTML(updated))
-```
-
-### Save to Anki Flow (unchanged from existing)
-
-```
-User clicks "Save"
-    ↓
-handleSaveAnkiCard() in FlowView.tsx
-    ↓
-editFront (raw HTML with cloze) → AnkiConnect updateNoteFields / addNote
-    ↓
-Anki stores HTML verbatim — renders natively on all platforms
-```
-
-### State Management
-
-```
-FlowView.tsx (host state)
-├── editFront: string              ← canonical HTML string for current mode
-├── editorMode: EditorMode         ← "flowchart" | "table" | "cloze" | "question"
-└── modeContentRef: Record<EditorMode, string>  ← per-mode content cache
-
-FlowchartEditor.tsx (local state)
-├── graph: FlowGraph               ← parsed from value prop, reset on value change
-├── selectedNodeId: string | null  ← which box is being edited
-└── addingEdge: boolean            ← UI mode for "connect two nodes"
-```
-
-The host never needs to know about `FlowGraph`. It only ever passes an HTML string in and receives an HTML string out.
-
----
-
-## Scaling Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| Current (single editor) | Single-file component with internal helpers — correct scope |
-| Multiple diagram types | Extract `parseFlowHTML`/`rebuildHTML` to `lib/flowchart-utils.ts` only if a second diagram type shares the same model |
-| Drag-and-drop (v2) | Add position coordinates to `FlowNode`; `rebuildHTML` emits absolute-positioned divs; requires CSS position model change |
-| Undo/redo (v2) | Maintain `history: FlowGraph[]` stack in editor; `Ctrl+Z` pops previous graph and calls `onChange(rebuildHTML(prev))` |
-
-### Scaling Priorities
-
-1. **First pain point:** Parser brittleness — if GPT-4o generates a slightly different HTML structure than expected, the parser must degrade gracefully. Solution: robust fallback to raw contentEditable when parse fails.
-2. **Second pain point:** Branch rendering complexity — the `inline-flex` branching pattern is visually correct in Anki but harder to edit. The editor should flatten branches into a grid-based representation internally and only use `inline-flex` during `rebuildHTML`.
-
----
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Using contentEditable on the Full HTML String
-
-**What people do:** Render the entire generated HTML inside a `contentEditable` div and let the user edit it directly (like the current "cloze" mode does with `ankiFrontRef`).
-
-**Why it's wrong:** The flowchart HTML has structural divs (connectors, branch wrappers, stem lines) that must not be editerable. Users will accidentally delete connectors. The `border:2px solid #3a3a3a` boxes and the `width:2px;height:15px` stems are visually identical-ish, making it hard to know what to click. Also: paste events can break inline styles.
-
-**Do this instead:** Render the graph model as React components. Only the `label` fields of `FlowNode` and `FlowEdge` get `contentEditable` spans. Structural elements (stems, branch wrappers) are rendered by React, not editable.
-
-### Anti-Pattern 2: Parsing HTML with Regex
-
-**What people do:** Match `border:2px solid #3a3a3a` with regex to find boxes, as the current `TableEditor` does for `<td>` cells.
-
-**Why it's wrong:** Flowchart HTML is deeply nested. A box inside a branch is nested 5+ levels deep. Regex cannot reliably distinguish a box div from a branch-wrapper div or a stem div — they all match `<div style="...">`. One malformed card will produce silent corruption.
-
-**Do this instead:** Use `DOMParser` to get a real DOM, then walk the tree structurally. Identify nodes by the `border:2px solid #3a3a3a` style property (not regex string match), branch groups by `display: inline-flex`, step pills by `font-style: italic`.
-
-### Anti-Pattern 3: Storing Structural HTML as Intermediate Format
-
-**What people do:** Serialize the `FlowGraph` to a custom text format (like the old mermaid approach) and parse that instead of the raw HTML.
-
-**Why it's wrong:** The card's FRONT field IS the HTML — it goes directly to Anki. Adding an intermediate format means maintaining two serialization paths and introduces a sync bug surface. If the user switches modes or saves mid-edit, the intermediate format must be converted back to HTML, and that conversion can drift from the AI-generated template style.
-
-**Do this instead:** The HTML string is always the source of truth. Parse it to `FlowGraph` for editing, serialize back to HTML immediately on every mutation. No intermediate format.
-
-### Anti-Pattern 4: Tight Coupling to Specific CSS Values
-
-**What people do:** Hard-code `"border:2px solid #3a3a3a"` as a string literal in parse/rebuild logic, assuming the template never changes.
-
-**Why it's wrong:** The `anki_flowchart` template stores style constants in Supabase and can be upgraded via `TEMPLATE_PREV_HASHES`. A template upgrade might change padding or border width, breaking the parser.
-
-**Do this instead:** Define style constants in one place (`FLOWCHART_STYLES`) used by both `parseFlowHTML` (for element identification) and `rebuildHTML` (for serialization). The parser identifies elements by structure (depth, sibling context) as primary signal, with style matching as secondary.
 
 ---
 
 ## Integration Points
 
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| GPT-4o via `/api/format-card` | POST from FlowView.tsx — unchanged | Editor receives result as `value` prop change |
-| AnkiConnect `addNote` | Called from FlowView.tsx after user hits Save | `editFront` is passed verbatim — editor has no AnkiConnect knowledge |
-| AnkiConnect `updateNoteFields` | Same as addNote — FlowView owns this | No change needed for editor rebuild |
-
 ### Internal Boundaries
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| `FlowView.tsx` ↔ `FlowchartEditor` | Props only: `value: string`, `onChange: (val: string) => void` | Same contract as TableEditor — no shared state |
-| `FlowchartEditor` ↔ `parseFlowHTML` | Function call: `string → FlowGraph` | Internal to component file |
-| `FlowchartEditor` ↔ `rebuildHTML` | Function call: `FlowGraph → string` | Internal to component file |
-| `FlowchartEditor` ↔ `FlowchartPreview` | None — they are sibling exports, no communication | Preview reads `value` directly from FlowView |
+| Boundary | Communication | v1.1 Change |
+|----------|---------------|-------------|
+| `FlowView.tsx` → `FlowchartEditor` | `value: string`, `onChange: (val: string) => void` | No change — same props contract |
+| `FlowchartEditor` → `FlowchartPreview` | Preview component embedded inside editor for preview mode | Unchanged — already done in v1.0 |
+| `FlowchartEditor` ↔ `parseFlowHTML` | Function call, returns FlowGraph | Bug fixes in parseFlowHTML internals |
+| `FlowchartEditor` ↔ `rebuildHTML` | Function call, returns HTML string | Possibly extended for richer cards |
+| `FlowchartEditor` ↔ `FLOWCHART_STYLES` | Style constants for element identification | Possibly extended |
+| `template-defaults.ts` → Supabase | Auto-upgrade via TEMPLATE_PREV_HASHES hash matching | New hash added for old content |
+| `format-card/route.ts` → GPT-4o | POST with front + template content | Template content changes, API unchanged |
+
+### External Services
+
+| Service | Integration Pattern | v1.1 Notes |
+|---------|---------------------|------------|
+| GPT-4o via `/api/format-card` | POST from FlowView.tsx — unchanged | Template content is the only change vector |
+| AnkiConnect `addNote`/`updateNoteFields` | FlowView.tsx — unchanged | editFront passed verbatim; richer HTML works as-is |
+| Supabase (templates table) | TEMPLATE_PREV_HASHES auto-upgrade | Must add hash of old anki_flowchart content when updating default |
 
 ---
 
-## Build Order (Dependency Chain)
+## Build Order (v1.1 Dependency Chain)
 
-The component has a strict internal dependency order. Each step depends on the previous:
+The v1.1 features have clear dependencies. Build in this order to allow incremental testing:
 
 ```
-Step 1: FlowGraph data model interface
-    (no deps — defines the shape everything else uses)
-    ↓
-Step 2: parseFlowHTML() — HTML string → FlowGraph
-    (depends on: FlowGraph interface, DOMParser)
-    ↓
-Step 3: rebuildHTML() — FlowGraph → HTML string
-    (depends on: FlowGraph interface, FLOWCHART_STYLES constants)
-    ↓
-Step 4: NodeCard + EdgePill sub-components
-    (depends on: FlowGraph types, contentEditable edit handlers)
-    ↓
-Step 5: FlowchartEditor main render + add/remove/connect operations
-    (depends on: all of the above)
-    ↓
-Step 6: FlowchartPreview replacement
-    (depends on: parseFlowHTML only — or use dangerouslySetInnerHTML directly)
-    ↓
-Step 7: Integration smoke-test in FlowView.tsx
-    (depends on: Step 5, existing handleSwitchEditor logic)
+Step 1: Default Preview Mode
+  File: FlowchartEditor.tsx
+  Change: initialState.viewMode = "preview", update button labels
+  Deps: None — one-line change
+  Test: Load flowchart mode → should open in Preview immediately
+  ↓
+
+Step 2: Container Layout Fix
+  File: FlowchartEditor.module.css
+  Change: min-height on .canvas and .editorRoot, padding adjustments
+  Deps: Step 1 (preview mode must be visible to see layout issue)
+  Test: Short 2-3 box flowchart should not appear cramped
+  ↓
+
+Step 3: Edit-Mode Bug Fixes
+  Files: FlowchartEditor.tsx (reducer + handlers), parse-flow-html.ts
+  Change: Fix ADD_NODE leaf detection, REMOVE_NODE reconnect for branches,
+          replace window.prompt with inline input for stepLabel
+  Deps: Step 1 (bugs only visible in edit mode, default preview makes it
+        easier to test edit mode deliberately)
+  Test: Add/remove boxes, add/remove connections without crash
+  ↓
+
+Step 4: Richer AI Template + Parser/Serializer Extension
+  Files: template-defaults.ts, parse-flow-html.ts, rebuild-flow-html.ts,
+         flowchart-styles.ts (if new elements)
+  Change: Updated anki_flowchart template prompt, new hash in TEMPLATE_PREV_HASHES,
+          parser/serializer extended for any new HTML patterns
+  Deps: Step 3 (richer HTML must not break the fixed parser)
+  Test: Generate flowchart card → richer output → parse → edit → rebuild → save to Anki
+  ↓
+
+Step 5: FlowView.tsx Cleanup (optional)
+  Files: FlowView.tsx
+  Change: Suppress ankiPreview toggle when editorMode === "flowchart" (cosmetic)
+  Deps: Steps 1-4
+  Test: ankiPreview button should have no visible effect in flowchart mode
 ```
 
-This order allows incremental testing: Steps 2-3 can be unit-tested with fixture HTML before any React rendering. Steps 4-5 can be tested in isolation. Step 7 is the only step that requires the full app.
+**Steps 1-2 are safe to implement in a single plan.** They are CSS/default-value changes with zero logic risk.
+
+**Step 3 must be isolated.** Bug fixes in the reducer interact with parse edge cases. Test each reducer case independently before combining.
+
+**Step 4 must be atomic.** Template content + parser + serializer must move together. A richer template that the parser cannot handle will crash the editor for any user who regenerates a card after the template auto-upgrades.
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Moving viewMode to FlowView.tsx
+
+**What people do:** Lift the preview/edit toggle up to the host so FlowView can control the mode externally (e.g., auto-switch to preview after save).
+
+**Why it's wrong:** FlowView already has `ankiPreview` boolean for this purpose, and it controls the global preview for all editor types. Adding a second flowchart-specific mode prop to FlowchartEditor creates a confusing two-way interaction: the host can override the editor's internal mode, causing unpredictable behavior when the user toggled the editor independently.
+
+**Do this instead:** Keep `viewMode` inside `FlowchartEditor`'s reducer state. If FlowView needs to reset the editor to preview after a specific action (e.g., after save), pass the `value` prop change — the existing `useEffect([value])` that calls `dispatch({ type: "LOAD" })` already resets `editingNodeId` and `connectMode`. Add `viewMode: "preview"` to the LOAD action's reset if needed.
+
+### Anti-Pattern 2: Updating the Template Without Updating the Parser
+
+**What people do:** Write a richer `anki_flowchart` prompt that causes GPT-4o to generate new HTML patterns (e.g., multi-level branches, new div roles), then deploy without updating `parseFlowHTML`.
+
+**Why it's wrong:** Any user whose template auto-upgrades via `TEMPLATE_PREV_HASHES` will immediately get the richer HTML from the AI. If the parser doesn't recognize the new patterns, `parseFlowHTML` returns an empty/partial graph, triggering `parseFailed = true` and falling back to the raw textarea. The visual editor becomes inaccessible.
+
+**Do this instead:** Design the richer template's HTML patterns first. Verify `parseFlowHTML` handles them. Extend `FLOWCHART_STYLES` and `parse-flow-html.ts` / `rebuild-flow-html.ts` in the same commit as the template content change.
+
+### Anti-Pattern 3: Using window.prompt for stepLabel Input
+
+**What people do:** The current implementation calls `window.prompt("Step label (optional):")` when creating a connection. This blocks the browser's main thread and cannot be styled.
+
+**Why it's wrong:** On some browsers/environments `window.prompt` returns `null` on cancel, and the current code uses `?? ""` which adds an edge with an empty label (silent create). It also cannot be integrated into the design system.
+
+**Do this instead:** Replace the two-click connect flow with an inline input that appears between the two connected nodes after the second click. Dispatch `ADD_EDGE` only when the user confirms (Enter key or blur). This is an in-place fix in `handleConnectClick` + a new inline-input render path in the editor.
+
+### Anti-Pattern 4: Fixing Layout with Hardcoded Heights
+
+**What people do:** Add `height: 400px` to `.editorRoot` to prevent collapse on short flowcharts.
+
+**Why it's wrong:** A 5-node flowchart will have unnecessary empty space. A long flowchart will overflow or scroll awkwardly.
+
+**Do this instead:** Use `min-height` not `height`, and let the content grow naturally. The `.canvas` div should be flex-column with `align-items: center` — this centers short flowcharts vertically without constraining long ones.
 
 ---
 
 ## Sources
 
-- Direct inspection of `gapstrike/src/components/FlowView.tsx` (current host integration)
-- Direct inspection of `gapstrike/src/components/FlowchartEditor.tsx` (mermaid-based, to be replaced)
-- Direct inspection of `gapstrike/src/components/TableEditor.tsx` (pattern to follow: parse → model → rebuild)
-- Template content in `gapstrike/src/lib/template-defaults.ts` (exact HTML structure the AI generates)
-- Project requirements in `flowchartAnki/.planning/REQUIREMENTS.md` (FLOW-01 through FLOW-09)
-- Project constraints in `.planning/PROJECT.md` (inline styles, no JS, compact HTML for AnkiDroid)
+- Direct inspection: `gapstrike/src/components/FlowchartEditor.tsx` (691 lines, current v1.0)
+- Direct inspection: `gapstrike/src/components/FlowView.tsx` (ankiPreview, editorMode, modeContentRef state management)
+- Direct inspection: `gapstrike/src/components/TableEditor.tsx` (parseTable/rebuildTable pattern reference)
+- Direct inspection: `gapstrike/src/lib/parse-flow-html.ts` + `rebuild-flow-html.ts` + `flowchart-types.ts` + `flowchart-styles.ts`
+- Direct inspection: `gapstrike/src/app/api/format-card/route.ts` (parseTemplateSections, section-based prompt building)
+- Direct inspection: `gapstrike/src/lib/template-defaults.ts` (TEMPLATE_PREV_HASHES auto-upgrade mechanism)
+- v1.0 phase 5 outcomes: `.planning/phases/05-polish-and-deploy/05-04-SUMMARY.md` (UX-01 through UX-04 follow-up items)
+- Project constraints: `.planning/PROJECT.md` (inline styles, no JS in Anki cards, compact HTML, Vercel deploy)
 
 ---
 
-*Architecture research for: FlowchartAnki — HTML div-based flowchart editor in GapStrike*
+*Architecture research for: FlowchartAnki v1.1 — Editor Polish integration analysis*
 *Researched: 2026-03-09*

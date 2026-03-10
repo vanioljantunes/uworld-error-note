@@ -1,8 +1,30 @@
 # Stack Research
 
-**Domain:** Visual HTML flowchart editor in React/Next.js — parse AI-generated HTML, edit nodes/edges, serialize back to inline-styled HTML for Anki
+**Domain:** v1.1 Editor Polish — two-mode UX, CSS layout improvements, richer AI flowchart prompts for GapStrike FlowchartEditor
 **Researched:** 2026-03-09
-**Confidence:** HIGH (core decisions are zero-dependency patterns; library versions verified via npm registry)
+**Confidence:** HIGH (all recommendations are zero-new-dependency or internal code changes; stack is locked from v1.0)
+
+---
+
+## Context: What v1.0 Already Provides
+
+Do NOT re-research or re-install:
+
+| Technology | Version | Status |
+|------------|---------|--------|
+| React 19 + Next.js 15 | 19.0.0 / 15.1.3 | Installed, working |
+| TypeScript 5 | ^5.0.0 | Installed |
+| immer 11.1.4 | 11.1.4 | Installed, used in FlowchartEditor |
+| use-immer 0.11.0 | 0.11.0 | Installed, used in FlowchartEditor |
+| html-react-parser 5.2.17 | 5.2.17 | Installed |
+| CSS Modules | (Next.js built-in) | Used in FlowchartEditor.module.css |
+| Browser DOMParser | Web API | No install, used in parse-flow-html.ts |
+| vitest 4.0.18 | 4.0.18 | Installed, used for parser tests |
+
+**v1.1 needs ZERO new npm packages.** All three features are implemented via:
+1. State shape changes + reducer actions (two-mode editor)
+2. CSS Module additions (container layout)
+3. Prompt string changes in `template-defaults.ts` (richer AI flowcharts)
 
 ---
 
@@ -10,44 +32,143 @@
 
 ### Core Technologies
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| React 19 + Next.js 15 | (already installed) | Component framework | Already in the project. FlowchartEditor is a `"use client"` component using `useState`/`useReducer`. No framework change needed. |
-| TypeScript 5 | (already installed) | Type safety | Typed node/edge interfaces prevent bugs in the parse → state → serialize pipeline. Critical given the HTML string output must be exact. |
-| immer 11.x | 11.1.4 | Immutable state updates for nested graph state | Graph state is a tree of nodes with nested children. Immer's `produce()` lets you write `draft.nodes[i].label = newLabel` instead of spread-cloning every level. `useImmerReducer` is the pattern for `ADD_NODE / REMOVE_NODE / EDIT_LABEL` actions. 5,879 packages depend on it — well-proven. |
-| use-immer 0.11.0 | 0.11.0 | React hooks wrappers: `useImmer` + `useImmerReducer` | Ships `useImmerReducer` which combines Immer's `produce` with `useReducer`. This is exactly the state machine pattern needed for the flowchart editor (add box, remove box, edit label, add connection, remove connection). Maintained by the Immer team. |
-| html-react-parser 5.x | 5.2.17 | Parse AI-generated HTML string → React element tree | Only library that both (a) parses HTML strings and (b) lets you swap matching DOM nodes for interactive React components via the `replace()` callback. The replace function receives each `domhandler` node and can return a React component instead. This is precisely the pattern needed: detect box `<div>` nodes by data attributes or inline style signatures and replace them with `<EditableBox>` components. Works on client and server. React 19 compatible (verified via GitHub issue #1501). Latest: 5.2.17, published Feb 2026. |
-| Browser native `DOMParser` | Web API (no install) | Parse HTML to DOM tree for style attribute extraction during import | `new DOMParser().parseFromString(html, 'text/html')` is available in all modern browsers without any npm dependency. Used in `parseFlowchartHTML()` to walk the AI-generated HTML and extract node labels, connector types, and step-pill texts into the editor's internal `GraphState` structure. No Node.js/jsdom needed because FlowchartEditor is a client component. |
-| `useRef` + `element.outerHTML` | Web API (no install) | Serialize React-rendered editor back to HTML string | The cleanest client-side serialization: attach a `ref` to the preview `<div>` that renders the flowchart from state, then call `ref.current.outerHTML` (or `innerHTML`) to get the exact HTML string to save to Anki. No `renderToStaticMarkup`, no custom serializer. Works because the preview div renders inline-styled divs — no React-specific attributes survive in the DOM (React strips `key`, event handlers don't appear in innerHTML). |
+No new core technologies. The three features use exclusively what is already installed.
+
+### Feature 1: Two-Mode Editor (Preview Default + Edit Mode)
+
+**What needs to change:** `FlowchartEditorInner` in `FlowchartEditor.tsx`.
+
+| Mechanism | Technology | Why This Approach |
+|-----------|------------|-------------------|
+| Mode state | `useImmerReducer` (already used) — add `viewMode: "preview" \| "edit"` as default `"preview"` | The FlowState already has `viewMode: "editor" \| "preview"`. Change the initial value from `"editor"` to `"preview"` and rename `"editor"` to `"edit"` for clarity. One-line change to `initialState`. |
+| Preview rendering | `dangerouslySetInnerHTML={{ __html: value }}` via existing `FlowchartPreview` component | Already implemented and working. Preview default means this renders first — no new code. |
+| Mode toggle button | Existing `<button className={styles.toggleBtn}>` in editorHeader | Change button label: "Edit" (in preview mode) and "Preview" (in edit mode). No new component needed. |
+| Toolbar visibility | Conditional render `{state.viewMode === "edit" && <div className={styles.toolbar}>}` | Already conditional on `viewMode`. Rename the condition string from `"editor"` to `"edit"`. |
+| Cloze syntax in edit boxes | `highlightCloze()` (already implemented) | No change — it highlights `{{cN::text}}` spans in the editor view. |
+
+**Integration point:** The `TOGGLE_VIEW` action in `flowReducer` already exists. Change initial state only:
+
+```typescript
+// FlowchartEditorInner — change one line:
+const initialState: FlowState = {
+  // ...
+  viewMode: "preview",  // was "editor" — this is the ONLY required change for default preview
+  // ...
+};
+```
+
+Rename `"editor"` → `"edit"` throughout the reducer and JSX for clarity (search-replace, no logic change).
+
+**No new libraries needed.** Confidence: HIGH.
+
+---
+
+### Feature 2: Container Layout for Short Content
+
+**Problem:** Boxes with short text (1-3 words) collapse to very narrow widths because the box uses `display:inline-block` with no `min-width`. This makes the flowchart look broken when mixed with longer boxes.
+
+**What needs to change:** CSS in `FlowchartEditor.module.css` (editor view) and `FLOWCHART_STYLES` in `flowchart-styles.ts` (Anki HTML output).
+
+| Mechanism | Technology | Why This Approach |
+|-----------|------------|-------------------|
+| Editor-side box min-width | Add `min-width: 120px` to `.nodeCard` in `FlowchartEditor.module.css` | Pure CSS, zero dependencies. The `.nodeCard` class currently has `max-width: 320px` but no `min-width`. Adding `min-width: 120px` fixes the collapse without affecting wide boxes. |
+| Anki-side box min-width | Add `min-width:120px` to the `box` entry in `FLOWCHART_STYLES` in `flowchart-styles.ts` | The AI template and `rebuildHTML()` both use `FLOWCHART_STYLES.box` for the inline style string. Adding `min-width:120px` to that string propagates to both AI-generated cards and editor-rebuilt cards. |
+| Consistent padding for short text | Existing `padding:8px 16px` already provides horizontal breathing room | No change needed — padding is already applied. The issue is min-width, not padding. |
+| Anki cross-platform compatibility | `min-width` is supported in AnkiDesktop (Chromium), AnkiDroid (WebView), AnkiMobile (WKWebView) | `min-width` on block/inline-block elements is universally supported. No risk. Confidence: HIGH. |
+
+**Exact CSS change:**
+
+```css
+/* FlowchartEditor.module.css — add min-width to .nodeCard */
+.nodeCard {
+  /* existing properties */
+  min-width: 120px;  /* ADD: prevents collapse on short labels */
+}
+```
+
+```typescript
+// flowchart-styles.ts — add min-width to box style string
+export const FLOWCHART_STYLES = {
+  // ...
+  box: 'border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px;min-width:120px',
+  // ...
+};
+```
+
+**No new libraries needed.** Confidence: HIGH.
+
+---
+
+### Feature 3: Richer AI-Generated Flowchart Structure
+
+**What needs to change:** The `anki_flowchart` template in `template-defaults.ts`.
+
+This is a prompt engineering change — no library additions, no API changes, no schema changes.
+
+**Current prompt weaknesses (observed from template analysis):**
+
+| Weakness | Current Behavior | Required Fix |
+|----------|-----------------|--------------|
+| Generic step labels | Rules say "NEVER use generic leads to, causes, then" but examples still show simple verbs | Add explicit BAD vs GOOD examples showing weak vs strong relational verbs in the Card Structure section |
+| Shallow branching | Examples show at most 2 branch arms | Add a 3-arm branch example to Card Structure to encourage richer structure when content supports it |
+| Under-specified cloze placement | "cloze exactly 2-3 mechanism boxes" but no guidance on which boxes NOT to cloze | Strengthen the negative rule: "NEVER cloze leaf-level clinical manifestations (e.g., Confusion, Ataxia) — these are outcomes, not the recall target" |
+| No intermediate chain guidance | Prompt does not specify how to handle 5+ step linear chains | Add: "For linear chains longer than 3 steps, group intermediate steps into a single box with a multi-line label rather than adding excessive intermediate nodes" |
+| Title quality | Titles can be generic ("Kidney Development") | Add: "Title should name the MECHANISM or PATHWAY, not just the organ/condition. GOOD: 'Wernicke Encephalopathy Mechanism'. BAD: 'Thiamine Deficiency'" |
+
+**Implementation:** Edit the `content` string of the `anki_flowchart` entry in `TEMPLATE_DEFAULTS`. Update `TEMPLATE_PREV_HASHES.anki_flowchart` with the new hash after the change.
+
+**Hash update requirement:** The `TEMPLATE_PREV_HASHES` mechanism auto-upgrades uncustomized user templates. The new hash must be computed after the content change and added to the array:
+
+```typescript
+// template-defaults.ts — after changing anki_flowchart content:
+export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
+  anki_flowchart: [
+    "d2343b1e21aa9df1",
+    "a5f7aade1b01b248",
+    "195d2fc7a40117fd",
+    "6c7928647efcdecb",
+    "ab29f95e3c05a983",
+    "607faa7057d4a280",
+    // ADD the new hash here after computing it
+  ],
+  // ...
+};
+```
+
+The hash function used is an 8-byte hex digest (visible in the existing hash format). Check `templates/route.ts` for the exact hashing implementation used at runtime.
+
+**No new libraries needed.** Confidence: HIGH.
+
+---
 
 ### Supporting Libraries
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| html-dom-parser | 5.1.8 | Parse HTML string to a `domhandler` DOM tree on both client and server | Use this as the underlying parser if you need to walk the AI HTML in a Next.js API route (server-side, no browser `DOMParser`). The `html-react-parser` package already bundles this internally — you only need it directly if writing a standalone server-side validation utility. |
-| `uuid` or `crypto.randomUUID()` | Web API (no install) | Generate stable node IDs in `GraphState` | Each node needs a stable ID for the reducer to target (`{ type: 'EDIT_LABEL', id: 'node-uuid', label: '...' }`). Browser `crypto.randomUUID()` is available without any npm package in modern browsers and Next.js client components. No external dependency needed. |
+No new supporting libraries are required for v1.1.
+
+| Considered | Decision | Reason |
+|------------|----------|--------|
+| `clsx` / `classnames` | Skip | Already managing class composition with template literals. `styles.toolbarBtn + (active ? " " + styles.toolbarBtnActive : "")` pattern is used throughout — adding clsx would require refactoring all existing class strings with no functional benefit for v1.1 scope. |
+| `@radix-ui/react-tabs` | Skip | The two-mode toggle is a single button that flips a boolean state. Radix Tabs adds accessible tab panels but the UX spec says "button in editorHeader" — overkill for one toggle. |
+| CSS custom properties polyfill | Skip | Already using CSS custom properties (`var(--bg)`, `var(--border)`) via global styles. No new custom property needs are introduced. |
 
 ### Development Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| TypeScript strict mode | Catch incorrect shape mutations in reducer | Already enabled via `tsconfig.json`. `GraphState`, `FlowNode`, `FlowEdge` interfaces should be defined in `flowchart-types.ts` and imported into both the parser and serializer. |
-| React DevTools | Inspect `GraphState` at runtime | Useful for verifying that `parseFlowchartHTML()` produces the correct node tree from AI output. The state shape is the ground truth. |
-| Anki desktop (local) | Verify serialized HTML renders correctly in Anki card reviewer | After serialization, paste the HTML string into an Anki field and review. This is the only ground-truth test — browser rendering differs from Anki's WebView in edge cases (e.g., `display:inline-flex` support). |
+| Vitest (already installed) | Test new initial state default | Add one test: `FlowchartEditorInner` initial viewMode should be `"preview"`. Existing reducer tests in `flowReducer.test.ts` cover TOGGLE_VIEW — verify the renamed action string passes. |
+| Anki desktop review | Verify `min-width:120px` renders correctly in Anki card reviewer | After adding min-width to FLOWCHART_STYLES, generate a test card and review in Anki desktop + AnkiDroid. The key concern is whether WebView on older Android renders min-width on inline-block correctly (it does — min-width is baseline CSS). |
 
 ---
 
 ## Installation
 
 ```bash
-# Inside gapstrike/
-npm install immer use-immer
-
-# html-react-parser is the only NEW external package needed
-npm install html-react-parser
-
-# Everything else (DOMParser, crypto.randomUUID, useRef) is browser built-in
-# No additional installs required
+# v1.1 requires NO new npm installs
+# All changes are code-only:
+# 1. FlowchartEditor.tsx — change initialState.viewMode from "editor" to "preview"
+# 2. FlowchartEditor.module.css — add min-width: 120px to .nodeCard
+# 3. flowchart-styles.ts — add min-width:120px to FLOWCHART_STYLES.box string
+# 4. template-defaults.ts — improve anki_flowchart prompt content + update TEMPLATE_PREV_HASHES
 ```
 
 ---
@@ -56,12 +177,10 @@ npm install html-react-parser
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| `html-react-parser` replace callback | `html-dom-parser` + manual React.createElement walk | If you never need React components in the parse output (pure DOM walk). Here we do need to inject `<EditableBox onClick={...} />` components, so `html-react-parser`'s replace callback is the right level of abstraction. |
-| `useImmerReducer` | Plain `useReducer` with spread cloning | If the state is shallow (1-2 levels deep). The flowchart state (`nodes[].children[].stepPills`) is 3+ levels deep — spread cloning at each level produces verbose, error-prone reducer code. Immer pays for itself here. |
-| `useImmerReducer` | Zustand / Redux Toolkit | If the editor state needs to be shared across multiple pages or persisted to a global store. The flowchart state is local to the `FlowchartEditor` component — there is no cross-component sharing need. A local hook is correct here; adding a global store is over-engineering. |
-| `ref.current.outerHTML` for serialization | Custom recursive HTML builder from state | Custom builders must replicate the exact inline style tokens from the template (background colors, border radiuses, font sizes). `outerHTML` captures what the browser already rendered from those exact styles — zero divergence risk. The custom builder approach has historically produced subtle style mismatches that break Anki rendering. |
-| Browser `DOMParser` | `html-dom-parser` npm package (client) | `html-dom-parser` returns a domhandler AST (same as `htmlparser2`). The browser `DOMParser` returns a live `Document` object. For client-side use the native `DOMParser` is simpler, has zero bundle cost, and returns a walkable DOM tree. Use `html-dom-parser` only for SSR paths. |
-| `crypto.randomUUID()` | `uuid` npm package | `uuid` is still the right choice if Node 14 compatibility is required. For Next.js 15 with React 19 targeting modern browsers and Node 18+, `crypto.randomUUID()` is built-in and produces RFC-compliant UUIDs. Saves ~2.5KB. |
+| Default `viewMode: "preview"` via initial state | Persist last mode to localStorage | If users frequently switch modes and want their preference remembered across sessions. For v1.1 the spec says "default to Preview" — no persistence needed. |
+| `min-width: 120px` on box | `width: fit-content` with a fixed minimum via `min-width` | `fit-content` is the same as `display:inline-block` default behavior. `min-width` is the correct constraint. No change to width behavior for boxes that are already wide enough. |
+| Prompt-only improvements for richer flowcharts | Add a new `anki_flowchart_v2` template slug | Adding a new slug requires user migration, a new Supabase row, and UI changes to list it. Improving the existing `anki_flowchart` template with the `TEMPLATE_PREV_HASHES` auto-upgrade mechanism handles it invisibly for existing users. |
+| Edit only prompt `Rules` section | Edit prompt `Card Structure` section (add 3-arm example) + `Rules` section | Both need changes. Rules clarify what NOT to do; Card Structure shows what TO do. Changing only Rules without examples produces inconsistent results from GPT-4o — concrete examples are more effective than abstract rules for structured output tasks. |
 
 ---
 
@@ -69,71 +188,29 @@ npm install html-react-parser
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `@xyflow/react` (React Flow) | Designed for canvas-based node editors with drag-and-drop positioning. Its output is SVG/canvas — you cannot serialize it to inline-styled HTML divs for Anki. The library is also 200-300KB and forces a visual paradigm (x/y coordinates, pan/zoom) that is wrong for this use case where layout is determined by the AI-generated HTML structure, not by free-form drag. | Custom `useImmerReducer` + inline-styled div rendering, which produces exactly the same HTML format as the AI template. |
-| Mermaid.js | Replaced in previous session. Anki does not render Mermaid syntax. The output is SVG that Anki strips or doesn't display on all platforms. The entire project is premised on pure HTML/CSS output. | AI-generated div-based HTML with inline styles (already implemented in template). |
-| `renderToStaticMarkup` / `renderToString` | These are server-side React APIs. In Next.js 15 App Router, using them in client components is either broken (import fails in client bundle) or produces unexpected results. Known issue: Next.js issue #57669. The pattern "render to DOM ref, read innerHTML" avoids all of this. | `ref.current.outerHTML` after rendering the preview into a hidden/visible DOM node. |
-| `react-html-parser` (the OLD package, no `@`) | This package (`react-html-parser` on npm, by peternewnham) is **unmaintained** — last commit 2017, no React 18/19 support. It is a different package from `html-react-parser` (by remarkablemark, the one to use). The naming is confusingly similar. | `html-react-parser` (by remarkablemark, 5.2.17, actively maintained). Always verify the author. |
-| `dangerouslySetInnerHTML` for the editable editor pane | Inserting raw AI HTML via `dangerouslySetInnerHTML` into the editor renders it statically — React doesn't attach event handlers to nodes created this way. You can't make boxes clickable after the fact. | Parse the AI HTML through `html-react-parser` with a `replace` callback so React components (with `onClick` etc.) are placed at construction time. |
-| `contentEditable` on the entire flowchart div | Gives the browser free-form text editing control over the entire HTML structure. Users can accidentally delete connectors, step pills, or structural divs. Cloze syntax like `{{c1::text}}` gets mangled by browser text editing. | `contentEditable` scoped only to the label text inside each `<EditableBox>` component (fine-grained, not structural). The box's structural wrapper div is not editable. |
-| `jsdom` | jsdom is a ~5MB server-side DOM emulator. Using it client-side (in a Next.js `"use client"` component) either fails to bundle or adds massive bundle weight. The browser already has a DOM — use `DOMParser`. | Native browser `DOMParser` for client-side HTML parsing. |
+| New npm packages for mode switching | A `viewMode` string in existing `FlowState` already models this perfectly. Adding a library for a boolean toggle adds bundle weight with zero benefit. | Change `initialState.viewMode` to `"preview"`. |
+| `height: auto` on `.nodeCard` without `min-height` | If a box label is empty (blank string), `height: auto` with no min-height collapses the box to 0px, making it invisible. | Keep existing `padding: 8px 16px` which provides implicit minimum height via the padding model. Add `min-width` only. |
+| `!important` in CSS Module overrides | FlowchartEditor.module.css does not currently use `!important`. Adding it to fix layout issues creates specificity debt that's hard to undo. | Target the exact element with a more specific selector or add the property directly to the existing rule. |
+| Changing `display:inline-block` to `display:flex` on boxes | `display:flex` on the box itself changes how its text content lays out. `inline-block` is correct because it allows centering via the parent `text-align:center` wrapper. | Keep `display:inline-block`, add only `min-width:120px`. |
+| GPT-4o model upgrade for richer flowcharts | The prompt is the bottleneck, not the model capability. `gpt-4o` already generates valid structured HTML. Switching to `o1` or `o3` would slow generation (reasoning tokens) and cost more with no quality gain for structured HTML output. | Improve the prompt examples and rules in `template-defaults.ts`. |
 
 ---
 
 ## Stack Patterns by Variant
 
-**If the AI-generated HTML structure changes between template versions:**
-- Store a `templateVersion` field in the parsed `GraphState`
-- Write a migration function `migrateV1toV2(state)` rather than changing the parser
-- The parser reads the AI HTML once on load; subsequent migrations are state-level operations
+**If the "two-mode" simplification also removes connect mode:**
+- Remove `connectMode` and `connectingFromId` from `FlowState` if the Edit mode no longer offers connect-wire-drawing
+- The `TOGGLE_VIEW` action in the reducer stays the same — just don't render the Connect toolbar button in Edit mode
+- Removing connect mode means the `handleConnectClick` handler and `ADD_EDGE` dispatch in `FlowchartEditorInner` can also be removed
 
-**If the serialization must produce byte-identical output to the AI template:**
-- Add a snapshot test: generate a card with the AI, parse it into state, re-serialize to HTML, and diff the two strings
-- Use `ref.current.outerHTML` (captures real browser rendering) not a custom builder (which may diverge)
-- Lock the template hash in `TEMPLATE_PREV_HASHES` after each verified template change
+**If min-width needs to be different for branch-arm boxes vs main chain boxes:**
+- Branch arm boxes are inside `.branchPadding` — add a descendant selector: `.branchPadding .nodeCard { min-width: 80px; }` to allow tighter layout in branches
+- Main chain boxes can stay at `min-width: 120px`
 
-**If inline editing of cloze syntax `{{c1::text}}` causes problems:**
-- Render cloze syntax as raw text in the `contentEditable` box (already a FLOW-08 requirement)
-- Use `onInput` (not `onChange`) to capture edits — `onChange` fires unreliably on `contentEditable` in React
-- On blur, read `e.currentTarget.textContent` (not `innerHTML`) to avoid HTML injection from paste
-
-**If the table editor needs the same parse/serialize approach:**
-- `html-react-parser` works identically for `<table>` structures — same `replace` callback pattern
-- Each `<td>` becomes an `<EditableCell contentEditable>` component
-- Serialization is again `ref.current.outerHTML`
-- Immer state shape: `{ rows: Row[], cols: Column[] }` where each `Row` has `cells: Cell[]`
-
----
-
-## Internal State Shape (TypeScript)
-
-The recommended internal state type for the FlowchartEditor. This is NOT a library recommendation — it is the data model that `parseFlowchartHTML()` must produce and `renderFlowchart()` must consume:
-
-```typescript
-// flowchart-types.ts
-
-export interface FlowNode {
-  id: string;                // crypto.randomUUID() on parse
-  label: string;             // Text content including {{cN::...}} syntax
-  children: FlowNode[];      // Recursive: branching nodes have 2+ children
-  stepPill?: string;         // Label on the connector above this node (e.g. "inhibits")
-}
-
-export interface FlowchartState {
-  title: string;             // Plain text — never contains cloze syntax
-  root: FlowNode;            // Single root, tree structure
-  direction: 'vertical' | 'horizontal';  // TD = vertical, LR = horizontal
-}
-
-// Reducer actions
-export type FlowchartAction =
-  | { type: 'EDIT_LABEL'; id: string; label: string }
-  | { type: 'EDIT_STEP_PILL'; id: string; stepPill: string }
-  | { type: 'ADD_CHILD'; parentId: string }
-  | { type: 'REMOVE_NODE'; id: string }
-  | { type: 'EDIT_TITLE'; title: string };
-```
-
-The tree structure (children array, not flat nodes + edges map) directly mirrors the div nesting in the AI template output. A flat edges map (as used in React Flow) would require a separate layout algorithm to re-produce the nested div HTML — unnecessary complexity.
+**If the prompt improvements need to be tested before shipping:**
+- Use the GapStrike TemplatesView to manually regenerate 3-5 test cards with different medical content
+- Verify: branching structure appears when biology branches, step labels are specific verbs, clozes are on mechanism steps not leaf outcomes
+- This is manual smoke testing — no new test infrastructure needed
 
 ---
 
@@ -141,30 +218,23 @@ The tree structure (children array, not flat nodes + edges map) directly mirrors
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| html-react-parser 5.2.17 | React 19.0.0 | Verified — GitHub issue #1501 confirms React 19 support; last publish Feb 2026. |
-| immer 11.1.4 | TypeScript 5.x, Node 18+ | No breaking changes from 10.x to 11.x for the `produce()` API used here. |
-| use-immer 0.11.0 | immer 10.x / 11.x | Peer dependency is `immer >= 10.0`. Compatible with immer 11.1.4. Published ~1 year ago, stable. |
-| Next.js 15.1.3 | React 19.0.0 | Already in the project, confirmed working. |
+| FlowState `viewMode: "preview"` | All existing reducer logic | `TOGGLE_VIEW` action already handles `"editor" → "preview"` toggle; renaming to `"edit"` requires updating the two string literals in the reducer and the JSX conditional render. |
+| `min-width: 120px` inline style in Anki | AnkiDesktop 2.1.x, AnkiDroid 2.17+, AnkiMobile | `min-width` on inline-block elements is supported in all Chromium/WebKit versions Anki uses. No compatibility risk. |
+| Updated `anki_flowchart` template content | `TEMPLATE_PREV_HASHES` auto-upgrade mechanism | Requires adding the new content hash to `TEMPLATE_PREV_HASHES.anki_flowchart`. The API route in `templates/route.ts` reads this at runtime to detect uncustomized templates and auto-upgrade them. |
 
 ---
 
 ## Sources
 
-- https://www.npmjs.com/package/html-react-parser — Version 5.2.17 confirmed, last published Feb 2026 (HIGH confidence)
-- https://github.com/remarkablemark/html-react-parser/issues/1501 — React 19 compatibility confirmed (HIGH confidence)
-- https://www.npmjs.com/package/immer — Version 11.1.4 confirmed, last published ~1 month ago (HIGH confidence)
-- https://www.npmjs.com/package/use-immer — Version 0.11.0 confirmed; maintained by Immer team (HIGH confidence)
-- https://www.npmjs.com/package/html-dom-parser — Version 5.1.8; used internally by html-react-parser (HIGH confidence)
-- https://developer.mozilla.org/en-US/docs/Web/API/DOMParser — Browser-native HTML parsing, no install required (HIGH confidence)
-- https://immerjs.github.io/immer/example-setstate/ — useImmerReducer pattern with React (HIGH confidence)
-- https://github.com/immerjs/use-immer — useImmerReducer API (HIGH confidence)
-- https://github.com/vercel/next.js/issues/57669 — renderToStaticMarkup broken in Next.js 14+ client context (HIGH confidence, confirmed issue)
-- https://react.dev/learn/manipulating-the-dom-with-refs — ref.current.outerHTML serialization pattern (HIGH confidence, official React docs)
-- https://xyflow.com/ — @xyflow/react scope and canvas-based output confirmed as incompatible with inline HTML output requirement (HIGH confidence)
-- WebSearch: immer 11.1.4 version — MEDIUM confidence (npm page returned 403, version reported from search snippet)
-- WebSearch: html-react-parser React 19 issue #1501 — MEDIUM confidence (confirmed via search snippet, page not fetched directly)
+- `gapstrike/src/components/FlowchartEditor.tsx` (731 lines) — Current `FlowState` shape, `initialState`, `TOGGLE_VIEW` action confirmed. viewMode starts as `"editor"`. (HIGH confidence — direct code read)
+- `gapstrike/src/components/FlowchartEditor.module.css` — `.nodeCard` has `max-width: 320px`, no `min-width`. (HIGH confidence — direct code read)
+- `gapstrike/src/lib/flowchart-styles.ts` — `FLOWCHART_STYLES.box` string confirmed, no min-width. (HIGH confidence — direct code read)
+- `gapstrike/src/lib/template-defaults.ts` — `anki_flowchart` template `content` and `TEMPLATE_PREV_HASHES` structure confirmed. (HIGH confidence — direct code read)
+- `gapstrike/src/lib/rebuild-flow-html.ts` — `rebuildHTML()` uses `FLOWCHART_STYLES.box` directly — min-width addition propagates automatically. (HIGH confidence — direct code read)
+- MDN Web Docs: `min-width` — Universal support in modern browsers and all Anki WebView environments. (HIGH confidence)
+- OpenAI documentation: GPT-4o structured output — Model is already used at `temperature: 0.5`; prompt quality (not model) is the bottleneck for structured HTML generation. (MEDIUM confidence — inference from existing API usage pattern)
 
 ---
 
-*Stack research for: GapStrike FlowchartEditor — visual HTML editor with parse/edit/serialize pipeline*
+*Stack research for: GapStrike FlowchartEditor v1.1 Editor Polish — two-mode UX, container layout CSS, richer AI prompts*
 *Researched: 2026-03-09*

@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 AI-Generated Flowchart and Table Cards** - Phases 1-5 (shipped 2026-03-10)
-- 🚧 **v1.1 Editor Polish** - Phases 6-9 (in progress)
+- ✅ **v1.1 Editor Polish** - Phases 6-9 (shipped 2026-03-10)
 
 ## Phases
 
@@ -97,7 +97,7 @@ Plans:
 
 </details>
 
-### 🚧 v1.1 Editor Polish (In Progress)
+### ✅ v1.1 Editor Polish (SHIPPED 2026-03-10)
 
 **Milestone Goal:** Simplify the editor to two modes (Preview default + Edit), fix editing bugs, improve AI card richness, and polish container layouts.
 
@@ -127,8 +127,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — TDD: Fix REMOVE_NODE branch-parent reconnect (BUG-01) and ADD_NODE selectedNodeId parent model (BUG-02)
-- [ ] 07-02-PLAN.md — Replace window.prompt with inline StepLabelInput (BUG-03), fix Back field preservation (BUG-04), human-verify
+- [x] 07-01-PLAN.md — TDD: Fix REMOVE_NODE branch-parent reconnect (BUG-01) and ADD_NODE selectedNodeId parent model (BUG-02) (completed 2026-03-10)
+- [x] 07-02-PLAN.md — Replace window.prompt with inline StepLabelInput (BUG-03), fix Back field preservation (BUG-04), human-verify (completed 2026-03-10)
 
 #### Phase 8: Richer AI Template (Atomic)
 **Goal**: AI-generated flowchart cards contain 5-7 nodes with labeled causal arrows and cloze on mechanism steps only; the visual editor parses and serializes the new HTML structure without falling back to raw textarea
@@ -158,7 +158,7 @@ Plans:
 
 Plans:
 - [x] 09-01-PLAN.md — Local verification: test suite + build gate + human smoke-test of flowchart and table end-to-end (completed 2026-03-10)
-- [ ] 09-02-PLAN.md — Production deploy: git push to Vercel, production smoke-test, mark v1.1 requirements and milestone complete
+- [x] 09-02-PLAN.md — Production deploy: git push to Vercel, production smoke-test, mark v1.1 requirements and milestone complete
 
 ## Progress
 
@@ -173,6 +173,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Editing Operations | v1.0 | 5/5 | Complete | 2026-03-10 |
 | 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
 | 6. Mode Simplification and Layout | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 1/2 | In Progress | - |
+| 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 8. Richer AI Template (Atomic) | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 9. Verification and Deploy | v1.1 | 1/2 | In Progress | - |
+| 9. Verification and Deploy | 2/2 | Complete   | 2026-03-10 | 2026-03-10 |

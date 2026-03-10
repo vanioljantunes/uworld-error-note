@@ -46,8 +46,8 @@
 
 ### Editor UX
 
-- [ ] **UX-01**: FlowchartEditor opens in Preview mode (Anki render) by default instead of Edit mode
-- [ ] **UX-02**: Editor has exactly two modes — Preview (read-only Anki render) and Edit (cloze syntax visible, add/remove boxes/connections) — no other view modes
+- [x] **UX-01**: FlowchartEditor opens in Preview mode (Anki render) by default instead of Edit mode
+- [x] **UX-02**: Editor has exactly two modes — Preview (read-only Anki render) and Edit (cloze syntax visible, add/remove boxes/connections) — no other view modes
 
 ### Layout
 
@@ -55,8 +55,8 @@
 
 ### Bug Fixes
 
-- [ ] **BUG-01**: REMOVE_NODE correctly reconnects edges when removing a node with a branch parent
-- [ ] **BUG-02**: ADD_NODE leaf detection works on disconnected graphs
+- [x] **BUG-01**: REMOVE_NODE correctly reconnects edges when removing a node with a branch parent
+- [x] **BUG-02**: ADD_NODE leaf detection works on disconnected graphs
 - [x] **BUG-03**: Cancelling the step label prompt (window.prompt) does not create empty-label edges
 - [x] **BUG-04**: Back field displays correct content after flowchart/table generation (Issue 4 fix)
 
@@ -122,21 +122,21 @@
 | TABL-06 | Phase 4 (v1.0) | Complete |
 | INTG-01 | Phase 4 (v1.0) | Complete |
 | INTG-02 | Phase 4 (v1.0) | Complete |
-| UX-01 | Phase 6 (v1.1) | Pending |
-| UX-02 | Phase 6 (v1.1) | Pending |
+| UX-01 | Phase 6 (v1.1) | Complete |
+| UX-02 | Phase 6 (v1.1) | Complete |
 | LAY-01 | Phase 6 (v1.1) | Complete |
-| BUG-01 | Phase 7 (v1.1) | Pending |
-| BUG-02 | Phase 7 (v1.1) | Pending |
+| BUG-01 | Phase 7 (v1.1) | Complete |
+| BUG-02 | Phase 7 (v1.1) | Complete |
 | BUG-03 | Phase 7 (v1.1) | Complete |
 | BUG-04 | Phase 7 (v1.1) | Complete |
 | TMPL-07 | Phase 8 (v1.1) | Complete |
 
 **Coverage:**
 - v1.0 requirements: 25 total — all Complete
-- v1.1 requirements: 8 total (UX x2, LAY x1, BUG x4, TMPL x1)
+- v1.1 requirements: 8 total — all Complete
 - Mapped to phases: 8/8
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-08*
-*Last updated: 2026-03-09 — v1.1 roadmap created, all 8 requirements mapped to Phases 6-8*
+*Last updated: 2026-03-10 — v1.1 shipped, all 8 requirements marked Complete*

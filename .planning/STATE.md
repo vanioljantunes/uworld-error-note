@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Editor Polish
 status: roadmap-ready
+stopped_at: v1.1 milestone complete — all 9 phases, 21 plans done; production smoke-test approved at gapstrike.vercel.app 2026-03-10
+last_updated: "2026-03-10T15:32:53.809Z"
+last_activity: 2026-03-10 — Phase 9 plan 2 complete (pushed 49 commits to Vercel, production deploy live)
+progress:
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 23
+  completed_plans: 23
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: Editor Polish
+status: roadmap-ready
 stopped_at: Phase 08 complete — 08-02-PLAN.md human-verify approved, all plans done
 last_updated: "2026-03-10T14:51:35.953Z"
 last_activity: 2026-03-10 — Phase 8 complete (5/5 USMLE extractions validated, template approved in editor)
 progress:
-  total_phases: 9
+  [██████████] 100%
   completed_phases: 8
   total_plans: 21
   completed_plans: 21
@@ -71,12 +87,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 9 of 9 (Verification and Deploy) — Plan 1 complete
-Plan: 1/2 complete
-Status: Plan 09-01 complete — local verification gate passed, human smoke-test approved
-Last activity: 2026-03-10 — Phase 9 plan 1 complete (94 tests pass, build clean, local smoke-test approved)
+Phase: 9 of 9 (Verification and Deploy) — COMPLETE
+Plan: 2/2 complete
+Status: milestone-complete — v1.1 shipped, all 9 phases complete, deployed to gapstrike.vercel.app
+Last activity: 2026-03-10 — Phase 9 plan 2 complete (pushed 49 commits to Vercel, production deploy live)
 
-Progress: [█████████░] 94% (v1.1 — all phases through 9-01 complete, deploy pending)
+Progress: [██████████] 100% (v1.1 — all 9 phases complete, shipped 2026-03-10)
 
 ## Accumulated Context
 
@@ -99,6 +115,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Human-verify approved: 5-7 node flowcharts with domain-specific arrows and category-hint cloze render correctly in editor Preview and Edit modes
 - [Phase 09-01]: 94 Vitest tests pass and npm build compiles clean — local verification gate cleared for v1.1 deploy
 - [Phase 09-01]: Human smoke-test approved: two-mode UI, BUG-03/04 fixes, richer flowchart template, table editing, and AnkiConnect push all confirmed working in local dev
+- [Phase 09-02]: 49 v1.1 commits pushed to origin/master — Vercel auto-deploy triggered; production smoke-test pending human verification at gapstrike.vercel.app
+- [Phase 09-02]: Production smoke-test approved — gapstrike.vercel.app confirmed live with two-mode Preview/Edit UI, 5-7 node flowcharts, table editing; v1.1 milestone shipped 2026-03-10
+- [Phase 09-02]: Production smoke-test approved: gapstrike.vercel.app confirmed live with two-mode Preview/Edit UI, 5-7 node flowcharts, table editing; v1.1 milestone shipped 2026-03-10
 
 ### Pending Todos
 
@@ -106,11 +125,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 7]: Issue 4 exact root cause (editBack in handleSwitchEditor) not confirmed — requires code trace before scoping BUG-04 fix
 - [Phase 08-02 RESOLVED]: GPT-4o output patterns validated — 5/5 extractions pass with 2 template iteration cycles; stochastic failures are expected, not template bugs
+- [Phase 7 RESOLVED]: BUG-04 root cause confirmed and fixed in 07-02 (requestAnimationFrame in click handler)
 
 ## Session Continuity
 
-Last session: 2026-03-10
-Stopped at: Phase 09 plan 1 complete — 09-01-PLAN.md human-verify approved, awaiting production deploy (09-02)
+Last session: 2026-03-10T15:32:53.806Z
+Stopped at: v1.1 milestone complete — all 9 phases, 21 plans done; production smoke-test approved at gapstrike.vercel.app 2026-03-10
 Resume file: None

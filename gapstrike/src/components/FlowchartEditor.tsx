@@ -324,9 +324,35 @@ function EditableNodeCard({
 
 // ── EdgePill ──────────────────────────────────────────────────────────────────
 
-function EdgePill({ label }: { label: string }) {
+function EdgePill({
+  label,
+  fromId,
+  toId,
+  onRemove,
+}: {
+  label: string;
+  fromId: string;
+  toId: string;
+  onRemove: (fromId: string, toId: string) => void;
+}) {
   if (!label) return null;
-  return <div className={styles.pill}>{label}</div>;
+  return (
+    <div className={styles.pillWrap}>
+      <div className={styles.pill}>{label}</div>
+      <button
+        className={styles.pillRemoveBtn}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(fromId, toId);
+        }}
+        title="Remove connection"
+        aria-label="Remove connection"
+        type="button"
+      >
+        x
+      </button>
+    </div>
+  );
 }
 
 // ── FlowchartPreview (named export — FlowView.tsx depends on this) ─────────────
@@ -543,7 +569,12 @@ function FlowRendererWithConnect({
                 <div key={childId} className={styles.branchArm}>
                   <div className={cornerClass} />
                   <div className={styles.branchPadding}>
-                    <EdgePill label={stepLabel} />
+                    <EdgePill
+                      label={stepLabel}
+                      fromId={nodeId}
+                      toId={childId}
+                      onRemove={(f, t) => dispatch({ type: "REMOVE_EDGE", fromId: f, toId: t })}
+                    />
                     <div className={styles.stem} />
                     {renderNode(childId)}
                   </div>
@@ -562,7 +593,12 @@ function FlowRendererWithConnect({
         <React.Fragment key={nodeId}>
           <EditableNodeCard {...cardProps} />
           <div className={styles.stem} />
-          <EdgePill label={stepLabel} />
+          <EdgePill
+            label={stepLabel}
+            fromId={nodeId}
+            toId={toId}
+            onRemove={(f, t) => dispatch({ type: "REMOVE_EDGE", fromId: f, toId: t })}
+          />
           <div className={styles.stem} />
           {renderNode(toId)}
         </React.Fragment>

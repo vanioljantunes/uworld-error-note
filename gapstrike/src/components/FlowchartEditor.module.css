@@ -241,3 +241,42 @@
   border-color: var(--accent-light);
   box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.3);
 }
+
+/* ── EdgePill interactive styles ────────────────────────────────────────────── */
+
+.pillWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pillRemoveBtn {
+  display: none;
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pillRemoveBtn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.pillWrap:hover .pillRemoveBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

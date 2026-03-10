@@ -62,7 +62,7 @@
 
 ### AI Template
 
-- [ ] **TMPL-07**: Flowchart template generates richer structures (5-7 nodes with labeled causal arrows), atomically updated with parser/serializer/hash
+- [x] **TMPL-07**: Flowchart template generates richer structures (5-7 nodes with labeled causal arrows), atomically updated with parser/serializer/hash
 
 ## v2 Requirements
 
@@ -129,7 +129,7 @@
 | BUG-02 | Phase 7 (v1.1) | Pending |
 | BUG-03 | Phase 7 (v1.1) | Complete |
 | BUG-04 | Phase 7 (v1.1) | Complete |
-| TMPL-07 | Phase 8 (v1.1) | Pending |
+| TMPL-07 | Phase 8 (v1.1) | Complete |
 
 **Coverage:**
 - v1.0 requirements: 25 total — all Complete

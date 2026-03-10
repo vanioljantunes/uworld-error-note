@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Editor Polish
 status: roadmap-ready
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-10T12:10:48.682Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-10T14:25:35.983Z"
 last_activity: 2026-03-10 — Phase 6 executed (Preview default, toggle pair, eye-toggle hide, format row wrap)
 progress:
   total_phases: 9
   completed_phases: 7
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 21
+  completed_plans: 20
 ---
 
 ---
@@ -75,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 06-mode-simplification-and-layout]: LAY-01: flex-wrap + justify-content: flex-end on .ankiFormatRow keeps wrapped format buttons right-aligned
 - [Phase 07-02]: BUG-03: Used pendingEdge state + StepLabelInput instead of window.prompt to allow Escape-to-abort
 - [Phase 07-02]: BUG-04: Added synchronous requestAnimationFrame in click handler so Back ref is never stale on mode switch
+- [Phase 08]: DKA + ACE inhibitor examples replace Wernicke/kidney embryology in anki_flowchart template — better domain vocabulary demonstration across pharmacology and pathophysiology
+- [Phase 08]: Arrow vocabulary organized into 3 named domains (pharmacology, pathophysiology, anatomy/clinical) with 23 verbs total for GPT-4o prompt clarity
 
 ### Pending Todos
 
@@ -87,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T12:10:48.680Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-richer-ai-template-atomic/08-CONTEXT.md
+Last session: 2026-03-10T14:25:35.981Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None

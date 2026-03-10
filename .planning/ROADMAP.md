@@ -173,5 +173,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
 | 6. Mode Simplification and Layout | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Reducer Bug Fixes and FlowView Data-Flow | 1/2 | In Progress|  | - |
-| 8. Richer AI Template (Atomic) | v1.1 | 0/2 | Not started | - |
+| 8. Richer AI Template (Atomic) | 1/2 | In Progress|  | - |
 | 9. Verification and Deploy | v1.1 | 0/1 | Not started | - |

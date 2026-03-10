@@ -1,24 +1,14 @@
 # Roadmap: FlowchartAnki
 
-## Overview
+## Milestones
 
-GapStrike gains AI-generated flowchart and table Anki cards with visual editing. The journey starts by validating the HTML templates that GPT-4o generates (Phase 1, mostly complete), then building the data model and parse/serialize pipeline that all editor components depend on (Phase 2), then rendering the flowchart visually in React (Phase 3), then adding inline editing operations for labels, boxes, and connections plus completing the table editor (Phase 4), and finally hardening the system against edge cases and deploying to Vercel (Phase 5).
+- ✅ **v1.0 AI-Generated Flowchart and Table Cards** - Phases 1-5 (shipped 2026-03-10)
+- 🚧 **v1.1 Editor Polish** - Phases 6-9 (in progress)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [x] **Phase 1: Templates** - AI prompt templates generate valid inline-style HTML with native cloze syntax
-- [x] **Phase 2: Data Model and Parse/Serialize Pipeline** - FlowGraph types, parseFlowHTML, rebuildHTML, and TableEditor cloze fix (completed 2026-03-09)
-- [x] **Phase 3: Visual Rendering** - FlowchartEditor renders AI HTML as interactive boxes and arrows (no editing yet) — complete (2026-03-09)
-- [x] **Phase 4: Editing Operations** - Inline label editing, add/remove boxes, add/remove connections, table editor polish (gap closure in progress) (completed 2026-03-10)
-- [ ] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy (gap closure in progress)
-
-## Phase Details
+<details>
+<summary>✅ v1.0 AI-Generated Flowchart and Table Cards (Phases 1-5) — SHIPPED 2026-03-10</summary>
 
 ### Phase 1: Templates
 **Goal**: AI-generated HTML templates produce valid, compact, inline-style Anki cards with native cloze syntax for both flowcharts and tables
@@ -35,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md — Rewrite anki_flowchart template for div-based HTML output
 - [x] 01-02-PLAN.md — Polish anki_table template for inline styles and compact output
-- [ ] 01-03-PLAN.md — Save dual cards (HTML + cloze) via handleMakeCard; human-verify Anki rendering (TMPL-06, INTG-03, INTG-04)
+- [x] 01-03-PLAN.md — Save dual cards (HTML + cloze) via handleMakeCard; human-verify Anki rendering (TMPL-06, INTG-03, INTG-04)
 
 ### Phase 2: Data Model and Parse/Serialize Pipeline
 **Goal**: A working FlowGraph data model with parseFlowHTML and rebuildHTML functions that can round-trip AI-generated HTML without corruption, plus the TableEditor cloze passthrough bug fixed
@@ -50,9 +40,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Install Vitest, define FlowGraph types and FLOWCHART_STYLES, implement parseFlowHTML with DOMParser
-- [ ] 02-02-PLAN.md — Implement rebuildHTML serializer, write round-trip fixture tests
-- [ ] 02-03-PLAN.md — Fix TableEditor parseTable() cloze passthrough bug
+- [x] 02-01-PLAN.md — Install Vitest, define FlowGraph types and FLOWCHART_STYLES, implement parseFlowHTML with DOMParser
+- [x] 02-02-PLAN.md — Implement rebuildHTML serializer, write round-trip fixture tests
+- [x] 02-03-PLAN.md — Fix TableEditor parseTable() cloze passthrough bug
 
 ### Phase 3: Visual Rendering
 **Goal**: FlowchartEditor.tsx is rebuilt from scratch and renders AI-generated flowchart HTML as visual interactive boxes and arrows using the Phase 2 data model — no editing yet, just correct visual output
@@ -83,11 +73,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — TDD: Reducer mutations (EDIT_NODE, ADD_NODE, REMOVE_NODE, ADD_EDGE, REMOVE_EDGE, REORDER_NODE) + onChange wiring with hasUserEdited guard
-- [ ] 04-02-PLAN.md — EditableNodeCard UI, toolbar (Add Box, Connect, Delete), node hover controls (reorder, remove), connect mode
-- [ ] 04-03-PLAN.md — TableEditor mutation tests verifying TABL-01 through TABL-06 against existing implementation
-- [ ] 04-04-PLAN.md — Human-verify end-to-end integration: Flowchart + Table buttons trigger AI generation then open editors with working editing (INTG-01, INTG-02)
-- [ ] 04-05-PLAN.md — Gap closure: Wire REMOVE_EDGE dispatch to EdgePill UI (FLOW-06)
+- [x] 04-01-PLAN.md — TDD: Reducer mutations (EDIT_NODE, ADD_NODE, REMOVE_NODE, ADD_EDGE, REMOVE_EDGE, REORDER_NODE) + onChange wiring with hasUserEdited guard
+- [x] 04-02-PLAN.md — EditableNodeCard UI, toolbar (Add Box, Connect, Delete), node hover controls (reorder, remove), connect mode
+- [x] 04-03-PLAN.md — TableEditor mutation tests verifying TABL-01 through TABL-06 against existing implementation
+- [x] 04-04-PLAN.md — Human-verify end-to-end integration: Flowchart + Table buttons trigger AI generation then open editors with working editing (INTG-01, INTG-02)
+- [x] 04-05-PLAN.md — Gap closure: Wire REMOVE_EDGE dispatch to EdgePill UI (FLOW-06)
 
 ### Phase 5: Polish and Deploy
 **Goal**: The editor handles parse failures gracefully, renders correctly on AnkiDroid, and the full feature is deployed to production on Vercel
@@ -105,15 +95,83 @@ Plans:
 - [x] 05-03-PLAN.md — Deploy to Vercel: local build verification, git push, production smoke-test
 - [ ] 05-04-PLAN.md — Gap closure: diagnose stale production deploy (Issue 1 + 2), redeploy, human smoke-test
 
+</details>
+
+### 🚧 v1.1 Editor Polish (In Progress)
+
+**Milestone Goal:** Simplify the editor to two modes (Preview default + Edit), fix editing bugs, improve AI card richness, and polish container layouts.
+
+#### Phase 6: Mode Simplification and Layout
+**Goal**: Users open the flowchart editor and see the rendered Anki card immediately — no edit scaffolding on load; exactly two mode buttons are visible; the format button row never overflows on narrow screens
+**Depends on**: Phase 5
+**Requirements**: UX-01, UX-02, LAY-01
+**Success Criteria** (what must be TRUE):
+  1. When the flowchart editor opens, it displays the Anki-rendered preview by default — no raw node/edge UI is visible until the user clicks "Edit"
+  2. The editor shows exactly two mode labels — "Preview" and "Edit" — with no other view mode options present anywhere in the UI
+  3. The format button row (Flowchart, Table, Cloze, etc.) wraps to a second line rather than overflowing or getting cropped on a narrow panel
+**Plans**: TBD
+
+Plans:
+- [ ] 06-01: Set `initialState.viewMode` to `"preview"`, rename `"editor"` to `"edit"` throughout FlowchartEditor, suppress FlowView eye-toggle in flowchart/table mode
+- [ ] 06-02: Add `flex-wrap: wrap` to `.ankiFormatRow` in page.module.css; human-verify layout and mode toggle
+
+#### Phase 7: Reducer Bug Fixes and FlowView Data-Flow
+**Goal**: All add/remove/reconnect operations in Edit mode complete without crashes or silent data corruption; the Back field always shows the original extraction text after flowchart generation
+**Depends on**: Phase 6
+**Requirements**: BUG-01, BUG-02, BUG-03, BUG-04
+**Success Criteria** (what must be TRUE):
+  1. Removing a node that has a branch parent correctly reconnects its children to the branch — no orphaned nodes or broken arrows result
+  2. Adding a new node when the graph has no existing leaf nodes (disconnected graph) succeeds without crashing or producing invalid graph state
+  3. When the user cancels the step-label prompt (presses Escape or Cancel), no new edge is created — the connection attempt is fully aborted
+  4. After clicking "Flowchart" or "Table", the Back field in the card editor still shows the original extraction text, not the generated HTML
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01: Trace and fix REMOVE_NODE branch-parent reconnect (BUG-01) and ADD_NODE leaf detection on disconnected graphs (BUG-02) in FlowchartEditor reducer
+- [ ] 07-02: Replace `window.prompt` for step-label input with inline input that aborts on Cancel (BUG-03); trace and fix `editBack` population in FlowView.tsx `handleSwitchEditor` (BUG-04)
+
+#### Phase 8: Richer AI Template (Atomic)
+**Goal**: AI-generated flowchart cards contain 5-7 nodes with labeled causal arrows and cloze on mechanism steps only; the visual editor parses and serializes the new HTML structure without falling back to raw textarea
+**Depends on**: Phase 7
+**Requirements**: TMPL-07
+**Success Criteria** (what must be TRUE):
+  1. A newly generated flowchart card contains 5-7 boxes connected by arrows labeled with causal verbs ("inhibits", "activates", "converts") — not generic 3-4 node chains
+  2. Cloze syntax appears on mechanism steps only, not on trigger inputs or leaf outcome nodes
+  3. `parseFlowHTML` correctly parses the new richer HTML structure without triggering the `parseFailed` textarea fallback for any of 5 test inputs
+  4. Uncustomized user templates auto-upgrade to the richer structure on the next generation call (via `TEMPLATE_PREV_HASHES`)
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01: Design new HTML patterns, update `parse-flow-html.ts` and `rebuild-flow-html.ts` to handle them, rewrite `anki_flowchart` template with richer structure and add old hash to `TEMPLATE_PREV_HASHES` — all in one atomic commit
+- [ ] 08-02: Test updated prompt against 5 diverse USMLE inputs; verify all 5 produce parseable HTML; human-verify rendered output in editor preview
+
+#### Phase 9: Verification and Deploy
+**Goal**: All v1.1 changes are smoke-tested end-to-end and deployed to production at gapstrike.vercel.app with no regressions
+**Depends on**: Phase 8
+**Requirements**: (no new requirements — cross-cutting verification)
+**Success Criteria** (what must be TRUE):
+  1. `npm run build` completes with zero TypeScript errors and zero build warnings from v1.1 changes
+  2. Generating a flowchart card and pushing it to Anki via AnkiConnect succeeds end-to-end in the deployed production app
+  3. The TableEditor is unbroken — generating a table card, editing a cell, and pushing to Anki still works after all v1.1 changes
+  4. The deployed app at gapstrike.vercel.app reflects all v1.1 changes (confirmed by checking the two-mode UI and richer flowchart output)
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: Local build verification (`npm run build`), regression smoke-test (flowchart + table end-to-end), Vercel deploy with `npx vercel --prod --force` if needed
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Templates | 2/3 | In progress | - |
-| 2. Data Model and Parse/Serialize Pipeline | 3/3 | Complete   | 2026-03-09 |
-| 3. Visual Rendering | 2/2 | Complete    | 2026-03-09 |
-| 4. Editing Operations | 5/5 | Complete   | 2026-03-10 |
-| 5. Polish and Deploy | 3/4 | Gap closure | - |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Templates | v1.0 | 3/3 | Complete | 2026-03-09 |
+| 2. Data Model and Parse/Serialize Pipeline | v1.0 | 3/3 | Complete | 2026-03-09 |
+| 3. Visual Rendering | v1.0 | 2/2 | Complete | 2026-03-09 |
+| 4. Editing Operations | v1.0 | 5/5 | Complete | 2026-03-10 |
+| 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
+| 6. Mode Simplification and Layout | v1.1 | 0/2 | Not started | - |
+| 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 0/2 | Not started | - |
+| 8. Richer AI Template (Atomic) | v1.1 | 0/2 | Not started | - |
+| 9. Verification and Deploy | v1.1 | 0/1 | Not started | - |

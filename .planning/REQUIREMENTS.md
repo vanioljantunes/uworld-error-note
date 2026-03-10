@@ -122,21 +122,21 @@
 | TABL-06 | Phase 4 (v1.0) | Complete |
 | INTG-01 | Phase 4 (v1.0) | Complete |
 | INTG-02 | Phase 4 (v1.0) | Complete |
-| UX-01 | Pending | Pending |
-| UX-02 | Pending | Pending |
-| LAY-01 | Pending | Pending |
-| BUG-01 | Pending | Pending |
-| BUG-02 | Pending | Pending |
-| BUG-03 | Pending | Pending |
-| BUG-04 | Pending | Pending |
-| TMPL-07 | Pending | Pending |
+| UX-01 | Phase 6 (v1.1) | Pending |
+| UX-02 | Phase 6 (v1.1) | Pending |
+| LAY-01 | Phase 6 (v1.1) | Pending |
+| BUG-01 | Phase 7 (v1.1) | Pending |
+| BUG-02 | Phase 7 (v1.1) | Pending |
+| BUG-03 | Phase 7 (v1.1) | Pending |
+| BUG-04 | Phase 7 (v1.1) | Pending |
+| TMPL-07 | Phase 8 (v1.1) | Pending |
 
 **Coverage:**
 - v1.0 requirements: 25 total — all Complete
 - v1.1 requirements: 8 total (UX x2, LAY x1, BUG x4, TMPL x1)
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 8
+- Mapped to phases: 8/8
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-08*
-*Last updated: 2026-03-09 — v1.1 requirements added*
+*Last updated: 2026-03-09 — v1.1 roadmap created, all 8 requirements mapped to Phases 6-8*

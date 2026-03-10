@@ -52,14 +52,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** AI-generated flowchart and table cards with visual editing in GapStrike, rendered as pure HTML/CSS with native Anki cloze syntax — no add-ons, works on all platforms.
-**Current focus:** Phase 3 — Visual Rendering (03-01 complete; 03-02 pending)
+**Current focus:** Phase 5 — Polish and Deploy (05-01 complete, 05-02 complete, 05-03 pending)
 
 ## Current Position
 
-Phase: 3 of 5 (Visual Rendering)
-Plan: 2 of 2 in current phase (03-01 complete, 03-02 complete)
-Status: Phase 3 complete — advancing to Phase 4
-Last activity: 2026-03-09 — Executed 03-02: human visual verification of FlowchartEditor approved (FLOW-01, FLOW-08)
+Phase: 5 of 5 (Polish and Deploy)
+Plan: 2 of 3 in current phase (05-01 complete, 05-02 complete, 05-03 pending)
+Status: Phase 5 in progress — 05-02 complete, advancing to 05-03
+Last activity: 2026-03-10 — Executed 05-02: AnkiDroid rendering smoke-test approved (TMPL-06)
 
 Progress: [██████████] 100%
 
@@ -131,6 +131,7 @@ Recent decisions affecting current work:
 - [Phase 04-editing-operations]: Empty-label edges cannot be removed via pill in v1 — acceptable since empty-label edges are structural connectors
 - [Phase 05]: parseFailed state uses nodes.length === 0 AND value.trim().length > 0 as parse-failure signal
 - [Phase 05]: Error Boundary resets hasError on value prop change via getDerivedStateFromProps
+- [Phase 05]: AnkiDroid rendering approved as-is — inline-style HTML cards work without mobile-specific CSS fixes; no changes needed before deploy
 
 ### Pending Todos
 
@@ -143,6 +144,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T00:41:05.495Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-10T00:43:22Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

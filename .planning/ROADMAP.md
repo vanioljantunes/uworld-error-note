@@ -154,10 +154,11 @@ Plans:
   2. Generating a flowchart card and pushing it to Anki via AnkiConnect succeeds end-to-end in the deployed production app
   3. The TableEditor is unbroken — generating a table card, editing a cell, and pushing to Anki still works after all v1.1 changes
   4. The deployed app at gapstrike.vercel.app reflects all v1.1 changes (confirmed by checking the two-mode UI and richer flowchart output)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: Local build verification (`npm run build`), regression smoke-test (flowchart + table end-to-end), Vercel deploy with `npx vercel --prod --force` if needed
+- [ ] 09-01-PLAN.md — Local verification: test suite + build gate + human smoke-test of flowchart and table end-to-end
+- [ ] 09-02-PLAN.md — Production deploy: git push to Vercel, production smoke-test, mark v1.1 requirements and milestone complete
 
 ## Progress
 
@@ -173,5 +174,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
 | 6. Mode Simplification and Layout | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 1/2 | In Progress | - |
-| 8. Richer AI Template (Atomic) | 2/2 | Complete   | 2026-03-10 | 2026-03-10 |
-| 9. Verification and Deploy | v1.1 | 0/1 | Not started | - |
+| 8. Richer AI Template (Atomic) | v1.1 | 2/2 | Complete | 2026-03-10 |
+| 9. Verification and Deploy | v1.1 | 0/2 | Not started | - |

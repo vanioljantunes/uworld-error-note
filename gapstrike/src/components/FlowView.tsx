@@ -1156,6 +1156,11 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
 
     const targetMode = (editorMode === mode) ? "cloze" : mode;
 
+    // Hide the eye-toggle panel when switching to modes that have their own preview
+    if (targetMode === "flowchart" || targetMode === "table") {
+      setAnkiPreview(false);
+    }
+
     if (targetMode === "cloze") {
       // Always restore the exact cached cloze content
       const clozeContent = modeContentRef.current["cloze"] || editFront;
@@ -1915,13 +1920,15 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
                                   <button className={`${styles.ankiFormatBtn} ${styles.ankiFormatBtnFlowchart} ${editorMode === "flowchart" ? styles.ankiFormatBtnActive : ""}`} onClick={() => handleSwitchEditor("flowchart")} disabled={ankiFormatting}>
                                     Flowchart
                                   </button>
-                                  <button
-                                    className={`${styles.ankiPreviewBtn} ${ankiPreview ? styles.ankiPreviewBtnActive : ""}`}
-                                    onClick={() => setAnkiPreview((p) => !p)}
-                                    title={ankiPreview ? "Hide preview" : "Show preview"}
-                                  >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                  </button>
+                                  {(editorMode === "cloze" || editorMode === "question") && (
+                                    <button
+                                      className={`${styles.ankiPreviewBtn} ${ankiPreview ? styles.ankiPreviewBtnActive : ""}`}
+                                      onClick={() => setAnkiPreview((p) => !p)}
+                                      title={ankiPreview ? "Hide preview" : "Show preview"}
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    </button>
+                                  )}
                                   {editorMode !== "cloze" && (
                                     <button
                                       className={styles.ankiRegenBtn}

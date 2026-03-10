@@ -415,7 +415,7 @@ export function FlowchartPreview({ value }: { value: string }) {
 function FlowchartEditorInner({ value, onChange }: FlowchartEditorProps) {
   const initialState: FlowState = {
     graph: EMPTY_GRAPH,
-    viewMode: "editor",
+    viewMode: "preview",
     editingNodeId: null,
     selectedNodeId: null,
     connectMode: false,
@@ -505,13 +505,22 @@ function FlowchartEditorInner({ value, onChange }: FlowchartEditorProps) {
         <span className={styles.editorTitle}>
           {state.graph.title || "Flowchart"}
         </span>
-        <button
-          className={styles.toggleBtn}
-          onClick={() => dispatch({ type: "TOGGLE_VIEW" })}
-          type="button"
-        >
-          {state.viewMode === "editor" ? "Preview in Anki" : "Back to Editor"}
-        </button>
+        <div className={styles.modeTabs}>
+          <button
+            className={`${styles.modeTab} ${state.viewMode === "preview" ? styles.modeTabActive : ""}`}
+            onClick={() => { if (state.viewMode !== "preview") dispatch({ type: "TOGGLE_VIEW" }); }}
+            type="button"
+          >
+            Preview
+          </button>
+          <button
+            className={`${styles.modeTab} ${state.viewMode === "editor" ? styles.modeTabActive : ""}`}
+            onClick={() => { if (state.viewMode !== "editor") dispatch({ type: "TOGGLE_VIEW" }); }}
+            type="button"
+          >
+            Edit
+          </button>
+        </div>
       </div>
       {state.viewMode === "editor" && (
         <div className={styles.toolbar}>

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planned
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-10T00:55:09.036Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-03-10T01:31:46.152Z"
 last_activity: "2026-03-10 — Executed 05-02: AnkiDroid rendering smoke-test approved (TMPL-06)"
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 15
+  completed_plans: 15
   percent: 100
 ---
 
@@ -110,6 +110,7 @@ Progress: [██████████] 100%
 | Phase 04-editing-operations P05 | 8 | 1 tasks | 2 files |
 | Phase 05 P01 | 3 | 2 tasks | 3 files |
 | Phase 05 P03 | 10 | 2 tasks | 0 files |
+| Phase 05 P04 | 10 | 2 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Error Boundary resets hasError on value prop change via getDerivedStateFromProps
 - [Phase 05]: AnkiDroid rendering approved as-is — inline-style HTML cards work without mobile-specific CSS fixes; no changes needed before deploy
 - [Phase 05]: Deploy proceeded with 4 known UI issues — visual/UX regressions, not correctness blockers; captured for follow-up
+- [Phase 05]: Stale editor root cause was browser/CDN cache during 05-03 smoke-test — remote master already contained all Phase 4/5 changes; force-redeployed via Vercel CLI to guarantee clean build
+- [Phase 05]: Phase 05 complete: production smoke-test partial pass — Issues 1 (stale deploy) and 2 (card preview) resolved; 4 new UX follow-up items (default Preview mode, two-mode simplification, richer card structure, edit-mode bugs) captured for v1.1
 
 ### Pending Todos
 
@@ -162,6 +165,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T00:55:09.034Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-03-10T01:31:46.150Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None

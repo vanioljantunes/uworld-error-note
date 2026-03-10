@@ -109,11 +109,11 @@ Plans:
   1. When the flowchart editor opens, it displays the Anki-rendered preview by default — no raw node/edge UI is visible until the user clicks "Edit"
   2. The editor shows exactly two mode labels — "Preview" and "Edit" — with no other view mode options present anywhere in the UI
   3. The format button row (Flowchart, Table, Cloze, etc.) wraps to a second line rather than overflowing or getting cropped on a narrow panel
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: Set `initialState.viewMode` to `"preview"`, rename `"editor"` to `"edit"` throughout FlowchartEditor, suppress FlowView eye-toggle in flowchart/table mode
-- [ ] 06-02: Add `flex-wrap: wrap` to `.ankiFormatRow` in page.module.css; human-verify layout and mode toggle
+- [ ] 06-01-PLAN.md — Preview default mode, toggle pair UI (Preview/Edit tabs), eye-toggle conditional hide (UX-01, UX-02)
+- [ ] 06-02-PLAN.md — Format button row flex-wrap fix, human-verify all Phase 6 visual changes (LAY-01)
 
 #### Phase 7: Reducer Bug Fixes and FlowView Data-Flow
 **Goal**: All add/remove/reconnect operations in Edit mode complete without crashes or silent data corruption; the Back field always shows the original extraction text after flowchart generation
@@ -171,7 +171,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Visual Rendering | v1.0 | 2/2 | Complete | 2026-03-09 |
 | 4. Editing Operations | v1.0 | 5/5 | Complete | 2026-03-10 |
 | 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
-| 6. Mode Simplification and Layout | v1.1 | 0/2 | Not started | - |
+| 6. Mode Simplification and Layout | v1.1 | 0/2 | Planned | - |
 | 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 0/2 | Not started | - |
 | 8. Richer AI Template (Atomic) | v1.1 | 0/2 | Not started | - |
 | 9. Verification and Deploy | v1.1 | 0/1 | Not started | - |

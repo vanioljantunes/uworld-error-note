@@ -142,8 +142,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Atomic rewrite of anki_flowchart template (richer prompt + expanded arrow vocab + DKA/ACE inhibitor examples), TEMPLATE_PREV_HASHES update, richer-structure parse test fixtures
-- [ ] 08-02-PLAN.md — Test template against 5 diverse USMLE extractions via live GPT-4o, validate parseability, human-verify rendered output in editor
+- [x] 08-01-PLAN.md — Atomic rewrite of anki_flowchart template (richer prompt + expanded arrow vocab + DKA/ACE inhibitor examples), TEMPLATE_PREV_HASHES update, richer-structure parse test fixtures (completed 2026-03-10)
+- [x] 08-02-PLAN.md — Test template against 5 diverse USMLE extractions via live GPT-4o, validate parseability, human-verify rendered output in editor (completed 2026-03-10)
 
 #### Phase 9: Verification and Deploy
 **Goal**: All v1.1 changes are smoke-tested end-to-end and deployed to production at gapstrike.vercel.app with no regressions
@@ -172,6 +172,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Editing Operations | v1.0 | 5/5 | Complete | 2026-03-10 |
 | 5. Polish and Deploy | v1.0 | 3/4 | Gap closure | - |
 | 6. Mode Simplification and Layout | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 7. Reducer Bug Fixes and FlowView Data-Flow | 1/2 | In Progress|  | - |
-| 8. Richer AI Template (Atomic) | 2/2 | Complete   | 2026-03-10 | - |
+| 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 1/2 | In Progress | - |
+| 8. Richer AI Template (Atomic) | 2/2 | Complete   | 2026-03-10 | 2026-03-10 |
 | 9. Verification and Deploy | v1.1 | 0/1 | Not started | - |

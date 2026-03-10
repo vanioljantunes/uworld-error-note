@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Editor Polish
 status: roadmap-ready
-stopped_at: "Task 1 complete — checkpoint:human-verify awaiting visual approval of rendered flowchart"
-last_updated: "2026-03-10T14:43:00.528Z"
-last_activity: 2026-03-10 — Phase 6 executed (Preview default, toggle pair, eye-toggle hide, format row wrap)
+stopped_at: Phase 08 complete — 08-02-PLAN.md human-verify approved, all plans done
+last_updated: "2026-03-10T14:47:20.998Z"
+last_activity: 2026-03-10 — Phase 8 complete (5/5 USMLE extractions validated, template approved in editor)
 progress:
   total_phases: 9
+  completed_phases: 8
+  total_plans: 21
+  completed_plans: 21
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: Editor Polish
+status: roadmap-ready
+stopped_at: "Phase 08 complete — 08-02 human-verify approved, all plans done"
+last_updated: "2026-03-10T15:00:00.000Z"
+last_activity: 2026-03-10 — Phase 8 complete (richer AI template validated, human-verify approved)
+progress:
+  [██████████] 100%
   completed_phases: 8
   total_plans: 21
   completed_plans: 21
@@ -55,12 +71,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 6 of 9 (Mode Simplification and Layout) — COMPLETE
+Phase: 8 of 9 (Richer AI Template Atomic) — COMPLETE
 Plan: 2/2 complete
-Status: Phase complete — ready for Phase 7
-Last activity: 2026-03-10 — Phase 6 executed (Preview default, toggle pair, eye-toggle hide, format row wrap)
+Status: Phase complete — Phase 08 fully done, human-verify approved
+Last activity: 2026-03-10 — Phase 8 complete (5/5 USMLE extractions validated, template approved in editor)
 
-Progress: [██▌░░░░░░░] 25% (v1.1 — 1/4 phases)
+Progress: [████████░░] 89% (v1.1 — all phases through 8 complete)
 
 ## Accumulated Context
 
@@ -79,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Arrow vocabulary organized into 3 named domains (pharmacology, pathophysiology, anatomy/clinical) with 23 verbs total for GPT-4o prompt clarity
 - [Phase 08]: Arrow vocabulary ban list expanded: 'results in' and 'giving rise to' added; concrete substitution examples in vocab section after GPT-4o persisted with 'leads to'
 - [Phase 08]: Branch arm leaf cloze is valid: only primary chain last node and trigger node are banned from cloze — branch arm leaves often ARE the distinguishing mechanism step
+- [Phase 08-02]: Human-verify approved — 5-7 node flowcharts with domain-specific arrows and category-hint cloze render correctly in editor Preview and Edit modes
+- [Phase 08]: Human-verify approved: 5-7 node flowcharts with domain-specific arrows and category-hint cloze render correctly in editor Preview and Edit modes
 
 ### Pending Todos
 
@@ -87,10 +105,10 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 7]: Issue 4 exact root cause (editBack in handleSwitchEditor) not confirmed — requires code trace before scoping BUG-04 fix
-- [Phase 8]: GPT-4o output patterns for richer prompt are not predictable until prompt is written and tested — reserve capacity for 1-2 iteration cycles
+- [Phase 08-02 RESOLVED]: GPT-4o output patterns validated — 5/5 extractions pass with 2 template iteration cycles; stochastic failures are expected, not template bugs
 
 ## Session Continuity
 
-Last session: 2026-03-10T14:43:00.526Z
-Stopped at: Task 1 complete — checkpoint:human-verify awaiting visual approval of rendered flowchart
+Last session: 2026-03-10T14:47:20.996Z
+Stopped at: Phase 08 complete — 08-02-PLAN.md human-verify approved, all plans done
 Resume file: None

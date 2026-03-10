@@ -1860,6 +1860,10 @@ export default function FlowView({ savedExtractions, userTemplates, repo, vaultN
                             setEditingFlowCard(card.note_id);
                             setEditFront(card.front);
                             setEditBack(card.back);
+                            // BUG-04 fix: directly set Back ref so it is never stale regardless of useEffect batching
+                            requestAnimationFrame(() => {
+                              if (ankiBackRef.current) ankiBackRef.current.innerHTML = card.back;
+                            });
                             setAnkiEditError("");
                             // Reset mode cache — start fresh for this card
                             modeContentRef.current = { cloze: card.front };

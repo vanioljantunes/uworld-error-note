@@ -71,12 +71,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 8 of 9 (Richer AI Template Atomic) — COMPLETE
-Plan: 2/2 complete
-Status: Phase complete — Phase 08 fully done, human-verify approved
-Last activity: 2026-03-10 — Phase 8 complete (5/5 USMLE extractions validated, template approved in editor)
+Phase: 9 of 9 (Verification and Deploy) — Plan 1 complete
+Plan: 1/2 complete
+Status: Plan 09-01 complete — local verification gate passed, human smoke-test approved
+Last activity: 2026-03-10 — Phase 9 plan 1 complete (94 tests pass, build clean, local smoke-test approved)
 
-Progress: [████████░░] 89% (v1.1 — all phases through 8 complete)
+Progress: [█████████░] 94% (v1.1 — all phases through 9-01 complete, deploy pending)
 
 ## Accumulated Context
 
@@ -97,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Branch arm leaf cloze is valid: only primary chain last node and trigger node are banned from cloze — branch arm leaves often ARE the distinguishing mechanism step
 - [Phase 08-02]: Human-verify approved — 5-7 node flowcharts with domain-specific arrows and category-hint cloze render correctly in editor Preview and Edit modes
 - [Phase 08]: Human-verify approved: 5-7 node flowcharts with domain-specific arrows and category-hint cloze render correctly in editor Preview and Edit modes
+- [Phase 09-01]: 94 Vitest tests pass and npm build compiles clean — local verification gate cleared for v1.1 deploy
+- [Phase 09-01]: Human smoke-test approved: two-mode UI, BUG-03/04 fixes, richer flowchart template, table editing, and AnkiConnect push all confirmed working in local dev
 
 ### Pending Todos
 
@@ -109,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T14:47:20.996Z
-Stopped at: Phase 08 complete — 08-02-PLAN.md human-verify approved, all plans done
+Last session: 2026-03-10
+Stopped at: Phase 09 plan 1 complete — 09-01-PLAN.md human-verify approved, awaiting production deploy (09-02)
 Resume file: None

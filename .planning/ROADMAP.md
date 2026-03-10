@@ -157,7 +157,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Local verification: test suite + build gate + human smoke-test of flowchart and table end-to-end
+- [x] 09-01-PLAN.md — Local verification: test suite + build gate + human smoke-test of flowchart and table end-to-end (completed 2026-03-10)
 - [ ] 09-02-PLAN.md — Production deploy: git push to Vercel, production smoke-test, mark v1.1 requirements and milestone complete
 
 ## Progress
@@ -175,4 +175,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Mode Simplification and Layout | v1.1 | 2/2 | Complete | 2026-03-10 |
 | 7. Reducer Bug Fixes and FlowView Data-Flow | v1.1 | 1/2 | In Progress | - |
 | 8. Richer AI Template (Atomic) | v1.1 | 2/2 | Complete | 2026-03-10 |
-| 9. Verification and Deploy | v1.1 | 0/2 | Not started | - |
+| 9. Verification and Deploy | v1.1 | 1/2 | In Progress | - |

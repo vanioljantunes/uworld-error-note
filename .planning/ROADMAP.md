@@ -139,11 +139,11 @@ Plans:
   2. Cloze syntax appears on mechanism steps only, not on trigger inputs or leaf outcome nodes
   3. `parseFlowHTML` correctly parses the new richer HTML structure without triggering the `parseFailed` textarea fallback for any of 5 test inputs
   4. Uncustomized user templates auto-upgrade to the richer structure on the next generation call (via `TEMPLATE_PREV_HASHES`)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: Design new HTML patterns, update `parse-flow-html.ts` and `rebuild-flow-html.ts` to handle them, rewrite `anki_flowchart` template with richer structure and add old hash to `TEMPLATE_PREV_HASHES` — all in one atomic commit
-- [ ] 08-02: Test updated prompt against 5 diverse USMLE inputs; verify all 5 produce parseable HTML; human-verify rendered output in editor preview
+- [ ] 08-01-PLAN.md — Atomic rewrite of anki_flowchart template (richer prompt + expanded arrow vocab + DKA/ACE inhibitor examples), TEMPLATE_PREV_HASHES update, richer-structure parse test fixtures
+- [ ] 08-02-PLAN.md — Test template against 5 diverse USMLE extractions via live GPT-4o, validate parseability, human-verify rendered output in editor
 
 #### Phase 9: Verification and Deploy
 **Goal**: All v1.1 changes are smoke-tested end-to-end and deployed to production at gapstrike.vercel.app with no regressions

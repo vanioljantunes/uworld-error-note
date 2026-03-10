@@ -113,7 +113,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md — Preview default mode, toggle pair UI (Preview/Edit tabs), eye-toggle conditional hide (UX-01, UX-02) (completed 2026-03-10)
-- [x] 06-02-PLAN.md — Format button row flex-wrap fix, human-verify all Phase 6 visual changes (LAY-01) (completed 2026-03-10)
+- [x] 06-02-PLAN.md — Format button row flex-wrap fix, human-verify all Phase 6 visual changes (LAY-01) (completed 2026-03-10)
 
 #### Phase 7: Reducer Bug Fixes and FlowView Data-Flow
 **Goal**: All add/remove/reconnect operations in Edit mode complete without crashes or silent data corruption; the Back field always shows the original extraction text after flowchart generation
@@ -124,11 +124,11 @@ Plans:
   2. Adding a new node when the graph has no existing leaf nodes (disconnected graph) succeeds without crashing or producing invalid graph state
   3. When the user cancels the step-label prompt (presses Escape or Cancel), no new edge is created — the connection attempt is fully aborted
   4. After clicking "Flowchart" or "Table", the Back field in the card editor still shows the original extraction text, not the generated HTML
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: Trace and fix REMOVE_NODE branch-parent reconnect (BUG-01) and ADD_NODE leaf detection on disconnected graphs (BUG-02) in FlowchartEditor reducer
-- [ ] 07-02: Replace `window.prompt` for step-label input with inline input that aborts on Cancel (BUG-03); trace and fix `editBack` population in FlowView.tsx `handleSwitchEditor` (BUG-04)
+- [ ] 07-01-PLAN.md — TDD: Fix REMOVE_NODE branch-parent reconnect (BUG-01) and ADD_NODE selectedNodeId parent model (BUG-02)
+- [ ] 07-02-PLAN.md — Replace window.prompt with inline StepLabelInput (BUG-03), fix Back field preservation (BUG-04), human-verify
 
 #### Phase 8: Richer AI Template (Atomic)
 **Goal**: AI-generated flowchart cards contain 5-7 nodes with labeled causal arrows and cloze on mechanism steps only; the visual editor parses and serializes the new HTML structure without falling back to raw textarea

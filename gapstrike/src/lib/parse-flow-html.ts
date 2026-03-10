@@ -142,10 +142,11 @@ function walkChildren(
           const armRole = getElementRole(armEl);
 
           if (armRole === 'pill') {
-            if (parentToChildPill === null) {
-              // First pill: edge from parent to first box
+            if (firstBoxInArm === null) {
+              // Before any box in this arm: edge label from parent to first child
               parentToChildPill = (armEl.textContent || '').trim();
             } else {
+              // After first box: intra-arm edge label
               armPendingPill.value = (armEl.textContent || '').trim();
             }
           } else if (armRole === 'stemWrap') {

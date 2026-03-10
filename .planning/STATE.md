@@ -4,13 +4,13 @@ milestone: v1.1
 milestone_name: Editor Polish
 status: roadmap-ready
 stopped_at: Completed 07-02-PLAN.md — awaiting human-verify checkpoint for BUG-03/BUG-04
-last_updated: "2026-03-10T11:40:11.851Z"
+last_updated: "2026-03-10T11:50:07.932Z"
 last_activity: 2026-03-10 — Phase 6 executed (Preview default, toggle pair, eye-toggle hide, format row wrap)
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 ---

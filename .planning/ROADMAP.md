@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Templates** - AI prompt templates generate valid inline-style HTML with native cloze syntax
 - [x] **Phase 2: Data Model and Parse/Serialize Pipeline** - FlowGraph types, parseFlowHTML, rebuildHTML, and TableEditor cloze fix (completed 2026-03-09)
 - [x] **Phase 3: Visual Rendering** - FlowchartEditor renders AI HTML as interactive boxes and arrows (no editing yet) — complete (2026-03-09)
-- [x] **Phase 4: Editing Operations** - Inline label editing, add/remove boxes, add/remove connections, table editor polish (completed 2026-03-09)
+- [ ] **Phase 4: Editing Operations** - Inline label editing, add/remove boxes, add/remove connections, table editor polish (gap closure in progress)
 - [ ] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy
 
 ## Phase Details
@@ -80,13 +80,14 @@ Plans:
   4. User can add or remove an arrow between two boxes, with an optional step label — the card FRONT field reflects the change
   5. User can click a table cell and edit its content including cloze syntax — the card FRONT field updates immediately
   6. User can add and remove rows and columns in the table editor
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
 - [ ] 04-01-PLAN.md — TDD: Reducer mutations (EDIT_NODE, ADD_NODE, REMOVE_NODE, ADD_EDGE, REMOVE_EDGE, REORDER_NODE) + onChange wiring with hasUserEdited guard
 - [ ] 04-02-PLAN.md — EditableNodeCard UI, toolbar (Add Box, Connect, Delete), node hover controls (reorder, remove), connect mode
 - [ ] 04-03-PLAN.md — TableEditor mutation tests verifying TABL-01 through TABL-06 against existing implementation
 - [ ] 04-04-PLAN.md — Human-verify end-to-end integration: Flowchart + Table buttons trigger AI generation then open editors with working editing (INTG-01, INTG-02)
+- [ ] 04-05-PLAN.md — Gap closure: Wire REMOVE_EDGE dispatch to EdgePill UI (FLOW-06)
 
 ### Phase 5: Polish and Deploy
 **Goal**: The editor handles parse failures gracefully, renders correctly on AnkiDroid, and the full feature is deployed to production on Vercel
@@ -113,5 +114,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Templates | 2/3 | In progress | - |
 | 2. Data Model and Parse/Serialize Pipeline | 3/3 | Complete   | 2026-03-09 |
 | 3. Visual Rendering | 2/2 | Complete    | 2026-03-09 |
-| 4. Editing Operations | 4/4 | Complete   | 2026-03-09 |
+| 4. Editing Operations | 4/5 | Gap closure | - |
 | 5. Polish and Deploy | 0/3 | Not started | - |

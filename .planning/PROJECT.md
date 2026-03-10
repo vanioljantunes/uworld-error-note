@@ -8,18 +8,32 @@ A GapStrike feature that adds AI-generated flowchart and table Anki cards with v
 
 AI-generated flowchart and table cards with visual editing in GapStrike, rendered as pure HTML/CSS with native Anki cloze syntax — no add-ons, works on all platforms.
 
+## Current Milestone: v1.1 Editor Polish
+
+**Goal:** Simplify the editor to two modes (Preview default + Edit), fix editing bugs, improve AI card richness, and polish container layouts.
+
+**Target features:**
+- Default to Preview mode (Anki-rendered view)
+- Two-mode simplification: Preview (full render) + Edit (cloze syntax, add/remove)
+- Richer AI-generated flowchart card structure
+- Fix box/connection editing bugs
+- Improve container layout for short content
+
 ## Requirements
 
 ### Validated
 
-- ✓ TMPL-05: Table template prompt polished for consistent HTML output with inline styles — Phase 1 (01-02)
-- ✓ TMPL-01 (partial): Flowchart template already rewritten for HTML div-based output (previous session)
+- ✓ TMPL-01 through TMPL-06: AI template prompts generate valid inline-style HTML — v1.0
+- ✓ FLOW-01 through FLOW-09: FlowchartEditor renders and edits AI HTML — v1.0
+- ✓ TABL-01 through TABL-06: TableEditor renders and edits AI HTML — v1.0
+- ✓ INTG-01 through INTG-04: End-to-end integration with AnkiConnect — v1.0
 
 ### Active
 
-- [ ] Finish remaining Phase 1 template validation (TMPL-02 through TMPL-06, INTG-03, INTG-04)
-- [ ] Phase 2: Rebuild FlowchartEditor from scratch for HTML div-based flowcharts (FLOW-01 through FLOW-09, INTG-01)
-- [ ] Phase 3: Polish TableEditor for visual-edit-after-AI pattern (TABL-01 through TABL-06, INTG-02)
+- [ ] Default editor to Preview mode; simplify to two modes (Preview + Edit)
+- [ ] Fix box/connection editing bugs that crash the system
+- [ ] Improve AI-generated flowchart card structure (richer, more detailed)
+- [ ] Improve container layout when content is short
 
 ### Out of Scope
 
@@ -65,4 +79,4 @@ AI-generated flowchart and table cards with visual editing in GapStrike, rendere
 | Adopt flowchartAnki requirements as-is | 25 well-defined requirements already exist | ✓ Good |
 
 ---
-*Last updated: 2026-03-09 after initialization*
+*Last updated: 2026-03-09 after v1.1 milestone start*

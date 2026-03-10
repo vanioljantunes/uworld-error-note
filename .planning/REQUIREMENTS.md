@@ -3,7 +3,7 @@
 **Defined:** 2026-03-08
 **Core Value:** AI-generated flowchart and table cards with visual editing in GapStrike, rendered as pure HTML/CSS with native Anki cloze syntax.
 
-## v1 Requirements
+## v1.0 Requirements (Complete)
 
 ### Template Prompts
 
@@ -42,6 +42,28 @@
 - [x] **INTG-03**: Card is saved to Anki via AnkiConnect with the inline HTML in the FRONT field
 - [x] **INTG-04**: Original simple cloze card remains saved (user can choose between formats)
 
+## v1.1 Requirements
+
+### Editor UX
+
+- [ ] **UX-01**: FlowchartEditor opens in Preview mode (Anki render) by default instead of Edit mode
+- [ ] **UX-02**: Editor has exactly two modes — Preview (read-only Anki render) and Edit (cloze syntax visible, add/remove boxes/connections) — no other view modes
+
+### Layout
+
+- [ ] **LAY-01**: Toolbar button row does not overflow on narrow screens (Issue 3 fix)
+
+### Bug Fixes
+
+- [ ] **BUG-01**: REMOVE_NODE correctly reconnects edges when removing a node with a branch parent
+- [ ] **BUG-02**: ADD_NODE leaf detection works on disconnected graphs
+- [ ] **BUG-03**: Cancelling the step label prompt (window.prompt) does not create empty-label edges
+- [ ] **BUG-04**: Back field displays correct content after flowchart/table generation (Issue 4 fix)
+
+### AI Template
+
+- [ ] **TMPL-07**: Flowchart template generates richer structures (5-7 nodes with labeled causal arrows), atomically updated with parser/serializer/hash
+
 ## v2 Requirements
 
 ### Enhanced Visuals
@@ -55,6 +77,10 @@
 - **ADV-01**: Drag-and-drop box repositioning with auto-routing arrows
 - **ADV-02**: Undo/redo in visual editors
 - **ADV-03**: Copy/paste flowchart structures
+
+### Deferred from v1.1
+
+- **LAY-02**: Short content container layout (min-height/min-width on boxes and canvas)
 
 ## Out of Scope
 
@@ -71,37 +97,46 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TMPL-01 | Phase 1 | Complete |
-| TMPL-02 | Phase 1 | Complete |
-| TMPL-03 | Phase 1 | Complete |
-| TMPL-04 | Phase 1 | Complete |
-| TMPL-05 | Phase 1 | Complete |
-| TMPL-06 | Phase 1 | Complete |
-| INTG-03 | Phase 1 | Complete |
-| INTG-04 | Phase 1 | Complete |
-| FLOW-09 | Phase 2 | Complete |
-| TABL-05 | Phase 2 | Complete |
-| FLOW-01 | Phase 3 | Complete |
-| FLOW-08 | Phase 3 | Complete |
-| FLOW-02 | Phase 4 | Complete |
-| FLOW-03 | Phase 4 | Complete |
-| FLOW-04 | Phase 4 | Complete |
-| FLOW-05 | Phase 4 | Complete |
-| FLOW-06 | Phase 4 | Complete |
-| FLOW-07 | Phase 4 | Complete |
-| TABL-01 | Phase 4 | Complete |
-| TABL-02 | Phase 4 | Complete |
-| TABL-03 | Phase 4 | Complete |
-| TABL-04 | Phase 4 | Complete |
-| TABL-06 | Phase 4 | Complete |
-| INTG-01 | Phase 4 | Complete |
-| INTG-02 | Phase 4 | Complete |
+| TMPL-01 | Phase 1 (v1.0) | Complete |
+| TMPL-02 | Phase 1 (v1.0) | Complete |
+| TMPL-03 | Phase 1 (v1.0) | Complete |
+| TMPL-04 | Phase 1 (v1.0) | Complete |
+| TMPL-05 | Phase 1 (v1.0) | Complete |
+| TMPL-06 | Phase 1 (v1.0) | Complete |
+| INTG-03 | Phase 1 (v1.0) | Complete |
+| INTG-04 | Phase 1 (v1.0) | Complete |
+| FLOW-09 | Phase 2 (v1.0) | Complete |
+| TABL-05 | Phase 2 (v1.0) | Complete |
+| FLOW-01 | Phase 3 (v1.0) | Complete |
+| FLOW-08 | Phase 3 (v1.0) | Complete |
+| FLOW-02 | Phase 4 (v1.0) | Complete |
+| FLOW-03 | Phase 4 (v1.0) | Complete |
+| FLOW-04 | Phase 4 (v1.0) | Complete |
+| FLOW-05 | Phase 4 (v1.0) | Complete |
+| FLOW-06 | Phase 4 (v1.0) | Complete |
+| FLOW-07 | Phase 4 (v1.0) | Complete |
+| TABL-01 | Phase 4 (v1.0) | Complete |
+| TABL-02 | Phase 4 (v1.0) | Complete |
+| TABL-03 | Phase 4 (v1.0) | Complete |
+| TABL-04 | Phase 4 (v1.0) | Complete |
+| TABL-06 | Phase 4 (v1.0) | Complete |
+| INTG-01 | Phase 4 (v1.0) | Complete |
+| INTG-02 | Phase 4 (v1.0) | Complete |
+| UX-01 | Pending | Pending |
+| UX-02 | Pending | Pending |
+| LAY-01 | Pending | Pending |
+| BUG-01 | Pending | Pending |
+| BUG-02 | Pending | Pending |
+| BUG-03 | Pending | Pending |
+| BUG-04 | Pending | Pending |
+| TMPL-07 | Pending | Pending |
 
 **Coverage:**
-- v1 requirements: 25 total (TMPL x6, FLOW x9, TABL x6, INTG x4)
-- Mapped to phases: 25
-- Unmapped: 0
+- v1.0 requirements: 25 total — all Complete
+- v1.1 requirements: 8 total (UX x2, LAY x1, BUG x4, TMPL x1)
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 8
 
 ---
 *Requirements defined: 2026-03-08*
-*Last updated: 2026-03-09 — traceability updated after roadmap revision (5-phase structure)*
+*Last updated: 2026-03-09 — v1.1 requirements added*

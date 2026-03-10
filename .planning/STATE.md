@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Editor Polish
 status: roadmap-ready
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-10T14:25:35.983Z"
+stopped_at: "Task 1 complete — checkpoint:human-verify awaiting visual approval of rendered flowchart"
+last_updated: "2026-03-10T14:43:00.528Z"
 last_activity: 2026-03-10 — Phase 6 executed (Preview default, toggle pair, eye-toggle hide, format row wrap)
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 ---
@@ -77,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 07-02]: BUG-04: Added synchronous requestAnimationFrame in click handler so Back ref is never stale on mode switch
 - [Phase 08]: DKA + ACE inhibitor examples replace Wernicke/kidney embryology in anki_flowchart template — better domain vocabulary demonstration across pharmacology and pathophysiology
 - [Phase 08]: Arrow vocabulary organized into 3 named domains (pharmacology, pathophysiology, anatomy/clinical) with 23 verbs total for GPT-4o prompt clarity
+- [Phase 08]: Arrow vocabulary ban list expanded: 'results in' and 'giving rise to' added; concrete substitution examples in vocab section after GPT-4o persisted with 'leads to'
+- [Phase 08]: Branch arm leaf cloze is valid: only primary chain last node and trigger node are banned from cloze — branch arm leaves often ARE the distinguishing mechanism step
 
 ### Pending Todos
 
@@ -89,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T14:25:35.981Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-10T14:43:00.526Z
+Stopped at: Task 1 complete — checkpoint:human-verify awaiting visual approval of rendered flowchart
 Resume file: None

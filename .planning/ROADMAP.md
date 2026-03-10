@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Data Model and Parse/Serialize Pipeline** - FlowGraph types, parseFlowHTML, rebuildHTML, and TableEditor cloze fix (completed 2026-03-09)
 - [x] **Phase 3: Visual Rendering** - FlowchartEditor renders AI HTML as interactive boxes and arrows (no editing yet) — complete (2026-03-09)
 - [x] **Phase 4: Editing Operations** - Inline label editing, add/remove boxes, add/remove connections, table editor polish (gap closure in progress) (completed 2026-03-10)
-- [x] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy (completed 2026-03-10)
+- [ ] **Phase 5: Polish and Deploy** - Error fallbacks, UX hardening, AnkiDroid smoke-test, Vercel deploy (gap closure in progress)
 
 ## Phase Details
 
@@ -97,12 +97,13 @@ Plans:
   1. When the AI generates malformed or unexpected HTML, the editor shows a raw textarea fallback instead of a broken visual editor
   2. A flowchart card generated and edited in GapStrike renders correctly on AnkiDroid (boxes visible, cloze syntax intact)
   3. The deployed Vercel app at gapstrike.vercel.app includes all flowchart and table editor changes with no regressions
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Parse-failure fallback: Error Boundary + textarea fallback + unit tests for detection logic
-- [ ] 05-02-PLAN.md — AnkiDroid smoke-test: verify flowchart and table cards render on mobile
-- [ ] 05-03-PLAN.md — Deploy to Vercel: local build verification, git push, production smoke-test
+- [x] 05-01-PLAN.md — Parse-failure fallback: Error Boundary + textarea fallback + unit tests for detection logic
+- [x] 05-02-PLAN.md — AnkiDroid smoke-test: verify flowchart and table cards render on mobile
+- [x] 05-03-PLAN.md — Deploy to Vercel: local build verification, git push, production smoke-test
+- [ ] 05-04-PLAN.md — Gap closure: diagnose stale production deploy (Issue 1 + 2), redeploy, human smoke-test
 
 ## Progress
 
@@ -115,4 +116,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Data Model and Parse/Serialize Pipeline | 3/3 | Complete   | 2026-03-09 |
 | 3. Visual Rendering | 2/2 | Complete    | 2026-03-09 |
 | 4. Editing Operations | 5/5 | Complete   | 2026-03-10 |
-| 5. Polish and Deploy | 3/3 | Complete   | 2026-03-10 |
+| 5. Polish and Deploy | 3/4 | Gap closure | - |

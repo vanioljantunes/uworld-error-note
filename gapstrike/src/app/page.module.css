@@ -3123,6 +3123,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;           /* LAY-01: wrap to second line on narrow screens */
+  row-gap: 4px;              /* tighten vertical spacing for wrapped rows */
+  justify-content: flex-end; /* keep wrapped buttons right-aligned */
   margin-left: auto;
 }
 

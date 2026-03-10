@@ -6,6 +6,57 @@ import { rebuildHTML } from "@/lib/rebuild-flow-html";
 import type { FlowGraph, FlowNode, FlowEdge } from "@/lib/flowchart-types";
 import styles from "./FlowchartEditor.module.css";
 
+// ── Props interface (shared between Error Boundary and inner component) ────────
+
+interface FlowchartEditorProps {
+  value: string;
+  onChange: (val: string) => void;
+}
+
+// ── Error Boundary ─────────────────────────────────────────────────────────────
+
+interface EBProps { value: string; onChange: (val: string) => void; children?: React.ReactNode; }
+interface EBState { hasError: boolean; prevValue: string; }
+
+class FlowchartEditorErrorBoundary extends React.Component<EBProps, EBState> {
+  constructor(props: EBProps) {
+    super(props);
+    this.state = { hasError: false, prevValue: props.value };
+  }
+  static getDerivedStateFromError(): Partial<EBState> {
+    return { hasError: true };
+  }
+  static getDerivedStateFromProps(props: EBProps, state: EBState): Partial<EBState> | null {
+    if (props.value !== state.prevValue) {
+      return { hasError: false, prevValue: props.value };
+    }
+    return null;
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[FlowchartEditor] Render error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className={styles.editorRoot}>
+          <div className={styles.fallbackRoot}>
+            <div className={styles.fallbackBanner}>
+              Could not render flowchart — showing raw HTML
+            </div>
+            <textarea
+              className={styles.fallbackTextarea}
+              value={this.props.value}
+              onChange={(e) => this.props.onChange(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+        </div>
+      );
+    }
+    return <FlowchartEditorInner value={this.props.value} onChange={this.props.onChange} />;
+  }
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type FlowState = {
@@ -171,13 +222,6 @@ export function flowReducer(draft: FlowState, action: FlowAction): void {
       break;
     }
   }
-}
-
-// ── Props interface (must match existing contract) ────────────────────────────
-
-interface FlowchartEditorProps {
-  value: string;
-  onChange: (val: string) => void;
 }
 
 // ── highlightCloze (named export for testing) ─────────────────────────────────
@@ -366,9 +410,9 @@ export function FlowchartPreview({ value }: { value: string }) {
   );
 }
 
-// ── FlowchartEditor (default export) ─────────────────────────────────────────
+// ── FlowchartEditorInner (implementation) ────────────────────────────────────
 
-export default function FlowchartEditor({ value, onChange }: FlowchartEditorProps) {
+function FlowchartEditorInner({ value, onChange }: FlowchartEditorProps) {
   const initialState: FlowState = {
     graph: EMPTY_GRAPH,
     viewMode: "editor",
@@ -380,6 +424,7 @@ export default function FlowchartEditor({ value, onChange }: FlowchartEditorProp
     nodeCounter: 0,
   };
   const [state, dispatch] = useImmerReducer<FlowState, FlowAction>(flowReducer, initialState);
+  const [parseFailed, setParseFailed] = useState(false);
 
   // Local state for connect mode — managed outside reducer for two-click flow
   const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
@@ -387,7 +432,13 @@ export default function FlowchartEditor({ value, onChange }: FlowchartEditorProp
 
   useEffect(() => {
     const graph = parseFlowHTML(value);
-    dispatch({ type: "LOAD", graph });
+    if (graph.nodes.length === 0 && value.trim().length > 0) {
+      setParseFailed(true);
+      // Do NOT dispatch LOAD — leave graph state as-is
+    } else {
+      setParseFailed(false);
+      dispatch({ type: "LOAD", graph });
+    }
   }, [value]);
 
   // Wire onChange: only call after user mutations (hasUserEdited guard prevents
@@ -427,6 +478,25 @@ export default function FlowchartEditor({ value, onChange }: FlowchartEditorProp
       }
       return !prev;
     });
+  }
+
+  // Fallback: unparseable HTML — show raw textarea with warning banner
+  if (parseFailed) {
+    return (
+      <div className={styles.editorRoot}>
+        <div className={styles.fallbackRoot}>
+          <div className={styles.fallbackBanner}>
+            Could not parse flowchart — showing raw HTML
+          </div>
+          <textarea
+            className={styles.fallbackTextarea}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            spellCheck={false}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -611,4 +681,10 @@ function FlowRendererWithConnect({
   return (
     <div className={styles.canvas}>{renderNode(rootNode.id)}</div>
   );
+}
+
+// ── FlowchartEditor (default export — wraps inner component with Error Boundary)
+
+export default function FlowchartEditor(props: FlowchartEditorProps) {
+  return <FlowchartEditorErrorBoundary {...props} />;
 }

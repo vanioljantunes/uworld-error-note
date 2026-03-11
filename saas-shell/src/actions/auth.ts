@@ -46,7 +46,7 @@ export async function resetPassword(formData: FormData) {
 
   const { error } = await supabase.auth.resetPasswordForEmail(
     formData.get('email') as string,
-    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gapstrike.vercel.app'}/auth/callback` }
+    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gapstrike.vercel.app'}/auth/callback?next=/auth/reset-password` }
   )
 
   if (error) {
@@ -54,6 +54,30 @@ export async function resetPassword(formData: FormData) {
   }
 
   return { success: true }
+}
+
+export async function updatePassword(formData: FormData) {
+  const supabase = await createClient()
+
+  const password = formData.get('password') as string
+  const confirmPassword = formData.get('confirmPassword') as string
+
+  if (password !== confirmPassword) {
+    return { error: 'Passwords do not match' }
+  }
+
+  if (password.length < 6) {
+    return { error: 'Password must be at least 6 characters' }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/', 'layout')
+  redirect('/dashboard')
 }
 
 export async function logout() {

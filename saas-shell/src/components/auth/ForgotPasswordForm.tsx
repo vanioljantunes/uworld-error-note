@@ -2,22 +2,37 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { login } from '@/actions/auth'
+import { resetPassword } from '@/actions/auth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
-export function LoginForm() {
+export function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
     setError(null)
-    const result = await login(formData)
+    const result = await resetPassword(formData)
     if (result?.error) {
       setError(result.error)
       setLoading(false)
+    } else {
+      setSuccess(true)
+      setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="flex flex-col gap-4 text-center">
+        <p className="text-sm text-neutral-300">Check your email for a password reset link.</p>
+        <Link href="/auth/login" className="text-sm text-violet-400 hover:text-violet-300 transition-colors">
+          Back to login
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -31,28 +46,13 @@ export function LoginForm() {
         required
         autoComplete="email"
       />
-      <Input
-        id="password"
-        name="password"
-        type="password"
-        label="Password"
-        placeholder="••••••••"
-        required
-        autoComplete="current-password"
-      />
       {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-      <div className="flex justify-end -mt-1">
-        <Link href="/auth/forgot-password" className="text-xs text-neutral-500 hover:text-violet-400 transition-colors">
-          Forgot password?
-        </Link>
-      </div>
       <Button type="submit" disabled={loading} className="w-full mt-1">
-        {loading ? 'Signing in…' : 'Sign in'}
+        {loading ? 'Sending…' : 'Send reset link'}
       </Button>
       <p className="text-sm text-center text-neutral-500">
-        No account?{' '}
-        <Link href="/auth/register" className="text-violet-400 hover:text-violet-300 transition-colors">
-          Register
+        <Link href="/auth/login" className="text-violet-400 hover:text-violet-300 transition-colors">
+          Back to login
         </Link>
       </p>
     </form>

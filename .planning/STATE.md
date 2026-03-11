@@ -5,7 +5,7 @@ milestone_name: Editor Polish
 status: milestone-complete
 stopped_at: v1.1 milestone shipped — all 9 phases, 23 plans complete; deployed to gapstrike.vercel.app 2026-03-10
 last_updated: "2026-03-11T00:00:00.000Z"
-last_activity: 2026-03-11 — Quick task 1 complete (protect root route, show user name in navbar, fix logout redirect)
+last_activity: 2026-03-11 - Completed quick task 1: Protect all routes behind auth, show user name + logout in navbar
 progress:
   total_phases: 9
   completed_phases: 9
@@ -66,6 +66,12 @@ None yet.
 
 - [Phase 08-02 RESOLVED]: GPT-4o output patterns validated — 5/5 extractions pass with 2 template iteration cycles; stochastic failures are expected, not template bugs
 - [Phase 7 RESOLVED]: BUG-04 root cause confirmed and fixed in 07-02 (requestAnimationFrame in click handler)
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Protect all routes behind auth, show user name + logout in navbar | 2026-03-11 | 1cf301c | [1-protect-all-routes-behind-auth-show-user](./quick/1-protect-all-routes-behind-auth-show-user/) |
 
 ## Session Continuity
 

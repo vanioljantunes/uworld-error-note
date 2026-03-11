@@ -66,7 +66,7 @@ export default async function DashboardLayout({
         <div className="ml-auto flex items-center gap-3">
           <AccountPill plan={planLabel} status={statusLabel} />
           <div className="w-px h-4 bg-[#2a2a2a]" />
-          <span className="text-xs text-neutral-500 hidden sm:inline">{user.email}</span>
+          <span className="text-xs text-neutral-500 hidden sm:inline">{user.user_metadata?.full_name || user.email}</span>
           <form action={logout}>
             <Button type="submit" variant="ghost">
               Logout

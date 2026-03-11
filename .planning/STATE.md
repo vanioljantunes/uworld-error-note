@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Editor Polish
 status: milestone-complete
 stopped_at: v1.1 milestone shipped — all 9 phases, 23 plans complete; deployed to gapstrike.vercel.app 2026-03-10
-last_updated: "2026-03-10T15:41:02.082Z"
-last_activity: 2026-03-10 — Phase 9 complete (verification + production deploy, v1.1 shipped)
+last_updated: "2026-03-11T00:00:00.000Z"
+last_activity: 2026-03-11 — Quick task 1 complete (protect root route, show user name in navbar, fix logout redirect)
 progress:
   total_phases: 9
   completed_phases: 9
@@ -56,6 +56,7 @@ Recent decisions affecting current work:
 - [Phase 09-02]: 49 v1.1 commits pushed to origin/master — Vercel auto-deploy triggered; production smoke-test pending human verification at gapstrike.vercel.app
 - [Phase 09-02]: Production smoke-test approved — gapstrike.vercel.app confirmed live with two-mode Preview/Edit UI, 5-7 node flowcharts, table editing; v1.1 milestone shipped 2026-03-10
 - [Phase 09-02]: Production smoke-test approved: gapstrike.vercel.app confirmed live with two-mode Preview/Edit UI, 5-7 node flowcharts, table editing; v1.1 milestone shipped 2026-03-10
+- [Quick-1]: Root route protected — unauthenticated redirects to /auth/login, authenticated redirects to /dashboard; navbar shows full_name with email fallback; logout goes to /auth/login directly
 
 ### Pending Todos
 
@@ -68,6 +69,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T15:32:53.806Z
-Stopped at: v1.1 milestone complete — all 9 phases, 21 plans done; production smoke-test approved at gapstrike.vercel.app 2026-03-10
+Last session: 2026-03-11T00:00:00.000Z
+Stopped at: Quick task 1 complete — root route protected, user name in navbar, logout redirect fixed
 Resume file: None

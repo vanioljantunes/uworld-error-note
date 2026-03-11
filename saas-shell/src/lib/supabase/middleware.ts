@@ -26,21 +26,19 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 
-  if (!user && (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/app'))) {
+  // Protect all routes except auth pages and API routes
+  const isAuthRoute = pathname.startsWith('/auth')
+  const isApiRoute = pathname.startsWith('/api')
+
+  if (!user && !isAuthRoute && !isApiRoute) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  if (user && pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
-  if (user && pathname.startsWith('/auth')) {
+  if (user && (pathname === '/' || pathname.startsWith('/auth'))) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

@@ -36,6 +36,11 @@ const MODEL_OPTIONS: Record<LLMProvider, { primary: string[]; economy: string[] 
 };
 
 export default function DashboardPage() {
+  // Supabase user info for navbar
+  const [userEmail, setUserEmail] = useState("");
+  const [userPlan, setUserPlan] = useState("free");
+  const [userStatus, setUserStatus] = useState("Active");
+
   // GitHub — read hint from localStorage for instant render
   const [ghAuth, setGhAuth] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("gh_authenticated") === "true";
@@ -91,6 +96,19 @@ export default function DashboardPage() {
   useEffect(() => {
     const init = async () => {
       try {
+        // Fetch Supabase user info for navbar
+        try {
+          const meResp = await fetch("/api/me");
+          if (meResp.ok) {
+            const meData = await meResp.json();
+            if (meData?.email) {
+              setUserEmail(meData.email);
+              setUserPlan(meData.plan || "free");
+              setUserStatus(meData.status || "Active");
+            }
+          }
+        } catch {}
+
         const authResp = await fetch("/api/auth/me");
         const authData = await authResp.json();
         if (authData.authenticated) {
@@ -265,6 +283,15 @@ export default function DashboardPage() {
             Integrations
           </a>
         </div>
+        {userEmail && (
+          <div className={appStyles.navRight}>
+            <span className={`${appStyles.navPill} ${appStyles.navPillNeutral}`}>{userPlan === "free" ? "Free" : userPlan}</span>
+            <span className={`${appStyles.navPill} ${appStyles.navPillGreen}`}>{userStatus}</span>
+            <div className={appStyles.navDivider} />
+            <span className={appStyles.navEmail}>{userEmail}</span>
+            <a href="/api/logout" className={appStyles.navLogout}>Logout</a>
+          </div>
+        )}
       </nav>
 
       {/* Integrations content */}

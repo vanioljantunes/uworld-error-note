@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GapStrike Extractor</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <h1>GapStrike Extractor</h1>
+
+  <div class="field-group">
+    <label for="server-url">Server URL</label>
+    <input
+      type="text"
+      id="server-url"
+      placeholder="http://localhost:3000"
+      spellcheck="false"
+    />
+  </div>
+
+  <button id="extract-btn">Extract Question</button>
+
+  <div class="status-bar">
+    <div class="status-dot ready" id="status-dot"></div>
+    <span id="status-text">Ready</span>
+  </div>
+
+  <div class="result-area" id="result-area">
+    <div class="result-label">Extracted</div>
+    <div class="result-id" id="result-id"></div>
+    <div class="result-question" id="result-question"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

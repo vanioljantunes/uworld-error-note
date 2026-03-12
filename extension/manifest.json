@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "GapStrike Extractor",
+  "version": "1.0.0",
+  "description": "Capture UWorld question content and send to GapStrike for structured extraction.",
+  "permissions": ["activeTab", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "GapStrike Extractor"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.uworld.com/*",
+        "https://apps.uworld.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

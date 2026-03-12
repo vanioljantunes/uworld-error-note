@@ -21,7 +21,7 @@ export function RegisterForm() {
   }
 
   return (
-    <form action={handleSubmit} className="flex flex-col gap-4">
+    <form action={handleSubmit} className="flex flex-col gap-5">
       <Input
         id="full_name"
         name="full_name"
@@ -50,14 +50,28 @@ export function RegisterForm() {
         autoComplete="new-password"
         minLength={6}
       />
-      {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-      <Button type="submit" disabled={loading} className="w-full mt-1">
-        {loading ? 'Creating account…' : 'Create account'}
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
+          <p className="text-sm text-red-400 text-center">{error}</p>
+        </div>
+      )}
+      <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-semibold mt-1">
+        {loading ? 'Creating account\u2026' : 'Create account'}
       </Button>
+
+      <div className="relative my-1">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-[#2a2a2a]" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-[#111111] px-3 text-neutral-600">or</span>
+        </div>
+      </div>
+
       <p className="text-sm text-center text-neutral-500">
         Already have an account?{' '}
-        <Link href="/auth/login" className="text-violet-400 hover:text-violet-300 transition-colors">
-          Login
+        <Link href="/auth/login" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
+          Sign in
         </Link>
       </p>
     </form>

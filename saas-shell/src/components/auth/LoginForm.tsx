@@ -21,7 +21,7 @@ export function LoginForm() {
   }
 
   return (
-    <form action={handleSubmit} className="flex flex-col gap-4">
+    <form action={handleSubmit} className="flex flex-col gap-5">
       <Input
         id="email"
         name="email"
@@ -31,27 +31,45 @@ export function LoginForm() {
         required
         autoComplete="email"
       />
-      <Input
-        id="password"
-        name="password"
-        type="password"
-        label="Password"
-        placeholder="••••••••"
-        required
-        autoComplete="current-password"
-      />
-      {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-      <div className="flex justify-end -mt-1">
-        <Link href="/auth/forgot-password" className="text-xs text-neutral-500 hover:text-violet-400 transition-colors">
-          Forgot password?
-        </Link>
+      <div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          label="Password"
+          placeholder="••••••••"
+          required
+          autoComplete="current-password"
+        />
+        <div className="flex justify-end mt-2">
+          <Link href="/auth/forgot-password" className="text-xs text-neutral-500 hover:text-violet-400 transition-colors">
+            Forgot password?
+          </Link>
+        </div>
       </div>
-      <Button type="submit" disabled={loading} className="w-full mt-1">
-        {loading ? 'Signing in…' : 'Sign in'}
+
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
+          <p className="text-sm text-red-400 text-center">{error}</p>
+        </div>
+      )}
+
+      <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-semibold mt-1">
+        {loading ? 'Signing in\u2026' : 'Sign in'}
       </Button>
+
+      <div className="relative my-1">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-[#2a2a2a]" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-[#111111] px-3 text-neutral-600">or</span>
+        </div>
+      </div>
+
       <p className="text-sm text-center text-neutral-500">
-        No account?{' '}
-        <Link href="/auth/register" className="text-violet-400 hover:text-violet-300 transition-colors">
+        Don&apos;t have an account?{' '}
+        <Link href="/auth/register" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
           Register
         </Link>
       </p>

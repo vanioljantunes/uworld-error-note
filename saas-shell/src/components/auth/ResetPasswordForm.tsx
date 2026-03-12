@@ -20,7 +20,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form action={handleSubmit} className="flex flex-col gap-4">
+    <form action={handleSubmit} className="flex flex-col gap-5">
       <Input
         id="password"
         name="password"
@@ -41,9 +41,13 @@ export function ResetPasswordForm() {
         minLength={6}
         autoComplete="new-password"
       />
-      {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-      <Button type="submit" disabled={loading} className="w-full mt-1">
-        {loading ? 'Updating…' : 'Update password'}
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
+          <p className="text-sm text-red-400 text-center">{error}</p>
+        </div>
+      )}
+      <Button type="submit" disabled={loading} className="w-full h-11 text-sm font-semibold mt-1">
+        {loading ? 'Updating\u2026' : 'Update password'}
       </Button>
     </form>
   )

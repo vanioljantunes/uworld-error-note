@@ -9,5 +9,5 @@ export default async function RootPage() {
     redirect('/auth/login')
   }
 
-  redirect('/app/integrations')
+  redirect('/integrations')
 }

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       if (type === 'recovery') {
         return NextResponse.redirect(`${origin}/auth/reset-password`)
       }
-      return NextResponse.redirect(`${origin}/app/integrations`)
+      return NextResponse.redirect(`${origin}/integrations`)
     }
   }
 

@@ -5,11 +5,19 @@ export interface TemplateDefault {
   content: string;
 }
 
+/** Hashes of previous default content for each template slug.
+ *  When the API detects a user's Supabase template matches one of these hashes
+ *  (meaning they never customized it), it auto-updates to the new default. */
+export const TEMPLATE_PREV_HASHES: Record<string, string[]> = {
+  anki_flowchart: ["d2343b1e21aa9df1", "a5f7aade1b01b248", "195d2fc7a40117fd", "6c7928647efcdecb", "ab29f95e3c05a983", "607faa7057d4a280", "c9d31786fcdb0678", "a20e902ae4a053e2"],
+  anki_table: ["a3b9de9e219c4927"],
+};
+
 export const TEMPLATE_DEFAULTS: TemplateDefault[] = [
   {
     slug: "error_note_a",
     category: "error_note",
-    title: "Error Note A",
+    title: "Error Note",
     content: `---
 tags:
   - 483921
@@ -43,84 +51,66 @@ In chronic alcohol use, the **triad of confusion + ataxia + nystagmus** is the c
 Related topics: [[Neurology]], [[Thiamine]], [[Wernicke encephalopathy]], [[Alcohol use disorder]]`,
   },
   {
-    slug: "error_note_b",
+    slug: "error_note_comparison",
     category: "error_note",
-    title: "Error Note B",
+    title: "Comparison",
     content: `---
 tags:
-  - 771204
-  - pharmacology
-  - adrenergic_blockade
+  - {question_id}
+  - {system_tag}
 ---
 
-## What I got wrong
+## Comparison: Wernicke Encephalopathy vs B12 Deficiency Neuropathy
 
-**My choice:** Start propranolol (beta-blocker first)
-**Correct:** Alpha blockade before beta blockade
+| Feature | [[Wernicke Encephalopathy]] | [[Vitamin B12]] Neuropathy |
+|---|---|---|
+| **Onset** | Acute | Subacute |
+| **Classic triad** | Confusion + Ataxia + Nystagmus | Paresthesias + Ataxia + Cognitive decline |
+| **Pathology** | Mammillary body hemorrhage | Subacute combined degeneration |
+| **Key lab** | Low thiamine | Low B12, elevated MMA |
+| **Risk factor** | Chronic alcohol use | Pernicious anemia, vegan diet |
+| **Treatment** | IV thiamine BEFORE glucose | IM cyanocobalamin |
 
-## Why I got it wrong
-
-I defaulted to treating the tachycardia symptomatically and ignored the **order-of-operations** principle for [[Pheochromocytoma]] management.
-
-## The key concept
-
-In [[Pheochromocytoma]], giving a beta-blocker first causes **unopposed alpha stimulation** → hypertensive crisis. You must start with **alpha blockade** (e.g., phenoxybenzamine), then add beta blockade.
-
-> **Anchor:** Pheochromocytoma → **A**lpha first, **B**eta second (alphabetical order = treatment order)
-
-## The rule I must remember
-
-- **Alpha before Beta** — always, no exceptions in pheochromocytoma
-- Unopposed alpha = vasoconstriction = hypertensive crisis
-- Episodic headache + sweating + palpitations + ↑metanephrines = pheochromocytoma
-
-## Clinical pearl
-
-The mnemonic is built into the alphabet: **A** (alpha) comes before **B** (beta).
-
+## Why I confused them
+...
+## The distinguishing anchor
+> ...
 ## Connections
-
-Related topics: [[Pheochromocytoma]], [[Adrenergic receptors]], [[Pharmacology]], [[Hypertensive emergency]]`,
+Related: [[...]]`,
   },
   {
-    slug: "error_note_c",
+    slug: "error_note_mechanism",
     category: "error_note",
-    title: "Error Note C",
+    title: "Mechanism Map",
     content: `---
 tags:
-  - 105588
-  - immunology
-  - primary_immunodeficiency
+  - {question_id}
+  - {system_tag}
 ---
 
-## What I got wrong
+## Mechanism Map: Wernicke Encephalopathy
 
-**My choice:** Defective NADPH oxidase (→ CGD)
-**Correct:** WAS gene mutation (→ Wiskott-Aldrich syndrome)
+### Trigger
+Chronic alcohol use -> nutritional deficiency
 
-## Why I got it wrong
+### Mechanism
+[[Thiamine]] depletion -> impaired pyruvate dehydrogenase -> ATP depletion
 
-I focused on the "recurrent infections" clue and jumped to [[Chronic granulomatous disease|CGD]], ignoring the **platelet size** which is the true differentiator.
+### Manifestations
+- **Mammillary bodies** -> Confusion
+- **Vestibular nuclei** -> Nystagmus
+- **Cerebellar vermis** -> Ataxia
 
-## The key concept
+### Progression (if untreated)
+Wernicke -> irreversible [[Korsakoff syndrome]]
 
-The unique finding in [[Wiskott-Aldrich syndrome]] is **small platelets** (low MPV). The classic triad is:
+### Treatment
+- IV thiamine BEFORE glucose
 
-1. **E**czema
-2. **T**hrombocytopenia (with **small** platelets)
-3. Recurrent **I**nfections
-
-> **Anchor:** Eczema + Small platelets + Infections → **W**iskott-**A**ldrich **S**yndrome (WAS)
-
-## The rule I must remember
-
-- CGD = recurrent infections with **catalase-positive** organisms + normal platelet size
-- Wiskott-Aldrich = recurrent infections + eczema + **small platelets**
-- The differentiator is **platelet size**, not infection pattern
-
+## What I missed
+...
 ## Connections
-
-Related topics: [[Primary immunodeficiency]], [[Wiskott-Aldrich syndrome]], [[Chronic granulomatous disease|CGD]], [[Immunology]]`,
+Related: [[...]]`,
   },
   {
     slug: "anki_cloze",
@@ -221,6 +211,8 @@ Your job is to ANALYZE medical content and produce a structured HTML comparison 
 - Use separate cloze numbers (c1, c2, c3) for values in different rows
 - Prefer clozing the less obvious or more commonly confused distinction
 
+All HTML must use inline \`style=""\` attributes. Never use \`<style>\` blocks — Anki strips them from field content.
+
 You MUST return ONLY valid JSON. No markdown code fences around the JSON itself. No explanations outside the JSON.
 
 <!-- section: Instructions -->
@@ -256,95 +248,152 @@ back: "The metanephric diverticulum (ureteric bud) collects and drains; the meta
 8. Cloze 2-3 specific CELL VALUES with {{c1::...}}, {{c2::...}}. Never cloze headers or category labels.
 9. Back: plain text 1-2 sentence summary of the key distinction. No cloze syntax.
 10. ALWAYS expand abbreviations on first use.
-11. Do NOT invent clinical vignettes — compare the content directly as given.`,
+11. Do NOT invent clinical vignettes — compare the content directly as given.
+12. Never use \`<style>\` blocks. All styling MUST be inline \`style=""\` attributes on each element.
+13. Cloze syntax may include hints: \`{{c1::term::hint}}\`. Use hints sparingly for ambiguous terms.
+14. Generate compact HTML — avoid unnecessary newlines inside the table markup. AnkiDroid converts newlines to \`<br>\` on edit, which can corrupt table structure.`,
   },
   {
-    slug: "anki_mermaid",
+    slug: "anki_flowchart",
     category: "anki",
-    title: "Mermaid Flowchart",
+    title: "Flowchart",
     content: `<!-- section: System Prompt -->
-You are a medical education expert who creates mechanistic mermaid flowcharts for Anki spaced repetition.
+You are a medical education expert who creates mechanistic HTML diagram cards for Anki spaced repetition.
 
-Your job is to ANALYZE medical content and produce a flowchart that captures the CAUSAL MECHANISM — not just a list of facts arranged vertically.
+Your job is to ANALYZE medical content and produce a visual mechanism map as pure HTML — using nested \`<div>\` elements with inline styles for boxes, vertical line connectors, step pills, and branching connectors. The output must render natively in Anki's card viewer on all platforms (desktop, AnkiDroid, AnkiMobile) without any JavaScript or external libraries.
 
-## How to think about flowchart structure
+CRITICAL: Do NOT use \`<table>\` elements. Use only \`<div>\` elements for layout.
 
-1. IDENTIFY the causal chain: What triggers what? What leads to what?
-2. FIND branching points: Where does one cause produce multiple effects? Where do parallel pathways exist?
-3. PICK cloze targets: Which 2-3 nodes are the "if you forget this, you fail the question" facts? These are usually:
-   - The key mechanism step (not the trigger or final outcome, but the intermediate step)
+## Color palette
+
+All elements use the GapStrike dark theme:
+- Box: \`border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\`
+- Step pill: \`display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\`
+- Vertical line: \`width:2px;height:15px;background:#3a3a3a;margin:0 auto\`
+- Title text: \`color:#e2e2e2\`
+
+## HTML layout pattern
+
+The diagram is a centered wrapper \`<div style="text-align:center">\`:
+
+- **Title**: \`<div style="font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2">\` — plain text, no cloze
+- **Boxes**: styled divs with \`display:inline-block\`, sized to content
+- **Vertical connector (stem)**: \`<div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div>\`
+- **Step pill** (relationship label between boxes): \`<div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">label</div>\`
+- Between each pair of boxes: stem &#8594; step pill &#8594; stem &#8594; next box
+
+## Branching connector pattern
+
+When a box branches into multiple children, use a T-shaped connector with corner borders:
+
+1. Stem down from parent box
+2. \`<div style="display:inline-flex">\` containing the branch children
+3. LEFT child starts with: \`<div style="height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%"></div>\`
+4. RIGHT child starts with: \`<div style="height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%"></div>\`
+5. Each child then has its content inside \`<div style="padding:0 16px">\`: step pill &#8594; stem &#8594; box (and optionally more steps below)
+
+The left corner (\`margin-left:50%\` + border-top + border-left) and right corner (\`margin-right:50%\` + border-top + border-right) together form a clean &#9484;&#9472;&#9472;&#9488; shape connecting to child centers.
+
+## Arrow label vocabulary
+
+IMPORTANT: Arrow labels MUST come from the following domain vocabulary. ABSOLUTELY FORBIDDEN — never use these as arrow labels under any circumstances: "leads to", "causes", "then", "results in", "giving rise to". These are banned without exception. Substitute "activates", "depletes", "disrupts", "impairs", "produces", "activates", "presents as" as appropriate.
+
+**Pharmacology:** binds to, blocks, agonizes, antagonizes, upregulates, downregulates, sensitizes, potentiates, inhibits, depletes, activates
+
+**Pathophysiology:** damages, inflames, disrupts, occludes, compresses, infiltrates, necroses, fibroses, depletes, activates, produces, reduces, impairs, triggers, stimulates
+
+**Anatomy/Clinical:** innervates, drains to, supplies, crosses, presents as, metastasizes to, refers to, manifests as
+
+Examples of correct substitution:
+- WRONG: "M. tb infection leads to granuloma" → CORRECT: "M. tb infection activates granuloma formation"
+- WRONG: "Low oncotic pressure leads to edema" → CORRECT: "Low oncotic pressure presents as edema"
+- WRONG: "Ketone accumulation causes acidosis" → CORRECT: "Ketone accumulation depletes bicarbonate"
+
+## How to think about diagram structure
+
+1. IDENTIFY the causal chain: What triggers what? What is the mechanism?
+2. FIND branching points: Where does one cause produce multiple effects?
+3. FOCUS on clinically relevant relationships — connect structures/regions to their clinical manifestations
+4. AVOID biochemical overkill — skip intermediate enzyme steps unless they are the core testable fact
+5. PICK cloze targets: Which 2-3 boxes are the "if you forget this, you fail the question" facts?
+   - Anatomical structures that map to specific symptoms
+   - The key mechanism step (not the trigger or final outcome)
    - The distinguishing feature that separates this from a look-alike condition
-   - The non-obvious connection that students commonly miss
 
-## Flowchart quality criteria
+## Diagram quality criteria
 
-- GOOD: Trigger → mechanism → branching effects (shows WHY things happen)
-- BAD: Fact 1 → Fact 2 → Fact 3 (just a vertical list with arrows)
-- GOOD: Branching where a single node leads to 2-3 divergent outcomes
+- GOOD: Trigger &#8594; key mechanism &#8594; anatomical targets &#8594; clinical presentations
+- BAD: Long biochemical chain with every intermediate enzyme
+- GOOD: Branching where a single cause affects 2-3 different structures/outcomes
 - BAD: Everything forced into one linear chain when the biology actually branches
-- GOOD: Arrow labels explain the RELATIONSHIP (e.g., "inhibits", "activates", "results in")
-- BAD: Arrow labels are generic (e.g., "leads to", "causes", "then")
+- GOOD: Step labels explain the RELATIONSHIP using domain vocabulary
+- BAD: Step labels are generic (e.g., "leads to", "causes", "then")
 
 ## Cloze selection rules
 
-- The TITLE LINE must NEVER contain a cloze. It is a plain-text subject label (e.g. "Wernicke Encephalopathy Mechanism"). It must NOT reveal the answer to any clozed node in the flowchart.
-- Cloze the MECHANISM, not the trigger (students already know the trigger from the question)
-- Cloze the DISTINGUISHING fact, not the common/obvious one
-- Never cloze more than 3 nodes — if everything is clozed, nothing is learned
-- Only use c1 and c2 (optionally c3). Place clozes ONLY inside flowchart nodes, never in the title.
+- The TITLE must NEVER contain a cloze. It is a plain-text subject label.
+- Cloze the CLINICALLY DISTINGUISHING fact — anatomical targets, key mechanisms
+- Never cloze more than 3 boxes
+- Only use c1, c2 (optionally c3). Place clozes ONLY inside box \`<div>\` text content.
+
+All HTML must use inline \`style=""\` attributes. Never use \`<style>\` blocks — Anki strips them from field content.
 
 You MUST return ONLY valid JSON. No markdown code fences around the JSON itself. No explanations outside the JSON.
 
 <!-- section: Instructions -->
-Convert this medical content into a mechanistic mermaid flowchart Anki card.
+Convert this medical content into a mechanistic HTML diagram Anki card.
 
 ## Your task — TWO PHASES
 
 ### Phase 1: Analyze (think step by step, but do NOT include this in the output)
 1. What is the core mechanism or pathway in this content?
 2. What is the TRIGGER (starting point)?
-3. What are the INTERMEDIATE STEPS (mechanisms)?
-4. Where does the pathway BRANCH (one cause → multiple effects)?
-5. What is the OUTCOME(s)?
-6. Which 2-3 nodes should be clozed? Pick the ones that:
-   - Are the KEY mechanism steps (not obvious triggers or end results)
+3. Where does the pathway BRANCH (one cause &#8594; multiple structures/outcomes)?
+4. What ANATOMICAL STRUCTURES or KEY STEPS map to which clinical findings?
+5. Which 2-3 boxes should be clozed? Pick the ones that:
+   - Are the clinically testable facts (anatomy, key mechanisms)
    - Would cause a wrong answer if forgotten
    - Distinguish this condition from look-alikes
+6. What is the EDUCATIONAL OBJECTIVE? What specific fact separates the correct answer from the most tempting wrong alternative? This is the DISTINGUISHING STEP.
+7. What are the WRONG ALTERNATIVES? At which node in the mechanism do students diverge to pick the wrong answer? That divergence node is the strongest cloze candidate.
 
 ### Phase 2: Generate the card
 Based on your analysis, produce:
-- A plain-text title line describing the subject (NO cloze in the title, and it must NOT give away any clozed answer)
-- A mermaid flowchart with 5-7 nodes showing the CAUSAL MECHANISM
-- Use branching where the biology actually branches
-- Cloze exactly 2-3 mechanism nodes with {{c2::...}} and {{c3::...}}
-- Every arrow MUST have a specific mechanistic label (not "leads to" or "causes" — use "inhibits", "activates", "phosphorylates", "blocks", etc.)
+- A bold centered title div (NO cloze in the title, must NOT reveal any clozed answer)
+- An HTML div-based diagram with 5-7 boxes showing the CAUSAL MECHANISM
+- Use the branching connector pattern where the biology actually branches
+- Cloze exactly 2-3 mechanism boxes with {{c1::...}}, {{c2::...}}
+- Every connection MUST have a step pill with a specific relationship label from the domain vocabulary
 
 <!-- section: Card Structure -->
-Alcohol-Related Neurological Damage Mechanism
+Example 1 — Pathophysiology linear chain with branching leaf outcomes (DKA mechanism):
 
-\`\`\`mermaid
-flowchart TD
-    A[Chronic alcohol use] -->|depletes| B[{{c1::Thiamine deficiency}}]
-    B -->|impairs pyruvate dehydrogenase| C[ATP depletion in brain]
-    C -->|damages mammillary bodies| D[Confusion]
-    C -->|damages vestibular nuclei| E[{{c2::Ataxia + Nystagmus}}]
-    B -->|if untreated| F[Korsakoff syndrome]
-\`\`\`
+Phase 1 thinking (NOT in output): DKA vs HHS — the distinguishing step is ketone production via lipolysis activation. In HHS, insulin is low but present enough to suppress lipolysis. If a student forgets that hormone-sensitive lipase activation is the key divergence, they pick HHS. Cloze the enzyme (c1) and one branch outcome (c2).
+
+front: "<div style=\\"text-align:center\\"><div style=\\"font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2\\">DKA Mechanism</div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Insulin deficiency</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">activates</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c1::Hormone-sensitive lipase::enzyme}}</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">releases</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Free fatty acid oxidation</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">produces</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Ketone body accumulation</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-flex\\"><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">presents as</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Kussmaul breathing</div></div></div><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">depletes</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c2::Bicarbonate buffer::buffer}}</div></div></div></div></div>"
+back: "In DKA, complete insulin deficiency activates hormone-sensitive lipase, releasing free fatty acids for ketone production. Ketone accumulation depletes bicarbonate, causing anion gap metabolic acidosis with Kussmaul breathing."
+
+Example 2 — Pharmacology branching (ACE inhibitor mechanism):
+
+Phase 1 thinking (NOT in output): ACE inhibitor vs ARB — the distinguishing step is bradykinin accumulation. ARBs block AT1 receptors downstream, so they don't affect bradykinin. If a student forgets that ACE also degrades bradykinin, they can't explain the dry cough side effect. Cloze the enzyme target (c1) and the downstream hormone (c2).
+
+front: "<div style=\\"text-align:center\\"><div style=\\"font-size:14px;font-weight:bold;margin-bottom:10px;color:#e2e2e2\\">ACE Inhibitor Mechanism</div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">ACE inhibitor (e.g., lisinopril)</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">blocks</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c1::Angiotensin-converting enzyme::target}}</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">depletes</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Angiotensin II</div><div><div style=\\"width:2px;height:15px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"display:inline-flex\\"><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">decreases</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">{{c2::Aldosterone secretion::hormone}}</div></div></div><div style=\\"text-align:center\\"><div style=\\"height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\\"></div><div style=\\"padding:0 16px\\"><div style=\\"display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111\\">accumulates</div><div><div style=\\"width:2px;height:12px;background:#3a3a3a;margin:0 auto\\"></div></div><div style=\\"border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\\">Bradykinin</div></div></div></div></div>"
+back: "ACE inhibitors block angiotensin-converting enzyme, preventing Ang I→Ang II conversion (lowering aldosterone) and preventing bradykinin degradation (causing the dry cough side effect unique to ACEi vs ARBs)."
 
 <!-- section: Rules -->
-1. Output ONLY a clozed title line + one \`\`\`mermaid code block. Nothing else after. No explanation, no commentary.
-2. 5–7 nodes. Branch where biology branches — do NOT force a linear chain.
-3. Cloze exactly 2–3 FLOWCHART NODES only (c1, c2, optionally c3). NEVER put a cloze in the title line. The title must be a plain subject label that does NOT reveal any clozed answer.
-4. Arrow labels MUST be specific mechanisms: "inhibits", "activates", "depletes", "phosphorylates", "blocks reuptake". NEVER use "leads to", "causes", "then".
-5. Node text: 1–5 words. Each connection on its own line, 4-space indent.
-6. Use \`-->\` arrows only. Never unicode arrows.
-7. Do NOT add Key point, Pitfall, or any text after the diagram.
-8. Wrap mermaid in \`\`\`mermaid ... \`\`\` code block.
-9. ALWAYS expand abbreviations on first use in each node: write "Distal Convoluted Tubule (DCT)" not just "DCT". After first use, the abbreviation alone is fine.
-10. Every node in the flowchart MUST be connected by at least one edge. No floating/disconnected nodes.
-11. Use sequential single-letter node IDs: A, B, C, D, E, F, G. Always start with A as the trigger node.
-12. Always use \`flowchart TD\` (top-down direction). Never use LR, BT, or RL.
-13. The FIRST node (A) is always the trigger/cause. The LAST nodes are always the clinical outcomes. Middle nodes are the mechanism.
-14. When branching, connect multiple edges FROM the same source node — e.g. C -->|label| D and C -->|label| E on separate lines.`,
+1. Output ONLY valid JSON with "front" and "back" fields. No explanation, no commentary.
+2. front: bold centered title div + HTML div-based diagram. ALL styles must be inline \`style=""\` attributes. Never use \`<style>\` blocks. NEVER use \`<table>\` elements.
+3. HARD LIMIT: The diagram MUST contain 5-7 boxes. Focus on clinically relevant relationships over biochemical detail. Max 3 siblings from any single parent box.
+4. Box styling: \`border:2px solid #3a3a3a;padding:8px 16px;display:inline-block;background:#1a1a1a;color:#e2e2e2;border-radius:4px\`.
+5. Vertical connector (stem): \`<div><div style="width:2px;height:15px;background:#3a3a3a;margin:0 auto"></div></div>\`.
+6. Step pill (relationship label): \`<div style="display:inline-block;padding:2px 10px;font-size:10px;color:#777;font-style:italic;border:1px solid #2a2a2a;border-radius:8px;background:#111">label</div>\`. Between every pair of connected boxes there MUST be: stem &#8594; step pill &#8594; stem.
+7. Branching: use \`display:inline-flex\` wrapper. Left child corner: \`height:15px;border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;margin-left:50%\`. Right child corner: \`height:15px;border-top:2px solid #3a3a3a;border-right:2px solid #3a3a3a;margin-right:50%\`. Each child content inside \`<div style="padding:0 16px">\`.
+8. Cloze the DISTINGUISHING STEP identified in Phase 1 analysis. If forgetting this step would cause a student to pick the most tempting wrong alternative, it must be clozed. NEVER cloze the LAST box of any chain (the leaf outcome) — students already see the clinical presentation in the question stem. NEVER cloze the FIRST box (trigger) unless the trigger name itself is what students confuse. Cloze the KEY MECHANISM STEP in the middle of the chain.
+9. Use category hints for clozed terms (e.g. \`{{c1::Thiamine::vitamin}}\` in Anki cloze format). NEVER use wrong-alternative text as a hint.
+10. Place cloze ONLY inside box \`<div>\` text content, never in HTML attribute values.
+11. Generate compact HTML — minimize unnecessary whitespace and newlines. AnkiDroid converts newlines to \`<br>\` on edit, which corrupts structure.
+12. back: plain text 1-2 sentence summary. No cloze syntax in back.
+13. ALWAYS expand abbreviations on first use.
+14. Arrow labels MUST come from the domain vocabulary listed in the System Prompt. ABSOLUTELY FORBIDDEN — DO NOT use these words as arrow labels: "leads to", "causes", "then", "results in", "giving rise to". If stuck, use "activates", "depletes", "disrupts", "impairs", "presents as", or another specific verb from the domain vocabulary.`,
   },
 ];

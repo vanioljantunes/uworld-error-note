@@ -38,8 +38,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  if (user && (pathname === '/' || (pathname.startsWith('/auth') && pathname !== '/auth/reset-password'))) {
-    return NextResponse.redirect(new URL('/integrations', request.url))
+  if (user && pathname.startsWith('/auth') && pathname !== '/auth/reset-password') {
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return supabaseResponse

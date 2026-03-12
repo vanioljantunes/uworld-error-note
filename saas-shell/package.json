@@ -8,11 +8,21 @@
     "start": "next start"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.98.0",
+    "@types/turndown": "^5.0.6",
+    "entities": "^7.0.1",
+    "html-react-parser": "^5.2.17",
+    "immer": "^11.1.4",
+    "mermaid": "^11.13.0",
     "next": "^15.5.12",
+    "openai": "^6.27.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "tesseract.js": "^7.0.0",
+    "turndown": "^7.2.2",
+    "use-immer": "^0.11.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -20,6 +30,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }

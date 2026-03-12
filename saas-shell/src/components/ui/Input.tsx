@@ -13,7 +13,8 @@ export function Input({ label, error, id, className = '', ...props }: InputProps
       </label>
       <input
         id={id}
-        className={`rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3.5 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-all ${className}`}
+        className={`rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] text-sm text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-all ${className}`}
+        style={{ padding: '12px 16px' }}
         {...props}
       />
       {error && <p className="text-xs text-red-400 mt-0.5">{error}</p>}

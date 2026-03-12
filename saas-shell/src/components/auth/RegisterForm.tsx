@@ -61,10 +61,10 @@ export function RegisterForm() {
 
       <div className="relative my-1">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-[var(--border)]" />
+          <div className="w-full" style={{ borderTop: '1px solid #2a2a2a' }} />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-[var(--bg-surface)] px-3 text-[var(--text-subtle)]">or</span>
+          <span style={{ background: '#111111', padding: '0 12px', color: '#444444' }}>or</span>
         </div>
       </div>
 

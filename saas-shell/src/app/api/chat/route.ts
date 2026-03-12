@@ -5,7 +5,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import OpenAI from "openai";
 
-const VAULT_PATH = "C:\\Users\\vanio\\OneDrive\\Área de Trabalho\\teste_crew\\teste";
+const VAULT_PATH = process.env.VAULT_PATH || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 interface MCPToolResult {

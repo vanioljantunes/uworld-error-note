@@ -5,7 +5,7 @@ milestone_name: Editor Polish
 status: milestone-complete
 stopped_at: v1.1 milestone shipped — all 9 phases, 23 plans complete; deployed to gapstrike.vercel.app 2026-03-10
 last_updated: "2026-03-11T00:00:00.000Z"
-last_activity: 2026-03-11 - Completed quick task 1: Protect all routes behind auth, show user name + logout in navbar
+last_activity: 2026-03-11 - Completed quick task 2: Chrome extension for UWorld page capture + text-only extract API prompt
 progress:
   total_phases: 9
   completed_phases: 9
@@ -57,6 +57,7 @@ Recent decisions affecting current work:
 - [Phase 09-02]: Production smoke-test approved — gapstrike.vercel.app confirmed live with two-mode Preview/Edit UI, 5-7 node flowcharts, table editing; v1.1 milestone shipped 2026-03-10
 - [Phase 09-02]: Production smoke-test approved: gapstrike.vercel.app confirmed live with two-mode Preview/Edit UI, 5-7 node flowcharts, table editing; v1.1 milestone shipped 2026-03-10
 - [Quick-1]: Root route protected — unauthenticated redirects to /auth/login, authenticated redirects to /dashboard; navbar shows full_name with email fallback; logout goes to /auth/login directly
+- [Quick-2]: Text-only extract API path branches on absence of quadrants, uses dedicated prompt with no screenshot/OCR references; CORS headers on all responses enable extension access; Chrome extension uses content script DOM extraction with structured selector fallback to body.innerText
 
 ### Pending Todos
 
@@ -72,9 +73,10 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Protect all routes behind auth, show user name + logout in navbar | 2026-03-11 | 1cf301c | [1-protect-all-routes-behind-auth-show-user](./quick/1-protect-all-routes-behind-auth-show-user/) |
+| 2 | Chrome extension for UWorld page capture + text-only extract API prompt | 2026-03-11 | efeeffe | [2-add-browser-extension-to-capture-page-co](./quick/2-add-browser-extension-to-capture-page-co/) |
 
 ## Session Continuity
 
 Last session: 2026-03-11T00:00:00.000Z
-Stopped at: Quick task 1 complete — root route protected, user name in navbar, logout redirect fixed
+Stopped at: Quick task 2 complete — Chrome extension created, text-only extract API prompt + CORS added
 Resume file: None

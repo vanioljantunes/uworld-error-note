@@ -23,7 +23,7 @@ export async function saveIntegrations(formData: FormData) {
 
   if (error) return { error: error.message }
 
-  revalidatePath('/dashboard')
+  revalidatePath('/app/integrations')
   return { error: null }
 }
 
@@ -127,7 +127,7 @@ export async function saveLLMSettings(formData: FormData) {
 
     if (error) return { error: error.message }
 
-    revalidatePath('/dashboard')
+    revalidatePath('/app/integrations')
     return { error: null }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to save LLM settings.' }

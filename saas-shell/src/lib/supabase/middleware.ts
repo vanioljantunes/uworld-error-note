@@ -39,7 +39,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && (pathname === '/' || (pathname.startsWith('/auth') && pathname !== '/auth/reset-password'))) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL('/app/integrations', request.url))
   }
 
   // Pass user info to the proxied app via cookie

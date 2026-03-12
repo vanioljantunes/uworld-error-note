@@ -2,34 +2,43 @@ import Link from 'next/link'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#0c0c0c] relative overflow-hidden flex items-center justify-center px-4 py-12">
-      {/* Subtle radial glow behind the card */}
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-violet-600/[0.04] blur-[120px]" />
+    <div className="min-h-screen bg-[var(--bg)] relative overflow-hidden flex items-center justify-center px-6 py-16">
+      {/* Dot grid background from design system */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage: 'radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }}
+      />
 
-      <div className="relative w-full max-w-[400px] flex flex-col items-center">
+      {/* Very subtle top glow — barely visible */}
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[var(--accent-glow)] blur-[160px] opacity-30" />
+
+      <div className="relative w-full max-w-[420px] flex flex-col items-center">
         {/* Logo */}
         <Link
           href="/"
-          className="group flex items-center gap-2.5 mb-10 hover:opacity-90 transition-opacity"
+          className="group flex items-center gap-3 mb-12 hover:opacity-90 transition-opacity"
         >
-          <div className="h-9 w-9 rounded-lg bg-violet-600 flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <div className="h-10 w-10 rounded-xl bg-[var(--accent)] flex items-center justify-center shadow-lg shadow-[var(--accent-glow)]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
           </div>
-          <span className="text-xl font-bold text-[#e2e2e2] tracking-tight">
+          <span className="text-2xl font-bold text-[var(--text)] tracking-tight">
             GapStrike
           </span>
         </Link>
 
         {/* Card */}
-        <div className="w-full bg-[#111111] rounded-2xl border border-[#2a2a2a] p-8 sm:p-10 shadow-2xl shadow-black/40">
+        <div className="w-full bg-[var(--bg-surface)] rounded-2xl border border-[var(--border)] px-10 py-10 sm:px-12 sm:py-12">
           {children}
         </div>
 
         {/* Footer */}
-        <p className="mt-8 text-xs text-neutral-600 text-center">
-          &copy; {new Date().getFullYear()} GapStrike. Master your mistakes.
+        <p className="mt-10 text-xs text-[var(--text-subtle)] text-center tracking-wide">
+          &copy; {new Date().getFullYear()} GapStrike
         </p>
       </div>
     </div>

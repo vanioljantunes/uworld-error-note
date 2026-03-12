@@ -61,10 +61,10 @@ export function RegisterForm() {
 
       <div className="relative my-1">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-[#2a2a2a]" />
+          <div className="w-full border-t border-[var(--border)]" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-[#111111] px-3 text-neutral-600">or</span>
+          <span className="bg-[var(--bg-surface)] px-3 text-[var(--text-subtle)]">or</span>
         </div>
       </div>
 

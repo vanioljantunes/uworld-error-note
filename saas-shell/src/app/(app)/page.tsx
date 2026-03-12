@@ -414,6 +414,21 @@ export default function Home() {
     init();
   }, []);
 
+  // ── Listen for browser extension imports ─────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as SavedExtraction | undefined;
+      if (!detail) return;
+      setSavedExtractions((prev) => {
+        const updated = [detail, ...prev];
+        saveUserData("savedExtractions", updated);
+        return updated;
+      });
+    };
+    window.addEventListener("gapstrike-import", handler);
+    return () => window.removeEventListener("gapstrike-import", handler);
+  }, []);
+
   // ── Progressive loading effect ─────────────────────────────────────────
   useEffect(() => {
     // Clear any existing interval first (prevents duplicates)

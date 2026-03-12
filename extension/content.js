@@ -1,125 +1,147 @@
-// GapStrike content script — extracts text from UWorld question pages
+// GapStrike content script — extracts structured question data from the page DOM
 
 chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
-  if (message.action !== "extract") {
-    return false;
+  if (message.action === "extract") {
+    try {
+      const extracted = extractPageContent();
+      sendResponse({ success: true, ...extracted });
+    } catch (err) {
+      sendResponse({ success: false, error: err.message || "Extraction failed" });
+    }
+    return true;
   }
 
-  try {
-    const extracted = extractPageContent();
-    sendResponse({ success: true, text: extracted });
-  } catch (err) {
-    sendResponse({ success: false, error: err.message || "Extraction failed" });
+  if (message.action === "import-extraction") {
+    try {
+      importExtraction(message.extraction);
+      sendResponse({ success: true });
+    } catch (err) {
+      sendResponse({ success: false, error: err.message });
+    }
+    return true;
   }
 
-  // Return true to keep message channel open for async sendResponse
-  return true;
+  return false;
 });
 
+// Import extraction into the GapStrike app — saves to Supabase + localStorage + reloads
+function importExtraction(savedExtraction) {
+  // Read existing extractions from localStorage
+  let existing = [];
+  try {
+    const raw = localStorage.getItem("savedExtractions");
+    if (raw) existing = JSON.parse(raw);
+  } catch { /* ignore */ }
+
+  // Prepend the new extraction
+  const updated = [savedExtraction, ...existing];
+  localStorage.setItem("savedExtractions", JSON.stringify(updated));
+
+  // Save to Supabase via the app's API (content script shares origin cookies)
+  fetch("/api/user-data", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "savedExtractions", value: updated }),
+  }).finally(() => {
+    // Reload so the app picks up the new extraction
+    window.location.reload();
+  });
+}
+
 function extractPageContent() {
-  let questionText = "";
-  let choicesText = "";
-  let explanationText = "";
-  let objectiveText = "";
-
-  // Try to find structured sections on the UWorld page
-  const allText = document.body.innerText;
-
-  // Strategy: try known UWorld DOM patterns first, fall back to full body text
-
-  // 1. Look for question stem — UWorld typically wraps question in a specific container
-  const questionSelectors = [
-    "[data-testid='question-stem']",
-    ".question-text",
-    ".questionText",
-    ".stem",
-    "[class*='question'][class*='stem']",
-    "[class*='questionStem']",
-  ];
-
-  for (const sel of questionSelectors) {
-    const el = document.querySelector(sel);
-    if (el && el.innerText.trim().length > 20) {
-      questionText = el.innerText.trim();
-      break;
-    }
+  // Try structured extraction first (medicospira/uworld-style pages)
+  const structured = tryStructuredExtraction();
+  if (structured) {
+    return { mode: "structured", data: structured };
   }
 
-  // 2. Look for answer choices
-  const choiceSelectors = [
-    "[data-testid='answer-choice']",
-    ".answer-choice",
-    ".answerChoice",
-    "[class*='answerChoice']",
-    "[class*='answer-choice']",
-    "[class*='choice']",
-  ];
+  // Fallback: send raw text for GPT extraction
+  return { mode: "text", text: document.body.innerText };
+}
 
-  const choiceElements = [];
-  for (const sel of choiceSelectors) {
-    const els = document.querySelectorAll(sel);
-    if (els.length >= 2) {
-      els.forEach((el) => choiceElements.push(el.innerText.trim()));
-      break;
-    }
+function tryStructuredExtraction() {
+  // Question ID: from #exam_qusid or nav text "Question Id: XXXX"
+  let questionId = null;
+  const qidEl = document.getElementById("exam_qusid");
+  if (qidEl) {
+    const match = qidEl.innerText.match(/(\d+)/);
+    if (match) questionId = match[1];
+  }
+  if (!questionId) {
+    const match = document.body.innerText.match(/Question Id:\s*(\d+)/);
+    if (match) questionId = match[1];
   }
 
-  if (choiceElements.length > 0) {
-    choicesText = choiceElements.join("\n");
-  }
+  // Question text: #qus_txt
+  const qusEl = document.getElementById("qus_txt");
+  const question = qusEl ? qusEl.innerText.trim() : null;
 
-  // 3. Look for explanation
-  const explanationSelectors = [
-    "[data-testid='explanation']",
-    ".explanation",
-    "[class*='explanation']",
-    "[class*='Explanation']",
-  ];
+  // If we can't find basic elements, this page doesn't match
+  if (!question) return null;
 
-  for (const sel of explanationSelectors) {
-    const el = document.querySelector(sel);
-    if (el && el.innerText.trim().length > 20) {
-      explanationText = el.innerText.trim();
-      break;
-    }
-  }
+  // Answer choices: #exam_choice radio buttons
+  const examChoice = document.getElementById("exam_choice");
+  let chosenAlternative = null;
+  let correctAlternative = null;
+  const choices = [];
 
-  // 4. Look for Educational Objective — search by text content
-  const allElements = document.querySelectorAll("*");
-  for (const el of allElements) {
-    const text = el.innerText || "";
-    if (
-      text.includes("Educational Objective") &&
-      el.children.length < 5 &&
-      text.length < 2000
-    ) {
-      const idx = text.indexOf("Educational Objective");
-      if (idx !== -1) {
-        objectiveText = text.slice(idx).trim();
-        break;
+  if (examChoice) {
+    const radioGroups = examChoice.querySelectorAll(".radio");
+    radioGroups.forEach((group) => {
+      const input = group.querySelector("input[type=radio]");
+      if (!input) return;
+
+      const letter = input.value; // A, B, C, D, E, F
+      const labelEl = group.querySelector(".radiomargin");
+      const text = labelEl ? labelEl.innerText.trim() : "";
+      const fullChoice = `${letter}. ${text}`;
+
+      choices.push(fullChoice);
+
+      // Check if this is the correct answer (has .true_answer class)
+      if (group.querySelector(".true_answer")) {
+        correctAlternative = fullChoice;
       }
+
+      // Check if this is the user's wrong selection (has .false_answer class)
+      if (group.querySelector(".false_answer")) {
+        chosenAlternative = fullChoice;
+      }
+
+      // If checked and no false_answer marker, user got it right
+      if (input.checked && !group.querySelector(".false_answer")) {
+        chosenAlternative = fullChoice;
+      }
+    });
+  }
+
+  // If user chose correctly, wrong_alternative should be null
+  const wasCorrect = chosenAlternative === correctAlternative;
+
+  // Explanation: #explain_correct
+  const expEl = document.getElementById("explain_correct");
+  let fullExplanation = null;
+  let educationalObjective = null;
+
+  if (expEl) {
+    const expText = expEl.innerText.trim();
+
+    // Split at "Educational objective:" to separate explanation from objective
+    const eduMatch = expText.match(/Educational objective:\s*([\s\S]+)/i);
+    if (eduMatch) {
+      educationalObjective = eduMatch[1].trim();
+      fullExplanation = expText.substring(0, expText.indexOf("Educational objective:")).trim();
+    } else {
+      fullExplanation = expText;
     }
   }
 
-  // If we found structured sections, build a labeled text
-  const hasStructured =
-    questionText || choicesText || explanationText || objectiveText;
-
-  if (hasStructured) {
-    const parts = [];
-    if (questionText) parts.push(`QUESTION:\n${questionText}`);
-    if (choicesText) parts.push(`ANSWER CHOICES:\n${choicesText}`);
-    if (explanationText) parts.push(`EXPLANATION:\n${explanationText}`);
-    if (objectiveText) parts.push(`EDUCATIONAL OBJECTIVE:\n${objectiveText}`);
-
-    // If we got some sections but not all, append full body text as fallback
-    if (parts.length < 3) {
-      parts.push(`FULL PAGE TEXT (fallback):\n${allText}`);
-    }
-
-    return parts.join("\n\n");
-  }
-
-  // Fallback: return full page text
-  return allText;
+  return {
+    question_id: questionId,
+    question: question,
+    choosed_alternative: chosenAlternative,
+    wrong_alternative: wasCorrect ? null : correctAlternative,
+    full_explanation: fullExplanation,
+    educational_objective: educationalObjective,
+  };
 }

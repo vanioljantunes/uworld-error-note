@@ -38,15 +38,7 @@ extractBtn.addEventListener("click", async () => {
       return;
     }
 
-    // Check if we're on a UWorld page
-    const url = tab.url || "";
-    if (!url.includes("uworld.com")) {
-      setStatus("error", "Navigate to a UWorld question page first");
-      extractBtn.disabled = false;
-      return;
-    }
-
-    // Send message to content script to extract page text
+    // Send message to content script to extract page content
     let contentResponse;
     try {
       contentResponse = await new Promise((resolve, reject) => {
@@ -59,10 +51,7 @@ extractBtn.addEventListener("click", async () => {
         });
       });
     } catch (err) {
-      setStatus(
-        "error",
-        "Could not reach content script. Try reloading the UWorld page."
-      );
+      setStatus("error", "Content script not loaded. Reload the page and try again.");
       extractBtn.disabled = false;
       return;
     }
@@ -74,48 +63,56 @@ extractBtn.addEventListener("click", async () => {
       return;
     }
 
-    const { text } = contentResponse;
+    let result;
 
-    if (!text || text.trim().length === 0) {
-      setStatus("error", "No text found on page");
-      extractBtn.disabled = false;
-      return;
-    }
-
-    setStatus("working", "Sending to API...");
-
-    // POST text to the extract API
-    let apiResponse;
-    try {
-      const res = await fetch(`${serverUrl}/api/extract`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${res.status}`);
+    if (contentResponse.mode === "structured" && contentResponse.data) {
+      // Structured extraction — data is already parsed from DOM
+      result = contentResponse.data;
+    } else if (contentResponse.mode === "text" && contentResponse.text) {
+      // Text fallback — send to API for GPT extraction
+      const text = contentResponse.text;
+      if (!text || text.trim().length === 0) {
+        setStatus("error", "No text found on page");
+        extractBtn.disabled = false;
+        return;
       }
 
-      apiResponse = await res.json();
-    } catch (err) {
-      setStatus("error", `API error: ${err.message}`);
+      setStatus("working", "Sending to API...");
+
+      try {
+        const res = await fetch(`${serverUrl}/api/extract`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+
+        const apiResponse = await res.json();
+        result = Array.isArray(apiResponse.result)
+          ? apiResponse.result[0]
+          : apiResponse.result;
+      } catch (err) {
+        setStatus("error", `API error: ${err.message}`);
+        extractBtn.disabled = false;
+        return;
+      }
+    } else {
+      setStatus("error", "No content extracted");
       extractBtn.disabled = false;
       return;
     }
-
-    // Show results
-    const result = Array.isArray(apiResponse.result)
-      ? apiResponse.result[0]
-      : apiResponse.result;
 
     if (!result) {
-      setStatus("error", "Empty response from API");
+      setStatus("error", "Empty result");
       extractBtn.disabled = false;
       return;
     }
 
+    // Show preview in popup
     const questionIdDisplay = result.question_id
       ? `Question #${result.question_id}`
       : "Question ID: not found";
@@ -125,13 +122,69 @@ extractBtn.addEventListener("click", async () => {
       : "Question text not found";
 
     showResult(questionIdDisplay, questionPreview);
-    setStatus("success", "Success");
+
+    // Send extraction to GapStrike app tab
+    setStatus("working", "Saving to GapStrike...");
+    const saved = await saveToGapStrike(serverUrl, result);
+
+    if (saved) {
+      setStatus("success", "Saved to GapStrike");
+    } else {
+      setStatus("success", "Extracted (GapStrike tab not found — open the app to sync)");
+      // Store in chrome.storage as fallback
+      chrome.storage.local.set({ pendingExtraction: result });
+    }
+
   } catch (err) {
     setStatus("error", `Unexpected error: ${err.message}`);
   } finally {
     extractBtn.disabled = false;
   }
 });
+
+// Find the GapStrike app tab and inject the extraction into its localStorage
+async function saveToGapStrike(serverUrl, extraction) {
+  // Build the SavedExtraction object matching the app's format
+  const savedExtraction = {
+    id: Date.now().toString(),
+    questionId: extraction.question_id || null,
+    title: extraction.educational_objective ||
+           (extraction.question ? extraction.question.slice(0, 50) + "…" : "New Extraction"),
+    extraction: extraction,
+    savedAt: Date.now(),
+  };
+
+  // Find GapStrike tabs — check both localhost and deployed URL
+  const allTabs = await chrome.tabs.query({});
+  const gapStrikeTab = allTabs.find(t => {
+    const url = t.url || "";
+    return url.includes("gapstrike") || url.includes(serverUrl.replace(/^https?:\/\//, ""));
+  });
+
+  if (!gapStrikeTab || !gapStrikeTab.id) {
+    return false;
+  }
+
+  // Send the extraction to the GapStrike tab's content script
+  try {
+    await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(
+        gapStrikeTab.id,
+        { action: "import-extraction", extraction: savedExtraction },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        }
+      );
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function setStatus(state, message) {
   statusDot.className = `status-dot ${state}`;

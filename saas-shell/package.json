@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -29,7 +30,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "jsdom": "^28.1.0",
     "tailwindcss": "^4",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "^4.0.18"
   }
 }
